@@ -6,6 +6,8 @@ from edit_window import open_edit_window
 from remove_window import open_remove_window
 
 # ====== DB pripojenie ======
+
+
 try:
     conn = psycopg2.connect(
         host="localhost", 
@@ -18,6 +20,22 @@ try:
 except psycopg2.Error as err:
     messagebox.showerror("Database Error", f"Error connecting to PostgreSQL: {err}")
     exit()
+#-------------- robi sa na online databaze ----------------------------------------------
+#try:
+#    conn = psycopg2.connect(
+#        host="ep-holy-bar-a2bpx2sc-pooler.eu-central-1.aws.neon.tech",
+#        port=5432,
+#        user="neondb_owner",
+#        password="npg_aYC4yHnQIjV1",  # replace this if you've updated your password
+#        dbname="neondb",
+#        sslmode="require"
+#    )
+#    cursor = conn.cursor()
+
+#except psycopg2.Error as err:
+#    messagebox.showerror("Database Error", f"Error connecting to PostgreSQL: {err}")
+#    exit()
+#----------------------------------------------------------------------------------------------------
 
 # ====== Tabuľky ======
 cctv_tabs = ["nvr", "monitory"]
