@@ -1,4 +1,6 @@
 # edit_window.py
+# ahoj toto som spravil na git hube
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 
