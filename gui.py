@@ -145,6 +145,90 @@ for col in tree_columns:
     tree.heading(col, text=col, command=sortby_main)
     tree.column(col, anchor="center")
 
+# ====== Spodná tabuľka / Košík ======
+basket_columns = ("id", "nazov", "nakup_material", "koeficient", "pocet", "cena")
+basket_frame = tk.Frame(content_frame)
+basket_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+tk.Label(basket_frame, text="Košík - vybraté položky:").pack()
+
+basket_scroll_x = ttk.Scrollbar(basket_frame, orient="horizontal")
+basket_scroll_x.pack(side=tk.BOTTOM, fill=tk.X)
+
+basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="headings", xscrollcommand=basket_scroll_x.set)
+basket_scroll_x.config(command=basket_tree.xview)
+basket_tree.pack(fill=tk.BOTH, expand=True)
+
+for col in basket_columns:
+    basket_tree.heading(col, text=col)
+    basket_tree.column(col, anchor="center")
+
+def add_to_basket(event):
+    item_id = tree.focus()
+    item = tree.item(item_id)["values"]
+    if item and "bold" not in tree.item(item_id, "tags"):
+        try:
+            nakup = float(item[7])
+            koef = float(item[6])
+            pocet = float(item[3])
+            cena = round(nakup * koef * pocet, 2)
+            full_item = (item[0], item[1], nakup, koef, pocet, cena)
+            basket_tree.insert("", tk.END, values=full_item)
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Chyba pri pridaní do košíka:\n{e}")
+
+def edit_cell(event):
+    region = basket_tree.identify("region", event.x, event.y)
+    if region != "cell": return
+    row_id = basket_tree.identify_row(event.y)
+    col_id = basket_tree.identify_column(event.x)
+    col_index = int(col_id.replace("#", "")) - 1
+    col_name = basket_columns[col_index]
+    if col_name not in ("koeficient", "pocet"): return
+
+    x, y, width, height = basket_tree.bbox(row_id, col_id)
+    value = basket_tree.set(row_id, col_name)
+
+    frame = tk.Frame(basket_tree)
+    frame.place(x=x, y=y, width=width, height=height)
+
+    entry = tk.Spinbox(frame, from_=0, to=999999, increment=1 if col_name == "pocet" else 0.1)
+    entry.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    entry.delete(0, tk.END)
+    entry.insert(0, value)
+    entry.focus()
+
+    def reset_to_default():
+        entry.delete(0, tk.END)
+        entry.insert(0, "1" if col_name == "pocet" else "1.0")
+        save_edit()
+
+    btn = tk.Button(frame, text="D", width=2, command=reset_to_default)
+    btn.pack(side=tk.RIGHT)
+
+    def save_edit(event=None):
+        try:
+            new_val = float(entry.get())
+            basket_tree.set(row_id, col_name, new_val)
+            update_price(row_id)
+        except:
+            pass
+        finally:
+            frame.destroy()
+
+    entry.bind("<Return>", save_edit)
+    entry.bind("<FocusOut>", lambda e: save_edit())
+
+def update_price(row_id):
+    try:
+        nakup = float(basket_tree.set(row_id, "nakup_material"))
+        koef = float(basket_tree.set(row_id, "koeficient"))
+        pocet = float(basket_tree.set(row_id, "pocet"))
+        cena = round(nakup * koef * pocet, 2)
+        basket_tree.set(row_id, "cena", cena)
+    except:
+        pass
+
 # ====== Load funkcia ======
 def load_table(*args):
     tree.delete(*tree.get_children())
@@ -173,9 +257,10 @@ def load_table(*args):
 
 # ====== Bindy & štart ======
 search_var_main.trace_add("write", load_table)
+tree.bind("<Double-1>", add_to_basket)
+basket_tree.bind("<Double-1>", edit_cell)
+
 update_table_combo()
 load_table()
-
-# ====== Koniec ======
 root.mainloop()
 conn.close()
