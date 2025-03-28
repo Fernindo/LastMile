@@ -1,43 +1,26 @@
-import subprocess
-import datetime
 import os
 
-def backup_database():
-    # ✅ Your Neon connection details
-    host = "ep-holy-bar-a2bpx2sc-pooler.eu-central-1.aws.neon.tech"
-    port = "5432"
-    user = "neondb_owner"
-    password = "npg_aYC4yHnQIjV1"
-    dbname = "neondb"
+def clean_sql_file():
+    input_path = r"C:\Users\slaso\Desktop\LastMile\backup_inserts.sql"
+    output_path = r"C:\Users\slaso\Desktop\LastMile\backup_tables_only.sql"
 
-    # ✅ Output folder
-    backup_folder = os.path.join(os.path.dirname(__file__), "databaza")
-    os.makedirs(backup_folder, exist_ok=True)
+    skip_keywords = [
+        "DROP DATABASE", "CREATE DATABASE", "\\connect",
+        "SET statement_timeout", "SET lock_timeout", "SET idle_in_transaction_session_timeout",
+        "SET transaction_timeout", "SET client_encoding", "SET standard_conforming_strings",
+        "SELECT pg_catalog.set_config", "SET check_function_bodies", "SET xmloption",
+        "SET client_min_messages", "SET row_security"
+    ]
 
-    date_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    filename = os.path.join(backup_folder, f"backup_{date_str}.txt")
+    with open(input_path, "r", encoding="utf-8", errors="ignore") as f:
+        lines = f.readlines()
 
-    # ✅ Set password in environment
-    env = os.environ.copy()
-    env["PGPASSWORD"] = password
+    cleaned_lines = [line for line in lines if not any(keyword in line for keyword in skip_keywords)]
 
-    try:
-        subprocess.run([
-            "pg_dump",
-            "-h", host,
-            "-p", port,
-            "-U", user,
-            "-d", dbname,
-            "--no-owner",
-            "--no-privileges",
-            "--encoding", "UTF8",
-            "--clean",
-            "--create",
-            "--format", "plain",
-            "--file", filename,
-            "--sslmode=require"
-        ], env=env, check=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.writelines(cleaned_lines)
 
-        print(f"✅ Backup completed successfully and saved as:\n{filename}")
-    except subprocess.CalledProcessError as e:
-        print("❌ Backup failed:", e)
+    print(f"✅ Cleaned file saved to:\n{output_path}")
+
+if __name__ == "__main__":
+    clean_sql_file()
