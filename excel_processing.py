@@ -34,7 +34,7 @@ def update_excel(selected_items):
         sheet.Cells(row, 6).Formula = f"=N{row}*M{row}"  # Column F = N row * M row
         sheet.Cells(row, 7).Formula = f"=F{row}*E{row}"  # Column G = F row * E row
         sheet.Cells(row, 8).Formula = f"=E{row}"        # Column H = Column E (Quantity)
-        sheet.Cells(row, 9).Value = ""               # Column I - Placeholder
+        sheet.Cells(row, 9).Value = "Nic"               # Column I - Placeholder
         sheet.Cells(row,10).Formula = f"=I{row}*H{row}" # Column J = I * H
         sheet.Cells(row,11).Formula = f"=G{row}+J{row}" # Column K = G + J 
 
