@@ -6,7 +6,6 @@ import json
 
 project_files = []
 
-
 def launch_gui(project_name):
     subprocess.Popen(["python", "gui.py", project_name])
 
@@ -26,8 +25,7 @@ def open_project_from_list(event=None):
     selection = project_listbox.curselection()
     if selection:
         index = selection[0]
-        filename = project_listbox.get(index)
-        name = os.path.splitext(filename)[0]
+        name = project_listbox.get(index)  # Already without .json
         launch_gui(name)
         root.destroy()
 
@@ -36,7 +34,8 @@ def delete_project():
     selection = project_listbox.curselection()
     if selection:
         index = selection[0]
-        filename = project_listbox.get(index)
+        name = project_listbox.get(index)
+        filename = f"{name}.json"
         if messagebox.askyesno("Delete Project", f"Are you sure you want to delete '{filename}'?"):
             os.remove(filename)
             list_projects()
@@ -45,8 +44,9 @@ def refresh_project_list():
     query = search_var.get().lower()
     project_listbox.delete(0, tk.END)
     for f in sorted(project_files):
-        if query in f.lower():
-            project_listbox.insert(tk.END, f)
+        name = os.path.splitext(f)[0]  # Remove .json extension
+        if query in name.lower():
+            project_listbox.insert(tk.END, name)
 
 def list_projects():
     global project_files

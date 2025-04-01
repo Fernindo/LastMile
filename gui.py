@@ -87,6 +87,10 @@ root = tk.Tk()
 root.title(f"Project: {project_name}")
 root.state("zoomed")
 
+# Display project name prominently in the GUI
+project_label = tk.Label(root, text=f"Projekt: {project_name}", font=("Arial", 16, "bold"), pady=10)
+project_label.pack()
+
 class_name_map = {
     "ustredne": "Ústredne",
     "rozhrania": "Rozhrania",
