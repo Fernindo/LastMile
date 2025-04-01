@@ -119,9 +119,15 @@ def load_basket():
     if os.path.exists(filename) and os.path.getsize(filename) > 0:
         with open(filename, "r", encoding="utf-8") as f:
             try:
-                basket_items = json.load(f)
-                basket_items = {int(k): v for k, v in basket_items.items()}
+                raw_items = json.load(f)
+                basket_items = {}
+                for k, v in raw_items.items():
+                    try:
+                        basket_items[int(k)] = v
+                    except ValueError:
+                        print(f"⚠ Skipping invalid basket key: {k}")
             except json.JSONDecodeError:
+                print("⚠ JSON decode error - basket file is not valid.")
                 basket_items = {}
     update_basket_table()
 
