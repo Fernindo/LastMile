@@ -5,6 +5,7 @@ import sqlite3
 import socket
 import json
 import os
+import sys
 from excel_processing import update_excel
 
 # === ONLINE/OFFLINE CONNECTION SETUP ===
@@ -66,6 +67,15 @@ def sync_postgres_to_sqlite(pg_conn):
     sqlite_conn.close()
     print("✔ Synced PostgreSQL → SQLite with class_name")
 
+# === Get project name from command-line argument ===
+if len(sys.argv) < 2:
+    print("❌ No project name provided.")
+    sys.exit(1)
+project_name = sys.argv[1]
+
+def get_basket_filename():
+    return f"{project_name}.json"
+
 # === DATABASE CONNECTION ===
 conn, db_type = get_database_connection()
 cursor = conn.cursor()
@@ -74,7 +84,7 @@ if db_type == 'postgres':
 
 # === GUI SETUP ===
 root = tk.Tk()
-root.title("Database & Excel GUI")
+root.title(f"Project: {project_name}")
 root.state("zoomed")
 
 class_name_map = {
@@ -92,10 +102,28 @@ category_structure = {"EZS": list(class_name_map.keys())}
 category_vars = {}
 table_vars = {}
 
+basket_items = {}
+
+def save_basket():
+    with open(get_basket_filename(), "w", encoding="utf-8") as f:
+        json.dump(basket_items, f)
+
+def load_basket():
+    global basket_items
+    basket_items = {}
+    filename = get_basket_filename()
+    if os.path.exists(filename) and os.path.getsize(filename) > 0:
+        with open(filename, "r", encoding="utf-8") as f:
+            try:
+                basket_items = json.load(f)
+                basket_items = {int(k): v for k, v in basket_items.items()}
+            except json.JSONDecodeError:
+                basket_items = {}
+    update_basket_table()
+
 def apply_filters():
     selected_tables = [class_name_map[t] for t, var in table_vars.items() if var.get() and t in class_name_map]
     name_filter = name_entry.get().strip().lower()
-
     rows = []
     try:
         if db_type == 'postgres':
@@ -164,16 +192,6 @@ name_entry = tk.Entry(top_frame, width=30)
 name_entry.pack(side=tk.LEFT, padx=5)
 name_entry.bind("<KeyRelease>", lambda event: apply_filters())
 
-project_frame = tk.Frame(main_frame)
-project_frame.pack(side=tk.TOP, fill=tk.X, padx=10)
-
-project_name_var = tk.StringVar(value="project1")
-tk.Label(project_frame, text="Názov projektu:").pack(side=tk.LEFT)
-project_name_entry = tk.Entry(project_frame, textvariable=project_name_var, width=20)
-project_name_entry.pack(side=tk.LEFT, padx=5)
-tk.Button(project_frame, text="Načítať", command=lambda: load_basket()).pack(side=tk.LEFT, padx=2)
-tk.Button(project_frame, text="Uložiť", command=lambda: save_basket()).pack(side=tk.LEFT, padx=2)
-
 tree_frame = tk.Frame(main_frame)
 tree_frame.pack(side=tk.TOP, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
@@ -183,26 +201,19 @@ for col in tree["columns"]:
     tree.column(col, anchor="center")
 tree.pack(fill=tk.BOTH, expand=True)
 
-apply_filters()
+basket_frame = tk.Frame(main_frame)
+basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-basket_items = {}
+tk.Label(basket_frame, text="Košík - vybraté položky:", font=("Arial", 10)).pack()
 
-def get_basket_filename():
-    name = project_name_var.get().strip()
-    return f"{name}.json" if name else "basket.json"
+basket_tree = ttk.Treeview(basket_frame, columns=("id", "nazov", "nakup_material", "koeficient", "pocet"), show="headings")
+for col in basket_tree["columns"]:
+    basket_tree.heading(col, text=col.capitalize())
+    basket_tree.column(col, anchor="center")
+basket_tree.pack(fill=tk.BOTH, expand=True)
 
-def save_basket():
-    with open(get_basket_filename(), "w", encoding="utf-8") as f:
-        json.dump(basket_items, f)
-
-def load_basket():
-    global basket_items
-    filename = get_basket_filename()
-    if os.path.exists(filename):
-        with open(filename, "r", encoding="utf-8") as f:
-            basket_items = json.load(f)
-        basket_items = {int(k): v for k, v in basket_items.items()}
-        update_basket_table()
+basket_tree.bind("<Double-1>", lambda e: edit_pocet_cell(e))
+tree.bind("<Double-1>", lambda e: add_to_basket(tree.item(tree.focus())["values"]))
 
 def add_to_basket(item):
     pocet = 1
@@ -258,18 +269,6 @@ def edit_pocet_cell(event):
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
-basket_frame = tk.Frame(main_frame)
-basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-tk.Label(basket_frame, text="Košík - vybraté položky:", font=("Arial", 10)).pack()
-
-basket_tree = ttk.Treeview(basket_frame, columns=("id", "nazov", "nakup_material", "koeficient", "pocet"), show="headings")
-for col in basket_tree["columns"]:
-    basket_tree.heading(col, text=col.capitalize())
-    basket_tree.column(col, anchor="center")
-basket_tree.pack(fill=tk.BOTH, expand=True)
-basket_tree.bind("<Double-1>", edit_pocet_cell)
-
 def remove_from_basket():
     selected_items = basket_tree.selection()
     for item in selected_items:
@@ -289,8 +288,6 @@ def update_excel_from_basket():
 tk.Button(basket_frame, text="Odstrániť", command=remove_from_basket).pack(pady=3)
 tk.Button(basket_frame, text="Exportovať", command=update_excel_from_basket).pack(pady=3)
 
-tree.bind("<Double-1>", lambda event: add_to_basket(tree.item(tree.focus())["values"]))
-
 def on_close():
     save_basket()
     conn.close()
@@ -298,4 +295,5 @@ def on_close():
 
 root.protocol("WM_DELETE_WINDOW", on_close)
 load_basket()
+apply_filters()
 root.mainloop()
