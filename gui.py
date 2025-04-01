@@ -3,6 +3,8 @@ from tkinter import ttk, messagebox
 import psycopg2
 import sqlite3
 import socket
+import json
+import os
 from excel_processing import update_excel
 
 # === ONLINE/OFFLINE CONNECTION SETUP ===
@@ -116,7 +118,7 @@ def apply_filters():
             for row in all_rows:
                 if selected_tables and row[7] not in selected_tables:
                     continue
-                rows.append(row[:7])  # strip class_name for display
+                rows.append(row[:7])
     except Exception as e:
         messagebox.showerror("Chyba pri filtrovaní", str(e))
         return
@@ -162,6 +164,16 @@ name_entry = tk.Entry(top_frame, width=30)
 name_entry.pack(side=tk.LEFT, padx=5)
 name_entry.bind("<KeyRelease>", lambda event: apply_filters())
 
+project_frame = tk.Frame(main_frame)
+project_frame.pack(side=tk.TOP, fill=tk.X, padx=10)
+
+project_name_var = tk.StringVar(value="project1")
+tk.Label(project_frame, text="Názov projektu:").pack(side=tk.LEFT)
+project_name_entry = tk.Entry(project_frame, textvariable=project_name_var, width=20)
+project_name_entry.pack(side=tk.LEFT, padx=5)
+tk.Button(project_frame, text="Načítať", command=lambda: load_basket()).pack(side=tk.LEFT, padx=2)
+tk.Button(project_frame, text="Uložiť", command=lambda: save_basket()).pack(side=tk.LEFT, padx=2)
+
 tree_frame = tk.Frame(main_frame)
 tree_frame.pack(side=tk.TOP, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
@@ -174,6 +186,24 @@ tree.pack(fill=tk.BOTH, expand=True)
 apply_filters()
 
 basket_items = {}
+
+def get_basket_filename():
+    name = project_name_var.get().strip()
+    return f"{name}.json" if name else "basket.json"
+
+def save_basket():
+    with open(get_basket_filename(), "w", encoding="utf-8") as f:
+        json.dump(basket_items, f)
+
+def load_basket():
+    global basket_items
+    filename = get_basket_filename()
+    if os.path.exists(filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            basket_items = json.load(f)
+        basket_items = {int(k): v for k, v in basket_items.items()}
+        update_basket_table()
+
 def add_to_basket(item):
     pocet = 1
     item_id = item[0]
@@ -261,5 +291,11 @@ tk.Button(basket_frame, text="Exportovať", command=update_excel_from_basket).pa
 
 tree.bind("<Double-1>", lambda event: add_to_basket(tree.item(tree.focus())["values"]))
 
+def on_close():
+    save_basket()
+    conn.close()
+    root.destroy()
+
+root.protocol("WM_DELETE_WINDOW", on_close)
+load_basket()
 root.mainloop()
-conn.close()
