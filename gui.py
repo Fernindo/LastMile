@@ -58,28 +58,32 @@ def sync_postgres_to_sqlite(pg_conn):
         )
     """)
 
+    sqlite_cursor.execute("DROP TABLE IF EXISTS class")
+    sqlite_cursor.execute("""
+        CREATE TABLE class (
+            id TEXT PRIMARY KEY,
+            hlavna_kategoria TEXT,
+            nazov_tabulky TEXT
+        )
+    """)
+
     pg_cursor.execute("""
         SELECT p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
                p.koeficient, p.nakup_materialu, p.cena_prace, c.id, c.nazov_tabulky
         FROM produkty p
         JOIN class c ON p.class_id = c.id
     """)
-    rows = pg_cursor.fetchall()
-
-    safe_rows = []
-    for row in rows:
-        safe_row = []
-        for value in row:
-            if isinstance(value, decimal.Decimal):
-                safe_row.append(float(value))
-            else:
-                safe_row.append(value)
-        safe_rows.append(tuple(safe_row))
-
+    produkty_rows = pg_cursor.fetchall()
+    safe_rows = [tuple(float(v) if isinstance(v, decimal.Decimal) else v for v in row) for row in produkty_rows]
     sqlite_cursor.executemany("INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", safe_rows)
+
+    pg_cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
+    class_rows = pg_cursor.fetchall()
+    sqlite_cursor.executemany("INSERT INTO class VALUES (?, ?, ?)", class_rows)
+
     sqlite_conn.commit()
     sqlite_conn.close()
-    print("✔ Synced PostgreSQL → SQLite with Decimal fix")
+    print("✔ Synced PostgreSQL → SQLite with both 'produkty' and 'class' tables")
 
 if len(sys.argv) < 2:
     print("❌ No project name provided.")
@@ -98,75 +102,49 @@ root = tk.Tk()
 root.title(f"Project: {project_name}")
 root.state("zoomed")
 
-project_label = tk.Label(root, text=f"Projekt: {project_name}", font=("Arial", 16, "bold"), pady=10)
-project_label.pack()
+tk.Label(root, text=f"Projekt: {project_name}", font=("Arial", 16, "bold"), pady=10).pack()
+
+# Sliding Filter Panel
+filter_panel = tk.Frame(root, width=0, height=800, bg="#f0f0f0")
+filter_panel.pack(side=tk.LEFT, fill=tk.Y)
+filter_open = False
+
+def toggle_filter_panel():
+    global filter_open
+    if filter_open:
+        filter_panel.config(width=0)
+        toggle_button.config(text="▶")
+    else:
+        filter_panel.config(width=300)
+        toggle_button.config(text="◀")
+    filter_open = not filter_open
+    root.update()
+
+toggle_button = tk.Button(root, text="▶", command=toggle_filter_panel)
+toggle_button.place(x=0, y=100, width=20, height=40)
+
+scroll_canvas = tk.Canvas(filter_panel, bg="#f0f0f0")
+scrollbar = tk.Scrollbar(filter_panel, orient="vertical", command=scroll_canvas.yview)
+scrollable_frame = tk.Frame(scroll_canvas, bg="#f0f0f0")
+
+scrollable_frame.bind("<Configure>", lambda e: scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all")))
+scroll_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+scroll_canvas.configure(yscrollcommand=scrollbar.set)
+
+scroll_canvas.pack(side="left", fill="both", expand=True)
+scrollbar.pack(side="right", fill="y")
 
 category_structure = {}
 cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
 for class_id, main_cat, tab_name in cursor.fetchall():
     category_structure.setdefault(main_cat, []).append((class_id, tab_name))
 
-filter_frame = tk.Frame(root)
-filter_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
-
 category_vars = {}
 table_vars = {}
 basket_items = {}
 
-def save_basket():
-    with open(get_basket_filename(), "w", encoding="utf-8") as f:
-        json.dump(basket_items, f)
-
-def load_basket():
-    global basket_items
-    basket_items = {}
-    filename = get_basket_filename()
-    if os.path.exists(filename) and os.path.getsize(filename) > 0:
-        with open(filename, "r", encoding="utf-8") as f:
-            try:
-                raw_items = json.load(f)
-                basket_items = {int(k): v for k, v in raw_items.items()}
-            except json.JSONDecodeError:
-                print("⚠ JSON decode error - basket file is not valid.")
-    update_basket_table()
-
-def apply_filters():
-    selected_class_ids = [str(class_id) for class_id, var in table_vars.items() if var.get()]
-    name_filter = name_entry.get().strip().lower()
-    rows = []
-    try:
-        query = "SELECT id, produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace FROM produkty WHERE 1=1"
-        params = []
-
-        if selected_class_ids:
-            if db_type == 'postgres':
-                placeholders = ','.join(['%s'] * len(selected_class_ids))
-            else:
-                placeholders = ','.join(['?'] * len(selected_class_ids))
-            query += f" AND class_id IN ({placeholders})"
-            params.extend(selected_class_ids)
-
-        cursor.execute(query, tuple(params))
-        rows = cursor.fetchall()
-    except Exception as e:
-        messagebox.showerror("Chyba pri filtrovaní", str(e))
-        return
-
-    tree.delete(*tree.get_children())
-    for row in rows:
-        if not name_filter or name_filter in row[1].lower():
-            tree.insert("", tk.END, values=row)
-
-def reset_filters():
-    for var in table_vars.values():
-        var.set(False)
-    for var in category_vars.values():
-        var.set(False)
-    name_entry.delete(0, tk.END)
-    apply_filters()
-
 def build_filter_tree():
-    tk.Label(filter_frame, text="Prehliadač databázových tabuliek", font=("Arial", 10, "bold")).pack(anchor="w")
+    tk.Label(scrollable_frame, text="Prehliadač databázových tabuliek", font=("Arial", 10, "bold")).pack(anchor="w")
 
     def toggle_category(category, classes):
         def handler(*args):
@@ -177,7 +155,7 @@ def build_filter_tree():
         return handler
 
     for category, classes in category_structure.items():
-        cat_frame = tk.Frame(filter_frame)
+        cat_frame = tk.Frame(scrollable_frame)
         category_vars[category] = tk.BooleanVar(value=True)
         category_vars[category].trace_add("write", toggle_category(category, classes))
 
@@ -191,7 +169,7 @@ def build_filter_tree():
         inner_frame.pack()
         cat_frame.pack(anchor="w", fill="x", pady=2)
 
-    tk.Button(filter_frame, text="Resetovať filtre", command=reset_filters).pack(anchor="w", pady=10, padx=5)
+    tk.Button(scrollable_frame, text="Resetovať filtre", command=reset_filters).pack(anchor="w", pady=10, padx=5)
 
 build_filter_tree()
 
@@ -216,6 +194,36 @@ for col in columns:
     tree.column(col, anchor="center")
 tree.pack(fill=tk.BOTH, expand=True)
 
+def apply_filters():
+    selected_class_ids = [str(class_id) for class_id, var in table_vars.items() if var.get()]
+    name_filter = name_entry.get().strip().lower()
+    rows = []
+    try:
+        query = "SELECT id, produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace FROM produkty WHERE 1=1"
+        params = []
+
+        if selected_class_ids:
+            placeholders = ','.join(['%s' if db_type == 'postgres' else '?'] * len(selected_class_ids))
+            query += f" AND class_id IN ({placeholders})"
+            params.extend(selected_class_ids)
+
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
+    except Exception as e:
+        messagebox.showerror("Chyba pri filtrovaní", str(e))
+        return
+
+    tree.delete(*tree.get_children())
+    for row in rows:
+        if not name_filter or name_filter in row[1].lower():
+            tree.insert("", tk.END, values=row)
+
+def reset_filters():
+    for var in table_vars.values():
+        var.set(False)
+    name_entry.delete(0, tk.END)
+    apply_filters()
+
 basket_frame = tk.Frame(main_frame)
 basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -226,9 +234,6 @@ for col in basket_tree["columns"]:
     basket_tree.heading(col, text=col.capitalize())
     basket_tree.column(col, anchor="center")
 basket_tree.pack(fill=tk.BOTH, expand=True)
-
-basket_tree.bind("<Double-1>", lambda e: edit_pocet_cell(e))
-tree.bind("<Double-1>", lambda e: add_to_basket(tree.item(tree.focus())["values"]))
 
 def add_to_basket(item):
     pocet = 1
@@ -244,6 +249,8 @@ def add_to_basket(item):
             "pocet": pocet
         }
     update_basket_table()
+
+tree.bind("<Double-1>", lambda e: add_to_basket(tree.item(tree.focus())["values"]))
 
 def update_basket_table():
     basket_tree.delete(*basket_tree.get_children())
@@ -284,6 +291,11 @@ def edit_pocet_cell(event):
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
+basket_tree.bind("<Double-1>", edit_pocet_cell)
+
+tk.Button(basket_frame, text="Odstrániť", command=lambda: remove_from_basket()).pack(pady=3)
+tk.Button(basket_frame, text="Exportovať", command=lambda: update_excel_from_basket()).pack(pady=3)
+
 def remove_from_basket():
     selected_items = basket_tree.selection()
     for item in selected_items:
@@ -300,8 +312,22 @@ def update_excel_from_basket():
     excel_data = [(v["id"], v["produkt"], v["nakup_materialu"], v["koeficient"], v["pocet"]) for v in basket_items.values()]
     update_excel(excel_data)
 
-tk.Button(basket_frame, text="Odstrániť", command=remove_from_basket).pack(pady=3)
-tk.Button(basket_frame, text="Exportovať", command=update_excel_from_basket).pack(pady=3)
+def save_basket():
+    with open(get_basket_filename(), "w", encoding="utf-8") as f:
+        json.dump(basket_items, f)
+
+def load_basket():
+    global basket_items
+    basket_items = {}
+    filename = get_basket_filename()
+    if os.path.exists(filename) and os.path.getsize(filename) > 0:
+        with open(filename, "r", encoding="utf-8") as f:
+            try:
+                raw_items = json.load(f)
+                basket_items = {int(k): v for k, v in raw_items.items()}
+            except json.JSONDecodeError:
+                print("⚠ JSON decode error - basket file is not valid.")
+    update_basket_table()
 
 def on_close():
     save_basket()
