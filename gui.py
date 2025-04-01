@@ -6,9 +6,9 @@ import socket
 import json
 import os
 import sys
+import decimal
 from excel_processing import update_excel
 
-# === ONLINE/OFFLINE CONNECTION SETUP ===
 def is_online(host="8.8.8.8", port=53, timeout=3):
     try:
         socket.setdefaulttimeout(timeout)
@@ -42,32 +42,45 @@ def sync_postgres_to_sqlite(pg_conn):
     pg_cursor = pg_conn.cursor()
     sqlite_cursor = sqlite_conn.cursor()
 
-    sqlite_cursor.execute("DROP TABLE IF EXISTS produkt")
+    sqlite_cursor.execute("DROP TABLE IF EXISTS produkty")
     sqlite_cursor.execute("""
-        CREATE TABLE produkt (
+        CREATE TABLE produkty (
             id INTEGER PRIMARY KEY,
-            nazov TEXT,
-            jednotka TEXT,
+            produkt TEXT,
+            jednotky TEXT,
             dodavatel TEXT,
             odkaz TEXT,
             koeficient REAL,
-            nakup_material REAL,
+            nakup_materialu REAL,
+            cena_prace REAL,
+            class_id TEXT,
             class_name TEXT
         )
     """)
 
     pg_cursor.execute("""
-        SELECT p.id, p.nazov, p.jednotka, p.dodavatel, p.odkaz, p.koeficient, p.nakup_material, c.class_name
-        FROM produkt p
+        SELECT p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
+               p.koeficient, p.nakup_materialu, p.cena_prace, c.id, c.nazov_tabulky
+        FROM produkty p
         JOIN class c ON p.class_id = c.id
     """)
     rows = pg_cursor.fetchall()
-    sqlite_cursor.executemany("INSERT INTO produkt VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
+
+    safe_rows = []
+    for row in rows:
+        safe_row = []
+        for value in row:
+            if isinstance(value, decimal.Decimal):
+                safe_row.append(float(value))
+            else:
+                safe_row.append(value)
+        safe_rows.append(tuple(safe_row))
+
+    sqlite_cursor.executemany("INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", safe_rows)
     sqlite_conn.commit()
     sqlite_conn.close()
-    print("✔ Synced PostgreSQL → SQLite with class_name")
+    print("✔ Synced PostgreSQL → SQLite with Decimal fix")
 
-# === Get project name from command-line argument ===
 if len(sys.argv) < 2:
     print("❌ No project name provided.")
     sys.exit(1)
@@ -76,36 +89,28 @@ project_name = sys.argv[1]
 def get_basket_filename():
     return f"{project_name}.json"
 
-# === DATABASE CONNECTION ===
 conn, db_type = get_database_connection()
 cursor = conn.cursor()
 if db_type == 'postgres':
     sync_postgres_to_sqlite(conn)
 
-# === GUI SETUP ===
 root = tk.Tk()
 root.title(f"Project: {project_name}")
 root.state("zoomed")
 
-# Display project name prominently in the GUI
 project_label = tk.Label(root, text=f"Projekt: {project_name}", font=("Arial", 16, "bold"), pady=10)
 project_label.pack()
 
-class_name_map = {
-    "ustredne": "Ústredne",
-    "rozhrania": "Rozhrania",
-    "komunikatory": "Komunikátory",
-    "radiove_moduly": "Rádiové moduly",
-    "pristupove_moduly": "Prístupové moduly (Bezdrôtové)"
-}
+category_structure = {}
+cursor.execute("SELECT id, hlavna_kategoria FROM class")
+for class_id, main_cat in cursor.fetchall():
+    category_structure.setdefault(main_cat, []).append(class_id)
 
 filter_frame = tk.Frame(root)
 filter_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
 
-category_structure = {"EZS": list(class_name_map.keys())}
 category_vars = {}
 table_vars = {}
-
 basket_items = {}
 
 def save_basket():
@@ -120,43 +125,24 @@ def load_basket():
         with open(filename, "r", encoding="utf-8") as f:
             try:
                 raw_items = json.load(f)
-                basket_items = {}
-                for k, v in raw_items.items():
-                    try:
-                        basket_items[int(k)] = v
-                    except ValueError:
-                        print(f"⚠ Skipping invalid basket key: {k}")
+                basket_items = {int(k): v for k, v in raw_items.items()}
             except json.JSONDecodeError:
                 print("⚠ JSON decode error - basket file is not valid.")
-                basket_items = {}
     update_basket_table()
 
 def apply_filters():
-    selected_tables = [class_name_map[t] for t, var in table_vars.items() if var.get() and t in class_name_map]
+    selected_class_ids = [t for t, var in table_vars.items() if var.get()]
     name_filter = name_entry.get().strip().lower()
     rows = []
     try:
-        if db_type == 'postgres':
-            query = """
-                SELECT p.id, p.nazov, p.jednotka, p.dodavatel, p.odkaz, p.koeficient, p.nakup_material
-                FROM produkt p JOIN class c ON p.class_id = c.id
-                WHERE 1=1
-            """
-            params = []
-            if selected_tables:
-                placeholders = ','.join(['%s'] * len(selected_tables))
-                query += f" AND c.class_name IN ({placeholders})"
-                params.extend(selected_tables)
-            cursor.execute(query, tuple(params))
-            rows = cursor.fetchall()
-        else:
-            query = "SELECT id, nazov, jednotka, dodavatel, odkaz, koeficient, nakup_material, class_name FROM produkt"
-            cursor.execute(query)
-            all_rows = cursor.fetchall()
-            for row in all_rows:
-                if selected_tables and row[7] not in selected_tables:
-                    continue
-                rows.append(row[:7])
+        query = "SELECT id, produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace FROM produkty WHERE 1=1"
+        params = []
+        if selected_class_ids:
+            placeholders = ','.join(['?'] * len(selected_class_ids))
+            query += f" AND class_id IN ({placeholders})"
+            params.extend(selected_class_ids)
+        cursor.execute(query, tuple(params))
+        rows = cursor.fetchall()
     except Exception as e:
         messagebox.showerror("Chyba pri filtrovaní", str(e))
         return
@@ -205,8 +191,9 @@ name_entry.bind("<KeyRelease>", lambda event: apply_filters())
 tree_frame = tk.Frame(main_frame)
 tree_frame.pack(side=tk.TOP, padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-tree = ttk.Treeview(tree_frame, columns=("id", "nazov", "jednotka", "dodavatel", "odkaz", "koeficient", "nakup_material"), show="headings")
-for col in tree["columns"]:
+columns = ("id", "produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace")
+tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
+for col in columns:
     tree.heading(col, text=col.capitalize())
     tree.column(col, anchor="center")
 tree.pack(fill=tk.BOTH, expand=True)
@@ -216,7 +203,7 @@ basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
 tk.Label(basket_frame, text="Košík - vybraté položky:", font=("Arial", 10)).pack()
 
-basket_tree = ttk.Treeview(basket_frame, columns=("id", "nazov", "nakup_material", "koeficient", "pocet"), show="headings")
+basket_tree = ttk.Treeview(basket_frame, columns=("id", "produkt", "nakup_materialu", "koeficient", "pocet"), show="headings")
 for col in basket_tree["columns"]:
     basket_tree.heading(col, text=col.capitalize())
     basket_tree.column(col, anchor="center")
@@ -233,8 +220,8 @@ def add_to_basket(item):
     else:
         basket_items[item_id] = {
             "id": item_id,
-            "nazov": item[1],
-            "nakup_material": item[6],
+            "produkt": item[1],
+            "nakup_materialu": item[6],
             "koeficient": item[5],
             "pocet": pocet
         }
@@ -243,7 +230,7 @@ def add_to_basket(item):
 def update_basket_table():
     basket_tree.delete(*basket_tree.get_children())
     for item in basket_items.values():
-        basket_tree.insert("", tk.END, values=(item["id"], item["nazov"], item["nakup_material"], item["koeficient"], item["pocet"]))
+        basket_tree.insert("", tk.END, values=(item["id"], item["produkt"], item["nakup_materialu"], item["koeficient"], item["pocet"]))
 
 def edit_pocet_cell(event):
     selected_item = basket_tree.focus()
@@ -292,7 +279,7 @@ def update_excel_from_basket():
     if not basket_items:
         messagebox.showwarning("No Items", "⚠ Košík je prázdny.")
         return
-    excel_data = [(v["id"], v["nazov"], v["nakup_material"], v["koeficient"], v["pocet"]) for v in basket_items.values()]
+    excel_data = [(v["id"], v["produkt"], v["nakup_materialu"], v["koeficient"], v["pocet"]) for v in basket_items.values()]
     update_excel(excel_data)
 
 tk.Button(basket_frame, text="Odstrániť", command=remove_from_basket).pack(pady=3)
