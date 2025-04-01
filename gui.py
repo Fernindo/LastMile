@@ -102,9 +102,9 @@ project_label = tk.Label(root, text=f"Projekt: {project_name}", font=("Arial", 1
 project_label.pack()
 
 category_structure = {}
-cursor.execute("SELECT id, hlavna_kategoria FROM class")
-for class_id, main_cat in cursor.fetchall():
-    category_structure.setdefault(main_cat, []).append(class_id)
+cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
+for class_id, main_cat, tab_name in cursor.fetchall():
+    category_structure.setdefault(main_cat, []).append((class_id, tab_name))
 
 filter_frame = tk.Frame(root)
 filter_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
@@ -131,16 +131,21 @@ def load_basket():
     update_basket_table()
 
 def apply_filters():
-    selected_class_ids = [t for t, var in table_vars.items() if var.get()]
+    selected_class_ids = [str(class_id) for class_id, var in table_vars.items() if var.get()]
     name_filter = name_entry.get().strip().lower()
     rows = []
     try:
         query = "SELECT id, produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace FROM produkty WHERE 1=1"
         params = []
+
         if selected_class_ids:
-            placeholders = ','.join(['?'] * len(selected_class_ids))
+            if db_type == 'postgres':
+                placeholders = ','.join(['%s'] * len(selected_class_ids))
+            else:
+                placeholders = ','.join(['?'] * len(selected_class_ids))
             query += f" AND class_id IN ({placeholders})"
             params.extend(selected_class_ids)
+
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
     except Exception as e:
@@ -160,16 +165,15 @@ def reset_filters():
 
 def build_filter_tree():
     tk.Label(filter_frame, text="Prehliadač databázových tabuliek", font=("Arial", 10, "bold")).pack(anchor="w")
-    for category, tables in category_structure.items():
+    for category, classes in category_structure.items():
         cat_frame = tk.Frame(filter_frame)
-        cat_var = tk.BooleanVar(value=True)
-        category_vars[category] = cat_var
-        cat_label = ttk.Checkbutton(cat_frame, text=category, variable=cat_var)
-        cat_label.pack(anchor="w", padx=2)
+        category_vars[category] = tk.BooleanVar(value=True)
+        ttk.Checkbutton(cat_frame, text=category, variable=category_vars[category]).pack(anchor="w", padx=2)
+
         inner_frame = tk.Frame(cat_frame)
-        for table in tables:
-            table_vars[table] = tk.BooleanVar(value=False)
-            chk = tk.Checkbutton(inner_frame, text=table, variable=table_vars[table], command=apply_filters)
+        for class_id, table_name in classes:
+            table_vars[class_id] = tk.BooleanVar(value=False)
+            chk = tk.Checkbutton(inner_frame, text=table_name, variable=table_vars[class_id], command=apply_filters)
             chk.pack(anchor="w", padx=20)
         inner_frame.pack()
         cat_frame.pack(anchor="w", fill="x", pady=2)
