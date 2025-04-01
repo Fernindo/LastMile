@@ -160,14 +160,27 @@ def apply_filters():
 def reset_filters():
     for var in table_vars.values():
         var.set(False)
+    for var in category_vars.values():
+        var.set(False)
     name_entry.delete(0, tk.END)
     apply_filters()
 
 def build_filter_tree():
     tk.Label(filter_frame, text="Prehliadač databázových tabuliek", font=("Arial", 10, "bold")).pack(anchor="w")
+
+    def toggle_category(category, classes):
+        def handler(*args):
+            val = category_vars[category].get()
+            for class_id, _ in classes:
+                table_vars[class_id].set(val)
+            apply_filters()
+        return handler
+
     for category, classes in category_structure.items():
         cat_frame = tk.Frame(filter_frame)
         category_vars[category] = tk.BooleanVar(value=True)
+        category_vars[category].trace_add("write", toggle_category(category, classes))
+
         ttk.Checkbutton(cat_frame, text=category, variable=category_vars[category]).pack(anchor="w", padx=2)
 
         inner_frame = tk.Frame(cat_frame)
@@ -177,6 +190,7 @@ def build_filter_tree():
             chk.pack(anchor="w", padx=20)
         inner_frame.pack()
         cat_frame.pack(anchor="w", fill="x", pady=2)
+
     tk.Button(filter_frame, text="Resetovať filtre", command=reset_filters).pack(anchor="w", pady=10, padx=5)
 
 build_filter_tree()
