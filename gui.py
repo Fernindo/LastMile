@@ -96,7 +96,7 @@ if db_type == 'postgres':
 
 root = tk.Tk()
 root.title(f"Project: {project_name}")
-root.state("zoomed")
+root.geometry("1200x800")
 
 project_label = tk.Label(root, text=f"Projekt: {project_name}", font=("Arial", 16, "bold"), pady=10)
 project_label.pack()
@@ -106,18 +106,28 @@ cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
 for class_id, main_cat, tab_name in cursor.fetchall():
     category_structure.setdefault(main_cat, []).append((class_id, tab_name))
 
-# Filter container with scroll
-filter_container = tk.Frame(root)
-canvas = tk.Canvas(filter_container)
+print("Loaded category structure:", category_structure)
+
+# Filter container with mouse scroll and tighter layout
+filter_container = tk.Frame(root, bg="white")
+canvas = tk.Canvas(filter_container, borderwidth=0, bg="white")
 scrollbar = tk.Scrollbar(filter_container, orient="vertical", command=canvas.yview)
-scrollable_frame = tk.Frame(canvas)
+scrollable_frame = tk.Frame(canvas, bg="white")
+
+def _on_mousewheel(event):
+    canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+scrollable_frame.bind_all("<MouseWheel>", _on_mousewheel)
+scrollable_frame.bind_all("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+scrollable_frame.bind_all("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
 
 scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
 canvas.configure(yscrollcommand=scrollbar.set)
 
-# Adjusting width to make the panel thinner
-filter_container.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=5, ipadx=5)  # Úprava šírky
+canvas.pack(side="left", fill="both", expand=True)
+scrollbar.pack(side="right", fill="y")
+filter_container.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=5)
 
 filter_frame = scrollable_frame
 
@@ -178,32 +188,52 @@ def reset_filters():
     apply_filters()
 
 def build_filter_tree():
-    tk.Label(filter_frame, text="Prehliadač databázových tabuliek", font=("Arial", 10, "bold")).pack(anchor="w")
+    tk.Label(filter_frame, text="Prehliadač databázových tabuliek", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=5)
 
-    def toggle_category(category, classes):
+    def toggle_category(category, children_frame, classes):
         def handler(*args):
-            val = category_vars[category].get()
+            show = category_vars[category].get()
+            children_frame.pack_forget()  # Always hide first
+            if show:
+                children_frame.pack(anchor="w", fill="x", padx=20)
             for class_id, _ in classes:
-                table_vars[class_id].set(val)
+                table_vars[class_id].set(False if not show else table_vars[class_id].get())
             apply_filters()
         return handler
 
     for category, classes in category_structure.items():
-        cat_frame = tk.Frame(filter_frame)
-        category_vars[category] = tk.BooleanVar(value=True)
-        category_vars[category].trace_add("write", toggle_category(category, classes))
+        # Main category starts unchecked
+        category_vars[category] = tk.BooleanVar(value=False)
 
-        ttk.Checkbutton(cat_frame, text=category, variable=category_vars[category]).pack(anchor="w", padx=2)
+        # Frame wrapping each category and its children
+        outer_frame = tk.Frame(filter_frame, bg="white")
+        outer_frame.pack(anchor="w", fill="x", padx=5, pady=2)
 
-        inner_frame = tk.Frame(cat_frame)
+        # Hidden child filter frame
+        children_frame = tk.Frame(outer_frame, bg="white")
+
+        # Category checkbox
+        cat_checkbox = ttk.Checkbutton(
+            outer_frame,
+            text=category,
+            variable=category_vars[category]
+        )
+        cat_checkbox.pack(anchor="w")
+
+        # Show/hide children when toggled
+        category_vars[category].trace_add("write", toggle_category(category, children_frame, classes))
+
+        # Sub-checkboxes (filters)
         for class_id, table_name in classes:
             table_vars[class_id] = tk.BooleanVar(value=False)
-            chk = tk.Checkbutton(inner_frame, text=table_name, variable=table_vars[class_id], command=apply_filters)
-            chk.pack(anchor="w", padx=20)
-        inner_frame.pack()
-        cat_frame.pack(anchor="w", fill="x", pady=2)
+            chk = tk.Checkbutton(children_frame, text=table_name, variable=table_vars[class_id], command=apply_filters, bg="white")
+            chk.pack(anchor="w", pady=1)
 
+    # Reset button
     tk.Button(filter_frame, text="Resetovať filtre", command=reset_filters).pack(anchor="w", pady=10, padx=5)
+
+
+
 
 build_filter_tree()
 
