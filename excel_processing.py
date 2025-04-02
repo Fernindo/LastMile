@@ -1,12 +1,14 @@
 import win32com.client
+import os
 
 def update_excel(selected_items):
     if not selected_items:
         print("⚠ No items selected for Excel.")
         return
 
-    original_file = r"C:\Users\domko\Downloads\Vzorova_CP 3.xlsx"
-    new_file = r"C:\Users\domko\Desktop\LM\excel\Vzorova_CP_copy 3.xlsx"
+    base_dir = os.path.dirname(os.path.abspath(__file__))  # project root
+    original_file = os.path.join(base_dir, "excel_templates", "Vzorova_CP.xlsx")
+    new_file = os.path.join(base_dir, "excel_templates", "Vzorova_CP_copy.xlsx")
 
     excel = win32com.client.Dispatch("Excel.Application")
     excel.Visible = True
