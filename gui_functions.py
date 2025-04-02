@@ -205,6 +205,7 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
     update_basket_table(basket_tree, basket_items)
 
 def update_excel_from_basket(basket_items):
+    print("🚀 Export button was clicked")
     if not basket_items:
         messagebox.showwarning("No Items", "⚠ Košík je prázdny.")
         return
