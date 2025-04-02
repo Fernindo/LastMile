@@ -216,36 +216,15 @@ def update_excel_from_basket(basket_items):
         messagebox.showwarning("No Items", "⚠ Košík je prázdny.")
         return
 
-    # 🔽 Get Desktop path
-    desktop = os.path.join(os.path.join(os.environ["USERPROFILE"]), "Desktop")
-    file_path = os.path.join(desktop, "export.xlsx")
+    # Get path to user's desktop
+    desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+    file_path = os.path.join(desktop_path, "export.xlsx")
 
-    # 🔄 Prepare and export
+    # Prepare export data
     excel_data = [(k, v["nakup_materialu"], v["koeficient"], v["pocet"]) for k, v in basket_items.items()]
+
+    # Export
     update_excel(excel_data, file_path)
 
-    
-
-    if not file_path:
-        return  # User cancelled
-
-    # Prepare data and export
-    excel_data = [(k, v["nakup_materialu"], v["koeficient"], v["pocet"]) for k, v in basket_items.items()]
-    update_excel(excel_data, file_path)
-    
-
-
-
-    file_path = filedialog.asksaveasfilename(
-        defaultextension=".xlsx",
-        filetypes=[("Excel Files", "*.xlsx")],
-        title="Uložiť ako",
-        initialfile="export.xlsx"
-    )
-
-    if not file_path:
-        return  # User cancelled
-
-    excel_data = [(k, v["nakup_materialu"], v["koeficient"], v["pocet"]) for k, v in basket_items.items()]
-    update_excel(excel_data, file_path)
-    #messagebox.showinfo("Export", f"✅ Úspešne exportované do:\n{file_path}")
+    # Notify user
+    messagebox.showinfo("Export", f"✅ Súbor bol uložený na plochu ako:\n{file_path}")

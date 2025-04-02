@@ -11,24 +11,30 @@ def update_excel(selected_items, new_file):
         return
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    old_file = os.path.join(base_dir, "Vzorova_CP3.xlsx")  # Your template
+    old_file = os.path.join(base_dir, "Vzorova_CP3.xlsx")
 
     excel = win32com.client.Dispatch("Excel.Application")
     excel.DisplayAlerts = False
     excel.Visible = False
 
     try:
-        # Open the template and copy its sheet
-        template_workbook = excel.Workbooks.Open(old_file)
-        template_workbook.Sheets(1).Copy()
-        new_workbook = excel.ActiveWorkbook
-        template_workbook.Close(False)
+        # Open template
+        template_wb = excel.Workbooks.Open(old_file)
+
+        # Create new workbook
+        new_wb = excel.Workbooks.Add()
+
+        # Copy contents from template sheet to new workbook
+        template_sheet = template_wb.Sheets(1)
+        template_sheet.UsedRange.Copy(Destination=new_wb.Sheets(1).Range("A1"))
+
+        template_wb.Close(False)
     except Exception as e:
-        print(f"❌ Failed to open/copy template: {old_file}")
+        print(f"❌ Failed to copy template to new workbook")
         print(f"🔍 Error: {e}")
         return
 
-    sheet = new_workbook.Sheets(1)
+    sheet = new_wb.Sheets(1)
     row = 17
 
     for item in selected_items:
@@ -53,9 +59,9 @@ def update_excel(selected_items, new_file):
         row += 1
 
     try:
-        new_workbook.SaveAs(new_file)
-        new_workbook.Close()
-        print(f"✅ Exported to: {new_file}")
+        new_wb.SaveAs(new_file)
+        new_wb.Close(False)
+        print(f"✅ Successfully saved to: {new_file}")
     except Exception as e:
         print(f"❌ Could not save to {new_file}")
         print(f"🔍 Error: {e}")
