@@ -9,38 +9,41 @@ def update_excel(selected_items):
     new_file = r"C:\Users\domko\Desktop\LM\excel\Vzorova_CP_copy 3.xlsx"
 
     excel = win32com.client.Dispatch("Excel.Application")
-    excel.Visible = True  
+    excel.Visible = True
 
     workbook = excel.Workbooks.Open(original_file)
     workbook.SaveAs(new_file)
     workbook = excel.Workbooks.Open(new_file)
 
-    sheet = workbook.Sheets(1)  
+    sheet = workbook.Sheets(1)
 
-    # **Start inserting items below row 16, ensuring each gets its own row**
-    row = 17  # First empty row under row 16
+    row = 17  # Start writing from row 17
 
-    for item in selected_items:
-        sheet.Rows(row).Insert()  # Insert a new empty row for each item
+    for item in selected_items.values():
+        sheet.Rows(row).Insert()
 
-        material = item[1]       # Product Name
-        pocet = item[2]          # User-defined Quantity
-        cena_materialu = item[3] # Material Price
+        produkt = item[0]              # product name
+        nakup_materialu = item[1]      # purchase price
+        koeficient = item[2]           # coefficient
+        pocet = item[3]                # quantity
 
-        # **Start writing data from column 3 (C)**
-        sheet.Cells(row, 3).Value = material         # Column C - Product Name
-        sheet.Cells(row, 4).Value = "Ks"             # Column D - Unit
-        sheet.Cells(row, 5).Value = pocet            # Column E - Quantity
-        sheet.Cells(row, 6).Formula = f"=N{row}*M{row}"  # Column F = N row * M row
-        sheet.Cells(row, 7).Formula = f"=F{row}*E{row}"  # Column G = F row * E row
-        sheet.Cells(row, 8).Formula = f"=E{row}"        # Column H = Column E (Quantity)
-        sheet.Cells(row, 9).Value = "Nic"               # Column I - Placeholder
-        sheet.Cells(row,10).Formula = f"=I{row}*H{row}" # Column J = I * H
-        sheet.Cells(row,11).Formula = f"=G{row}+J{row}" # Column K = G + J 
+        # Set the Excel values according to your new table layout
+        sheet.Cells(row, 3).Value = produkt           # Column C: produkt
+        sheet.Cells(row, 4).Value = "ks"              # Column D: jednotky
+        sheet.Cells(row, 5).Value = pocet             # Column E: počet
+        sheet.Cells(row, 6).Formula = f"=N{row}*M{row}"   # Column F: formula
+        sheet.Cells(row, 7).Value = ""                # Column G: cena práce — blank, formula might go here
+        sheet.Cells(row, 8).Formula = f"=F{row}*E{row}"   # Column H: formula
+        sheet.Cells(row, 9).Formula = f"=E{row}"          # Column I: formula = E
+        sheet.Cells(row,10).Value = koeficient            # Column J: koeficient
+        sheet.Cells(row,11).Value = nakup_materialu       # Column K: nákup materiálu
+        sheet.Cells(row,12).Formula = f"=J{row}*I{row}"    # Column L: koeficient * množstvo
+        sheet.Cells(row,13).Formula = f"=G{row}+L{row}"    # Column M: G + L
+        sheet.Cells(row,14).Formula = f"=K{row}*E{row}"    # Column N: nákup * počet
 
-        row += 1  # Move to the next row for the next item
+        row += 1
 
     excel.CutCopyMode = False
     workbook.Save()
 
-    print(f"✅ Excel updated: {len(selected_items)} row(s) inserted under row 16 with formulas in columns F, G, H, J, and K.")
+    print(f"✅ Excel updated: {len(selected_items)} row(s) inserted under row 16.")

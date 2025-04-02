@@ -7,6 +7,7 @@ import decimal
 import tkinter as tk
 from tkinter import messagebox
 from excel_processing import update_excel
+import unicodedata
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
     try:
@@ -101,9 +102,13 @@ def show_error(message):
     messagebox.showerror("Chyba", message)
     return []
 
+def remove_accents(text):
+    """Removes accents from a string for normalized comparison."""
+    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     selected_class_ids = [str(cid) for cid, var in table_vars.items() if var.get()]
-    name_filter = name_entry.get().strip().lower()
+    name_filter = remove_accents(name_entry.get().strip().lower())
 
     rows = []
     try:
@@ -123,7 +128,8 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
 
     grouped = {}
     for row in rows:
-        if not name_filter or name_filter in row[0].lower():
+        produkt = row[0]
+        if not name_filter or name_filter in remove_accents(produkt.lower()):
             class_id = row[-1]
             grouped.setdefault(class_id, []).append(row[:-1])
 
