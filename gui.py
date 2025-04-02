@@ -41,22 +41,20 @@ category_vars = {}
 table_vars = {}
 basket_items = {}
 
-# ✅ Slimmer static filter panel (200px wide)
-filter_container = tk.Frame(root, bg="white", width=200)
-filter_container.pack(side=tk.LEFT, fill=tk.Y, padx=5, pady=5)
-
-filter_frame = tk.Frame(filter_container, bg="white")
-filter_frame.pack(fill=tk.BOTH, expand=True)
-
+# ✅ Slim filter panel (created directly, no extra wrapping frame)
 filter_frame, setup_category_tree, category_vars, table_vars = create_filter_panel(
-    filter_frame,
+    root,
     lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
 )
+#dlzka filter tabulky 
+filter_frame.config(width=280)
+filter_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(5, 0), pady=5)
+
 setup_category_tree(category_structure)
 
 # 👉 Main app frame
 main_frame = tk.Frame(root)
-main_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
 top_frame = tk.Frame(main_frame)
 top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)

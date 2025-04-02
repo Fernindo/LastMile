@@ -13,8 +13,8 @@ def create_filter_panel(parent, on_mousewheel_callback):
         filter_frame: Frame to add checkboxes and filter controls.
         setup_category_tree: Function to call with your category structure.
     """
-    filter_container = tk.Frame(parent, bg="white")
-    filter_container.pack(side=tk.LEFT, fill=tk.Y, padx=2, pady=5)
+    filter_container = tk.Frame(parent, bg="white", width=100)
+    filter_container.pack_propagate(False)  # ✅ lock the width
 
     canvas = tk.Canvas(filter_container, bg="white", highlightthickness=0)
     h_scrollbar = tk.Scrollbar(filter_container, orient="horizontal", command=canvas.xview)
@@ -83,4 +83,4 @@ def create_filter_panel(parent, on_mousewheel_callback):
             var.set(False)
         on_mousewheel_callback()
 
-    return filter_frame, setup_category_tree, category_vars, table_vars
+    return filter_container, setup_category_tree, category_vars, table_vars
