@@ -41,18 +41,15 @@ category_vars = {}
 table_vars = {}
 basket_items = {}
 
-# ✅ Slim filter panel (created directly, no extra wrapping frame)
 filter_frame, setup_category_tree, category_vars, table_vars = create_filter_panel(
     root,
     lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
 )
-#dlzka filter tabulky 
 filter_frame.config(width=280)
 filter_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(5, 0), pady=5)
 
 setup_category_tree(category_structure)
 
-# 👉 Main app frame
 main_frame = tk.Frame(root)
 main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
@@ -83,15 +80,17 @@ def on_tree_double_click(event):
 
 tree.bind("<Double-1>", on_tree_double_click)
 
-# 🧺 Basket section
+# 🧺 Basket section (full data)
 basket_frame = tk.Frame(main_frame)
 basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
 tk.Label(basket_frame, text="Košík - vybraté položky:", font=("Arial", 10)).pack()
 
-basket_tree = ttk.Treeview(basket_frame, columns=("produkt", "nakup_materialu", "koeficient", "pocet"), show="headings")
-for col in basket_tree["columns"]:
-    basket_tree.heading(col, text=col)
+basket_columns = ("produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace", "pocet")
+basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="headings")
+
+for col in basket_columns:
+    basket_tree.heading(col, text=col.capitalize())
     basket_tree.column(col, anchor="center")
 basket_tree.pack(fill=tk.BOTH, expand=True)
 

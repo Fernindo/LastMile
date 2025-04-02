@@ -1,38 +1,43 @@
 import win32com.client
 import os
 
-def update_excel(selected_items):
+def update_excel(selected_items, new_file):
     if not selected_items:
         print("⚠ No items selected for Excel.")
         return
 
+    if not new_file:
+        print("❌ No export path provided.")
+        return
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    original_file = os.path.join(base_dir, "Vzorova_CP_3.xlsx")
-    new_file = os.path.join(base_dir, "Vzorova_CP_3_copy.xlsx")
+    old_file = os.path.join(base_dir, "Vzorova_CP3.xlsx")  # Your template
 
     excel = win32com.client.Dispatch("Excel.Application")
-    excel.Visible = True
+    excel.DisplayAlerts = False
+    excel.Visible = False
 
     try:
-        workbook = excel.Workbooks.Open(original_file)
+        # Open the template and copy its sheet
+        template_workbook = excel.Workbooks.Open(old_file)
+        template_workbook.Sheets(1).Copy()
+        new_workbook = excel.ActiveWorkbook
+        template_workbook.Close(False)
     except Exception as e:
-        print(f"❌ Failed to open Excel file: {original_file}")
+        print(f"❌ Failed to open/copy template: {old_file}")
         print(f"🔍 Error: {e}")
         return
 
-    workbook.SaveAs(new_file)
-    workbook = excel.Workbooks.Open(new_file)
-    sheet = workbook.Sheets(1)
-
+    sheet = new_workbook.Sheets(1)
     row = 17
-    for item in selected_items:
-        sheet.Rows(row).Insert()
 
+    for item in selected_items:
         produkt = item[0]
         nakup_materialu = item[1]
         koeficient = item[2]
         pocet = item[3]
 
+        sheet.Rows(row).Insert()
         sheet.Cells(row, 3).Value = produkt
         sheet.Cells(row, 4).Value = "ks"
         sheet.Cells(row, 5).Value = pocet
@@ -45,9 +50,12 @@ def update_excel(selected_items):
         sheet.Cells(row,12).Formula = f"=J{row}*I{row}"
         sheet.Cells(row,13).Formula = f"=G{row}+L{row}"
         sheet.Cells(row,14).Formula = f"=K{row}*E{row}"
-
         row += 1
 
-    excel.CutCopyMode = False
-    workbook.Save()
-    print(f"✅ Excel updated: {len(selected_items)} row(s) inserted under row 16.")
+    try:
+        new_workbook.SaveAs(new_file)
+        new_workbook.Close()
+        print(f"✅ Exported to: {new_file}")
+    except Exception as e:
+        print(f"❌ Could not save to {new_file}")
+        print(f"🔍 Error: {e}")

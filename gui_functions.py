@@ -5,7 +5,7 @@ import sqlite3
 import psycopg2
 import decimal
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from excel_processing import update_excel
 import unicodedata
 
@@ -103,7 +103,6 @@ def show_error(message):
     return []
 
 def remove_accents(text):
-    """Removes accents from a string for normalized comparison."""
     return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
@@ -149,7 +148,16 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
 def update_basket_table(basket_tree, basket_items):
     basket_tree.delete(*basket_tree.get_children())
     for produkt, item in basket_items.items():
-        basket_tree.insert("", "end", values=(produkt, item["nakup_materialu"], item["koeficient"], item["pocet"]))
+        basket_tree.insert("", "end", values=(
+            produkt,
+            item["jednotky"],
+            item["dodavatel"],
+            item["odkaz"],
+            item["koeficient"],
+            item["nakup_materialu"],
+            item["cena_prace"],
+            item["pocet"]
+        ))
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
     produkt = item[0]
@@ -157,8 +165,12 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
         basket_items[produkt]["pocet"] += 1
     else:
         basket_items[produkt] = {
-            "nakup_materialu": item[5],
+            "jednotky": item[1],
+            "dodavatel": item[2],
+            "odkaz": item[3],
             "koeficient": item[4],
+            "nakup_materialu": item[5],
+            "cena_prace": item[6],
             "pocet": 1
         }
     update_basket_table(basket_tree, basket_items)
@@ -169,7 +181,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
         return
     col = basket_tree.identify_column(event.x)
     col_index = int(col.replace('#', '')) - 1
-    if col not in ["#3", "#4"]:
+    if col not in ["#8"]:
         return
     x, y, width, height = basket_tree.bbox(selected_item, col)
     entry_popup = tk.Entry(basket_tree)
@@ -181,16 +193,11 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     def save_edit(event):
         produkt = basket_tree.item(selected_item)['values'][0]
         try:
-            new_value = float(entry_popup.get()) if col_index == 1 else int(entry_popup.get())
+            new_value = int(entry_popup.get())
         except ValueError:
             new_value = current_value
         if produkt in basket_items:
-            if col_index == 1:
-                basket_items[produkt]["nakup_materialu"] = new_value
-            elif col_index == 2:
-                basket_items[produkt]["koeficient"] = new_value
-            elif col_index == 3:
-                basket_items[produkt]["pocet"] = new_value
+            basket_items[produkt]["pocet"] = new_value
         update_basket_table(basket_tree, basket_items)
         entry_popup.destroy()
 
@@ -205,9 +212,40 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
     update_basket_table(basket_tree, basket_items)
 
 def update_excel_from_basket(basket_items):
-    print("🚀 Export button was clicked")
     if not basket_items:
         messagebox.showwarning("No Items", "⚠ Košík je prázdny.")
         return
+
+    # 🔽 Get Desktop path
+    desktop = os.path.join(os.path.join(os.environ["USERPROFILE"]), "Desktop")
+    file_path = os.path.join(desktop, "export.xlsx")
+
+    # 🔄 Prepare and export
     excel_data = [(k, v["nakup_materialu"], v["koeficient"], v["pocet"]) for k, v in basket_items.items()]
-    update_excel(excel_data)
+    update_excel(excel_data, file_path)
+
+    
+
+    if not file_path:
+        return  # User cancelled
+
+    # Prepare data and export
+    excel_data = [(k, v["nakup_materialu"], v["koeficient"], v["pocet"]) for k, v in basket_items.items()]
+    update_excel(excel_data, file_path)
+    
+
+
+
+    file_path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Excel Files", "*.xlsx")],
+        title="Uložiť ako",
+        initialfile="export.xlsx"
+    )
+
+    if not file_path:
+        return  # User cancelled
+
+    excel_data = [(k, v["nakup_materialu"], v["koeficient"], v["pocet"]) for k, v in basket_items.items()]
+    update_excel(excel_data, file_path)
+    #messagebox.showinfo("Export", f"✅ Úspešne exportované do:\n{file_path}")
