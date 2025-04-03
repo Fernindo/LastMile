@@ -221,7 +221,19 @@ def update_excel_from_basket(basket_items):
     file_path = os.path.join(desktop_path, "export.xlsx")
 
     # Prepare export data
-    excel_data = [(k, v["nakup_materialu"], v["koeficient"], v["pocet"]) for k, v in basket_items.items()]
+    excel_data = [
+    (
+        produkt,
+        v["jednotky"],
+        v["dodavatel"],
+        v["odkaz"],
+        v["koeficient"],
+        v["nakup_materialu"],
+        v["cena_prace"],
+        v["pocet"]
+    )
+    for produkt, v in basket_items.items()
+]
 
     # Export
     update_excel(excel_data, file_path)

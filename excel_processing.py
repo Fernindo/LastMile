@@ -50,14 +50,16 @@ def update_excel(selected_items, new_file):
     row = 18  # Data starts BELOW row 17
 
     for item in selected_items:
-        produkt = item[0]             # Produkt
-        jednotky = item[1]            # Jednotky
-        dodavatel = item[2]           # Dodavatel (display text)
-        odkaz = item[3]               # Odkaz (hyperlink)
-        koeficient = item[4]          # Koeficient
-        nakup_materialu = item[5]     # Nakup_materialu
-        cena_prace = item[6]          # Cena_prace
-        pocet = item[7]               # Pocet
+        produkt = item[0]
+        dodavatel = item[1]
+        odkaz = item[2]
+        koeficient = float(item[3])
+        nakup_materialu = float(item[4])
+        cena_prace = float(item[5])
+        pocet = int(item[6])
+        jednotky = item[7]
+
+
 
 
         try:
