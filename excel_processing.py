@@ -18,27 +18,25 @@ def update_excel(selected_items, new_file):
     excel.Visible = False
 
     try:
+        # Open template
         template_wb = excel.Workbooks.Open(old_file)
         new_wb = excel.Workbooks.Add()
 
         template_sheet = template_wb.Sheets(1)
         new_sheet = new_wb.Sheets(1)
 
+        # Copy all content from template
         template_sheet.UsedRange.Copy(Destination=new_sheet.Range("A1"))
 
+        # Copy column widths
         used_columns = template_sheet.UsedRange.Columns.Count
         for col in range(1, used_columns + 1):
-            try:
-                new_sheet.Columns(col).ColumnWidth = template_sheet.Columns(col).ColumnWidth
-            except Exception as e:
-                print(f"⚠ Failed to set column width for column {col}: {e}")
+            new_sheet.Columns(col).ColumnWidth = template_sheet.Columns(col).ColumnWidth
 
+        # Copy row heights
         used_rows = template_sheet.UsedRange.Rows.Count
         for r in range(1, used_rows + 1):
-            try:
-                new_sheet.Rows(r).RowHeight = template_sheet.Rows(r).RowHeight
-            except Exception as e:
-                print(f"⚠ Failed to set row height for row {r}: {e}")
+            new_sheet.Rows(r).RowHeight = template_sheet.Rows(r).RowHeight
 
         template_wb.Close(False)
     except Exception as e:
@@ -47,20 +45,18 @@ def update_excel(selected_items, new_file):
         return
 
     sheet = new_wb.Sheets(1)
-    row = 18  # Data starts BELOW row 17
+    row = 18  # Data starts below template row 17
+    counter = 1  # For numbering in column B
 
     for item in selected_items:
         produkt = item[0]
-        dodavatel = item[1]
-        odkaz = item[2]
-        koeficient = float(item[3])
-        nakup_materialu = float(item[4])
-        cena_prace = float(item[5])
-        pocet = int(item[6])
-        jednotky = item[7]
-
-
-
+        jednotky = item[1]
+        dodavatel = item[2]
+        odkaz = item[3]
+        koeficient = float(item[4])
+        nakup_materialu = float(item[5])
+        cena_prace = float(item[6])
+        pocet = int(item[7])
 
         try:
             sheet.Rows(row).Insert()
@@ -68,26 +64,37 @@ def update_excel(selected_items, new_file):
             print(f"⚠ Couldn't insert row at {row}: {e}")
             continue
 
-        # Insert data exactly matching the desired structure
-        sheet.Cells(row, 3).Value = produkt                         # C - produkt
-        sheet.Cells(row, 4).Value = jednotky                           # D - jednotky
-        sheet.Cells(row, 5).Value = pocet                           # E - pocet
-        sheet.Cells(row, 6).Formula = f"=N{row}*M{row}"             # F - vzorec
-        sheet.Cells(row, 7).Formula = f"=F{row}*E{row}"             # G - vzorec
-        sheet.Cells(row, 8).Formula = f"=E{row}"                    # H - pocet vzorec je ze sa to rovna E
-        sheet.Cells(row, 9).Value = cena_prace                           # I - pocet
-        sheet.Cells(row,10).Formula = f"=I{row}*H{row}"                     # J - koeficient
-        sheet.Cells(row,11).Formula = f"=G{row}+J{row}"                 # K - nakup material
-        # ❌ DO NOT WRITE TO COLUMN L
-        # sheet.Cells(row, 12).Formula = f"=J{row}*I{row}"          # ⛔ Removed
-        sheet.Cells(row,13).Value = koeficient            # M - vzorec
-        sheet.Cells(row,14).Value = nakup_materialu             # N - vzorec
-        sheet.Cells(row,15).Formula = f"=N{row}*E{row}"         #O - vzorec
-        sheet.Cells(row,16).Formula = f"= G{row}-O{row}"        #P - vzorec
-        sheet.Cells(row,17).Formula = f"= P{row}/G{row}"        #Q - vzorec
-        sheet.Cells(row,19).Value = dodavatel                    # S - text placeholder
+        # Write values
+        sheet.Cells(row, 2).Value = counter                      # B - P.Č.
+        sheet.Cells(row, 3).Value = produkt                     # C - Produkt
+        sheet.Cells(row, 4).Value = jednotky                    # D - Jednotky
+        sheet.Cells(row, 5).Value = pocet                       # E - Počet
+        sheet.Cells(row, 6).Formula = f"=N{row}*M{row}"         # F - JC mat * Koef
+        sheet.Cells(row, 7).Value = cena_prace                  # G - JC práca
+        sheet.Cells(row, 8).Formula = f"=F{row}*E{row}"         # H - Spolu materiál
+        sheet.Cells(row, 9).Formula = f"=E{row}"                # I - Počet again
+        sheet.Cells(row,10).Formula = f"=I{row}*G{row}"         # J - Spolu práca
+        sheet.Cells(row,11).Formula = f"=G{row}+J{row}"         # K - Spolu
+        sheet.Cells(row,13).Value = koeficient                  # M - Koeficient
+        sheet.Cells(row,14).Value = nakup_materialu            # N - Nákup materiál
+        sheet.Cells(row,15).Formula = f"=N{row}*E{row}"         # O - Nákup spolu
+        sheet.Cells(row,16).Formula = f"=G{row}-O{row}"         # P - Zisk
+        sheet.Cells(row,17).Formula = f"=P{row}/G{row}"         # Q - Marža
+        if odkaz:
+            sheet.Hyperlinks.Add(Anchor=sheet.Cells(row, 19), Address=odkaz, TextToDisplay=dodavatel)  # S - Dodávateľ
+
+        # Apply borders (skip column L = 12)
+        for col in range(2, 20):  # B to S
+            if col == 12:
+                continue
+            cell = sheet.Cells(row, col)
+            for border_id in [7, 8, 9, 10]:  # Left, Top, Bottom, Right
+                border = cell.Borders(border_id)
+                border.LineStyle = 1  # xlContinuous
+                border.Weight = 2     # xlThin
 
         row += 1
+        counter += 1
 
     try:
         new_wb.SaveAs(new_file)
