@@ -147,33 +147,51 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
 
 def update_basket_table(basket_tree, basket_items):
     basket_tree.delete(*basket_tree.get_children())
-    for produkt, item in basket_items.items():
-        basket_tree.insert("", "end", values=(
-            produkt,
-            item["jednotky"],
-            item["dodavatel"],
-            item["odkaz"],
-            item["koeficient"],
-            item["nakup_materialu"],
-            item["cena_prace"],
-            item["pocet"]
-        ))
+    for section, products in basket_items.items():
+        basket_tree.insert("", "end", iid=section, text=section, open=True)
+        for produkt, item_data in products.items():
+            basket_tree.insert(
+                section,
+                "end",
+                values=(
+                    produkt,
+                    item_data["jednotky"],
+                    item_data["dodavatel"],
+                    item_data["odkaz"],
+                    item_data["koeficient"],
+                    item_data["nakup_materialu"],
+                    item_data["cena_prace"],
+                    item_data["pocet"]
+                )
+            )
+
+
+
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
     produkt = item[0]
-    if produkt in basket_items:
-        basket_items[produkt]["pocet"] += 1
+    class_name = item[7]  # section name
+
+    item_data = {
+        "jednotky": item[1],
+        "dodavatel": item[2],
+        "odkaz": item[3],
+        "koeficient": item[4],
+        "nakup_materialu": item[5],
+        "cena_prace": item[6],
+        "pocet": 1
+    }
+
+    if class_name not in basket_items:
+        basket_items[class_name] = {}
+
+    if produkt in basket_items[class_name]:
+        basket_items[class_name][produkt]["pocet"] += 1
     else:
-        basket_items[produkt] = {
-            "jednotky": item[1],
-            "dodavatel": item[2],
-            "odkaz": item[3],
-            "koeficient": item[4],
-            "nakup_materialu": item[5],
-            "cena_prace": item[6],
-            "pocet": 1
-        }
+        basket_items[class_name][produkt] = item_data
+
     update_basket_table(basket_tree, basket_items)
+
 
 def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     selected_item = basket_tree.focus()
@@ -211,32 +229,33 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
         basket_tree.delete(item)
     update_basket_table(basket_tree, basket_items)
 
-def update_excel_from_basket(basket_items):
+def update_excel_from_basket(basket_items, project_name):
     if not basket_items:
-        messagebox.showwarning("No Items", "⚠ Košík je prázdny.")
+        messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
 
-    # Get path to user's desktop
+    # Build path to Desktop
     desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
-    file_path = os.path.join(desktop_path, "export.xlsx")
+    file_path = os.path.join(desktop_path, f"{project_name}.xlsx")
 
-    # Prepare export data
-    excel_data = [
-    (
-        produkt,
-        v["jednotky"],
-        v["dodavatel"],
-        v["odkaz"],
-        v["koeficient"],
-        v["nakup_materialu"],
-        v["cena_prace"],
-        v["pocet"]
-    )
-    for produkt, v in basket_items.items()
-]
+    # Format the data to match what excel_processing expects
+    excel_data = []
+    for section, products in basket_items.items():
+        for produkt, v in products.items():
+            excel_data.append((
+                section,  # <-- pass section name as first item
+                produkt,
+                v["jednotky"],
+                v["dodavatel"],
+                v["odkaz"],
+                v["koeficient"],
+                v["nakup_materialu"],
+                v["cena_prace"],
+                v["pocet"]
+            ))
 
-    # Export
+
     update_excel(excel_data, file_path)
 
-    # Notify user
-    messagebox.showinfo("Export", f"✅ Súbor bol uložený na plochu ako:\n{file_path}")
+    # Notify the user
+    messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")

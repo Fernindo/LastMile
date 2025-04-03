@@ -97,7 +97,8 @@ basket_tree.pack(fill=tk.BOTH, expand=True)
 basket_tree.bind("<Double-1>", lambda e: edit_pocet_cell(e, basket_tree, basket_items, update_basket_table))
 
 tk.Button(basket_frame, text="Odstrániť", command=lambda: remove_from_basket(basket_tree, basket_items, update_basket_table)).pack(pady=3)
-tk.Button(basket_frame, text="Exportovať", command=lambda: update_excel_from_basket(basket_items)).pack(pady=3)
+tk.Button(basket_frame, text="Exportovať", command=lambda: update_excel_from_basket(basket_items, project_name)).pack(pady=3)
+
 
 root.protocol("WM_DELETE_WINDOW", lambda: (save_basket(project_name, basket_items), conn.close(), root.destroy()))
 basket_items = load_basket(project_name)
