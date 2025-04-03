@@ -16,7 +16,11 @@ from gui_functions import (
     edit_pocet_cell,
     remove_from_basket,
     update_excel_from_basket
+    
 )
+
+def block_expand_collapse(event):
+    return "break"  # Prevent default behavior
 
 if len(sys.argv) < 2:
     print("❌ No project name provided.")
@@ -77,6 +81,10 @@ def on_tree_double_click(event):
     if not values or "--" in str(values[1]):
         return
     add_to_basket(values, basket_items, update_basket_table, basket_tree)
+    print("🖱 Double-clicked:", values)
+
+
+
 
 tree.bind("<Double-1>", on_tree_double_click)
 
@@ -87,7 +95,13 @@ basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 tk.Label(basket_frame, text="Košík - vybraté položky:", font=("Arial", 10)).pack()
 
 basket_columns = ("produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace", "pocet")
-basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="headings")
+basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="tree headings")
+
+
+basket_tree.bind("<<TreeviewOpen>>", block_expand_collapse)
+basket_tree.bind("<<TreeviewClose>>", block_expand_collapse)
+basket_tree.bind("<Button-1>", lambda e: "break" if basket_tree.identify_region(e.x, e.y) == "tree" else None)
+
 
 for col in basket_columns:
     basket_tree.heading(col, text=col.capitalize())

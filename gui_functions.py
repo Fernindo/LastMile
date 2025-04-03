@@ -141,11 +141,13 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         class_name = class_name_map.get(class_id, f"Trieda {class_id}")
         tree.insert("", "end", values=("", f"-- {class_name} --"), tags=("header",))
         for row in grouped[class_id]:
-            tree.insert("", "end", values=row)
+            tree.insert("", "end", values=row + (class_name,))
+
 
     tree.tag_configure("header", font=("Arial", 10, "bold"))
 
 def update_basket_table(basket_tree, basket_items):
+    
     basket_tree.delete(*basket_tree.get_children())
     for section, products in basket_items.items():
         basket_tree.insert("", "end", iid=section, text=section, open=True)
@@ -169,6 +171,8 @@ def update_basket_table(basket_tree, basket_items):
 
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
+    print("📦 item =", item)
+
     produkt = item[0]
     class_name = item[7]  # section name
 
@@ -194,40 +198,76 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
 
 
 def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
+    region = basket_tree.identify("region", event.x, event.y)
+    if region != "cell":
+        return  # Ignore clicks on icons or empty space
+
     selected_item = basket_tree.focus()
     if not selected_item:
         return
-    col = basket_tree.identify_column(event.x)
-    col_index = int(col.replace('#', '')) - 1
-    if col not in ["#8"]:
+
+    # Prevent editing or expanding/collapsing section headers
+    if basket_tree.get_children(selected_item):  # it's a parent row
         return
+
+    item_data = basket_tree.item(selected_item)
+    if not item_data or not item_data.get("values"):
+        return
+
+    col = basket_tree.identify_column(event.x)
+    col_index = int(col.replace('#', '')) - 1  # 0-based
+
+    if col_index not in [4, 5, 6, 7]:
+        return
+
     x, y, width, height = basket_tree.bbox(selected_item, col)
     entry_popup = tk.Entry(basket_tree)
     entry_popup.place(x=x, y=y, width=width, height=height)
-    current_value = basket_tree.item(selected_item)['values'][col_index]
-    entry_popup.insert(0, current_value)
+    entry_popup.insert(0, basket_tree.item(selected_item)['values'][col_index])
     entry_popup.focus()
 
     def save_edit(event):
-        produkt = basket_tree.item(selected_item)['values'][0]
         try:
-            new_value = int(entry_popup.get())
+            new_value = float(entry_popup.get()) if col_index != 7 else int(entry_popup.get())
         except ValueError:
-            new_value = current_value
-        if produkt in basket_items:
-            basket_items[produkt]["pocet"] = new_value
+            entry_popup.destroy()
+            return
+
+        produkt = item_data['values'][0]
+        parent = basket_tree.parent(selected_item)
+
+        key_map = {
+            4: "koeficient",
+            5: "nakup_materialu",
+            6: "cena_prace",
+            7: "pocet"
+        }
+
+        if parent in basket_items and produkt in basket_items[parent]:
+            basket_items[parent][produkt][key_map[col_index]] = new_value
+
         update_basket_table(basket_tree, basket_items)
         entry_popup.destroy()
 
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
+def block_expand_collapse(event):
+    return "break"  # Prevent default behavior
+
+
+
 def remove_from_basket(basket_tree, basket_items, update_basket_table):
     for item in basket_tree.selection():
         produkt = basket_tree.item(item)["values"][0]
-        basket_items.pop(produkt, None)
-        basket_tree.delete(item)
+        for section in list(basket_items):
+            if produkt in basket_items[section]:
+                del basket_items[section][produkt]
+                if not basket_items[section]:
+                    del basket_items[section]
+                break
     update_basket_table(basket_tree, basket_items)
+
 
 def update_excel_from_basket(basket_items, project_name):
     if not basket_items:
