@@ -26,7 +26,26 @@ def update_excel(selected_items, new_file):
 
         # Copy contents from template sheet to new workbook
         template_sheet = template_wb.Sheets(1)
-        template_sheet.UsedRange.Copy(Destination=new_wb.Sheets(1).Range("A1"))
+        new_sheet = new_wb.Sheets(1)
+
+        # Copy content
+        template_sheet.UsedRange.Copy(Destination=new_sheet.Range("A1"))
+
+        # Copy column widths
+        used_columns = template_sheet.UsedRange.Columns.Count
+        for col in range(1, used_columns + 1):
+            try:
+                new_sheet.Columns(col).ColumnWidth = template_sheet.Columns(col).ColumnWidth
+            except Exception as e:
+                print(f"⚠ Failed to set column width for column {col}: {e}")
+
+        # Copy row heights
+        used_rows = template_sheet.UsedRange.Rows.Count
+        for r in range(1, used_rows + 1):
+            try:
+                new_sheet.Rows(r).RowHeight = template_sheet.Rows(r).RowHeight
+            except Exception as e:
+                print(f"⚠ Failed to set row height for row {r}: {e}")
 
         template_wb.Close(False)
     except Exception as e:
@@ -35,7 +54,7 @@ def update_excel(selected_items, new_file):
         return
 
     sheet = new_wb.Sheets(1)
-    row = 17
+    row = 17  # starting row for data insertion
 
     for item in selected_items:
         produkt = item[0]
@@ -43,7 +62,17 @@ def update_excel(selected_items, new_file):
         koeficient = item[2]
         pocet = item[3]
 
-        sheet.Rows(row).Insert()
+        try:
+            sheet.Rows(row).Insert()
+            # Safely try to preserve row height from original template row (if it exists)
+            try:
+                sheet.Rows(row).RowHeight = template_sheet.Rows(row).RowHeight
+            except Exception as e:
+                print(f"⚠ Couldn't set height for row {row}: {e}")
+        except Exception as e:
+            print(f"⚠ Couldn't insert row at {row}: {e}")
+            continue
+
         sheet.Cells(row, 3).Value = produkt
         sheet.Cells(row, 4).Value = "ks"
         sheet.Cells(row, 5).Value = pocet
@@ -56,6 +85,7 @@ def update_excel(selected_items, new_file):
         sheet.Cells(row,12).Formula = f"=J{row}*I{row}"
         sheet.Cells(row,13).Formula = f"=G{row}+L{row}"
         sheet.Cells(row,14).Formula = f"=K{row}*E{row}"
+
         row += 1
 
     try:
