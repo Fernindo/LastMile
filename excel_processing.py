@@ -18,20 +18,14 @@ def update_excel(selected_items, new_file):
     excel.Visible = False
 
     try:
-        # Open template
         template_wb = excel.Workbooks.Open(old_file)
-
-        # Create new workbook
         new_wb = excel.Workbooks.Add()
 
-        # Copy contents from template sheet to new workbook
         template_sheet = template_wb.Sheets(1)
         new_sheet = new_wb.Sheets(1)
 
-        # Copy content
         template_sheet.UsedRange.Copy(Destination=new_sheet.Range("A1"))
 
-        # Copy column widths
         used_columns = template_sheet.UsedRange.Columns.Count
         for col in range(1, used_columns + 1):
             try:
@@ -39,7 +33,6 @@ def update_excel(selected_items, new_file):
             except Exception as e:
                 print(f"⚠ Failed to set column width for column {col}: {e}")
 
-        # Copy row heights
         used_rows = template_sheet.UsedRange.Rows.Count
         for r in range(1, used_rows + 1):
             try:
@@ -54,37 +47,43 @@ def update_excel(selected_items, new_file):
         return
 
     sheet = new_wb.Sheets(1)
-    row = 17  # starting row for data insertion
+    row = 18  # Data starts BELOW row 17
 
     for item in selected_items:
-        produkt = item[0]
-        nakup_materialu = item[1]
-        koeficient = item[2]
-        pocet = item[3]
+        produkt = item[0]             # Produkt
+        jednotky = item[1]            # Jednotky
+        dodavatel = item[2]           # Dodavatel (display text)
+        odkaz = item[3]               # Odkaz (hyperlink)
+        koeficient = item[4]          # Koeficient
+        nakup_materialu = item[5]     # Nakup_materialu
+        cena_prace = item[6]          # Cena_prace
+        pocet = item[7]               # Pocet
+
 
         try:
             sheet.Rows(row).Insert()
-            # Safely try to preserve row height from original template row (if it exists)
-            try:
-                sheet.Rows(row).RowHeight = template_sheet.Rows(row).RowHeight
-            except Exception as e:
-                print(f"⚠ Couldn't set height for row {row}: {e}")
         except Exception as e:
             print(f"⚠ Couldn't insert row at {row}: {e}")
             continue
 
-        sheet.Cells(row, 3).Value = produkt
-        sheet.Cells(row, 4).Value = "ks"
-        sheet.Cells(row, 5).Value = pocet
-        sheet.Cells(row, 6).Formula = f"=N{row}*M{row}"
-        sheet.Cells(row, 7).Value = ""
-        sheet.Cells(row, 8).Formula = f"=F{row}*E{row}"
-        sheet.Cells(row, 9).Formula = f"=E{row}"
-        sheet.Cells(row,10).Value = koeficient
-        sheet.Cells(row,11).Value = nakup_materialu
-        sheet.Cells(row,12).Formula = f"=J{row}*I{row}"
-        sheet.Cells(row,13).Formula = f"=G{row}+L{row}"
-        sheet.Cells(row,14).Formula = f"=K{row}*E{row}"
+        # Insert data exactly matching the desired structure
+        sheet.Cells(row, 3).Value = produkt                         # C - produkt
+        sheet.Cells(row, 4).Value = jednotky                           # D - jednotky
+        sheet.Cells(row, 5).Value = pocet                           # E - pocet
+        sheet.Cells(row, 6).Formula = f"=N{row}*M{row}"             # F - vzorec
+        sheet.Cells(row, 7).Formula = f"=F{row}*E{row}"             # G - vzorec
+        sheet.Cells(row, 8).Formula = f"=E{row}"                    # H - pocet vzorec je ze sa to rovna E
+        sheet.Cells(row, 9).Value = cena_prace                           # I - pocet
+        sheet.Cells(row,10).Formula = f"=I{row}*H{row}"                     # J - koeficient
+        sheet.Cells(row,11).Formula = f"=G{row}+J{row}"                 # K - nakup material
+        # ❌ DO NOT WRITE TO COLUMN L
+        # sheet.Cells(row, 12).Formula = f"=J{row}*I{row}"          # ⛔ Removed
+        sheet.Cells(row,13).Value = koeficient            # M - vzorec
+        sheet.Cells(row,14).Value = nakup_materialu             # N - vzorec
+        sheet.Cells(row,15).Formula = f"=N{row}*E{row}"         #O - vzorec
+        sheet.Cells(row,16).Formula = f"= G{row}-O{row}"        #P - vzorec
+        sheet.Cells(row,17).Formula = f"= P{row}/G{row}"        #Q - vzorec
+        sheet.Cells(row,19).Value = dodavatel                    # S - text placeholder
 
         row += 1
 
