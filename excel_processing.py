@@ -66,14 +66,16 @@ def update_excel(selected_items, new_file):
     counter = 1
 
     for item in selected_items:
-        produkt = item[0]
-        jednotky = item[1]
-        dodavatel = item[2]
-        odkaz = item[3]
-        koeficient = float(item[4])
-        nakup_materialu = float(item[5])
-        cena_prace = float(item[6])
-        pocet = int(item[7])
+        # item[0] is section (can be used later for grouping if needed)
+        produkt = item[1]
+        jednotky = item[2]
+        dodavatel = item[3]
+        odkaz = item[4]
+        koeficient = float(item[5])
+        nakup_materialu = float(item[6])
+        cena_prace = float(item[7])
+        pocet = int(item[8])
+
 
         try:
             sheet.Rows(row).Insert()
