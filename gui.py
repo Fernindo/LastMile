@@ -60,9 +60,32 @@ main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 top_frame = tk.Frame(main_frame)
 top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
 
-name_entry = tk.Entry(top_frame, width=30)
+# 🔹 Name input for export
+tk.Label(top_frame, text="Tvoje meno:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0, 5))
+user_name_entry = tk.Entry(top_frame, width=20)
+user_name_entry.pack(side=tk.LEFT, padx=(0, 15))
+
+# 🔹 Bind name field to enable/disable export
+def on_name_change(*args):
+    if user_name_entry.get().strip():
+        export_button.config(state=tk.NORMAL)
+    else:
+        export_button.config(state=tk.DISABLED)
+
+user_name_entry.bind("<KeyRelease>", lambda event: on_name_change())
+
+# 🔍 Search bar
 tk.Label(top_frame, text="Vyhľadávanie:", font=("Arial", 10)).pack(side=tk.LEFT, padx=5)
+name_entry = tk.Entry(top_frame, width=30)
 name_entry.pack(side=tk.LEFT, padx=5)
+name_entry.bind("<KeyRelease>", lambda event: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree))
+
+
+
+
+
+
+
 name_entry.bind("<KeyRelease>", lambda event: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree))
 
 tree_frame = tk.Frame(main_frame)
@@ -111,11 +134,35 @@ basket_tree.pack(fill=tk.BOTH, expand=True)
 basket_tree.bind("<Double-1>", lambda e: edit_pocet_cell(e, basket_tree, basket_items, update_basket_table))
 
 tk.Button(basket_frame, text="Odstrániť", command=lambda: remove_from_basket(basket_tree, basket_items, update_basket_table)).pack(pady=3)
-tk.Button(basket_frame, text="Exportovať", command=lambda: update_excel_from_basket(basket_items, project_name)).pack(pady=3)
+def try_export():
+    user_name = user_name_entry.get().strip()
+    if not user_name:
+        messagebox.showwarning("Meno chýba", "⚠ Prosím zadaj svoje meno pred exportom.")
+        return
+    update_excel_from_basket(basket_items, project_name)
+
+export_button = tk.Button(basket_frame, text="Exportovať", command=try_export, state=tk.DISABLED)
+export_button.pack(pady=3)
+
+def on_name_change(*args):
+    if user_name_entry.get().strip():
+        export_button.config(state=tk.NORMAL)
+    else:
+        export_button.config(state=tk.DISABLED)
+
+user_name_entry.bind("<KeyRelease>", lambda event: on_name_change())
 
 
-root.protocol("WM_DELETE_WINDOW", lambda: (save_basket(project_name, basket_items), conn.close(), root.destroy()))
-basket_items = load_basket(project_name)
+root.protocol("WM_DELETE_WINDOW", lambda: (
+    save_basket(project_name, basket_items, user_name_entry.get().strip()),
+    conn.close(),
+    root.destroy()
+))
+
+basket_items, saved_user_name = load_basket(project_name)
+user_name_entry.insert(0, saved_user_name)
+on_name_change()  # set button state correctly
+
 update_basket_table(basket_tree, basket_items)
 apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
 root.mainloop()

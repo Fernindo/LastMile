@@ -83,20 +83,26 @@ def sync_postgres_to_sqlite(pg_conn):
 def get_basket_filename(project_name):
     return f"{project_name}.json"
 
-def save_basket(project_name, basket_items):
+def save_basket(project_name, basket_items, user_name=""):
+    data = {
+        "user_name": user_name,
+        "basket": basket_items
+    }
     with open(get_basket_filename(project_name), "w", encoding="utf-8") as f:
-        json.dump(basket_items, f)
+        json.dump(data, f)
+
 
 def load_basket(project_name):
-    basket_items = {}
     filename = get_basket_filename(project_name)
     if os.path.exists(filename) and os.path.getsize(filename) > 0:
         with open(filename, "r", encoding="utf-8") as f:
             try:
-                basket_items = json.load(f)
+                data = json.load(f)
+                return data.get("basket", {}), data.get("user_name", "")
             except json.JSONDecodeError:
                 print("⚠ JSON decode error - basket file is not valid.")
-    return basket_items
+    return {}, ""
+
 
 def show_error(message):
     messagebox.showerror("Chyba", message)
