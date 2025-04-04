@@ -301,7 +301,8 @@ def update_excel_from_basket(basket_items, project_name):
             ))
 
 
-    update_excel(excel_data, file_path)
+    update_excel(excel_data, file_path, basket_items.get("_notes", ""))
+
 
     # Notify the user
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
