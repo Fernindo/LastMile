@@ -131,7 +131,7 @@ for col in basket_columns:
     basket_tree.heading(col, text=col.capitalize())
     basket_tree.column(col, anchor="center")
 basket_tree.pack(fill=tk.BOTH, expand=True)
-create_notes_panel(basket_frame, basket_items)
+create_notes_panel(basket_frame, project_name)
 basket_tree.bind("<Double-1>", lambda e: edit_pocet_cell(e, basket_tree, basket_items, update_basket_table))
 
 tk.Button(basket_frame, text="Odstrániť", command=lambda: remove_from_basket(basket_tree, basket_items, update_basket_table)).pack(pady=3)
