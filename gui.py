@@ -15,8 +15,8 @@ from gui_functions import (
     add_to_basket,
     edit_pocet_cell,
     remove_from_basket,
-    update_excel_from_basket,
-    open_notes_window,
+    update_excel_from_basket
+    
 )
 
 def block_expand_collapse(event):
@@ -119,7 +119,7 @@ tk.Label(basket_frame, text="Košík - vybraté položky:", font=("Arial", 10)).
 
 basket_columns = ("produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace", "pocet")
 basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="tree headings")
-tk.Button(basket_frame, text="Poznámky", command=lambda: open_notes_window(root, project_name)).pack(pady=3)
+
 
 basket_tree.bind("<<TreeviewOpen>>", block_expand_collapse)
 basket_tree.bind("<<TreeviewClose>>", block_expand_collapse)
@@ -143,8 +143,6 @@ def try_export():
 
 export_button = tk.Button(basket_frame, text="Exportovať", command=try_export, state=tk.DISABLED)
 export_button.pack(pady=3)
-
-
 
 def on_name_change(*args):
     if user_name_entry.get().strip():
