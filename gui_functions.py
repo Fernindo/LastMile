@@ -35,6 +35,24 @@ def get_database_connection():
     conn = sqlite3.connect("local_backup.db")
     print("🕠 Using local SQLite database (offline mode)")
     return conn, 'sqlite'
+def open_notes_window(root, project_name, basket_items, save_callback):
+    notes_window = tk.Toplevel(root)
+    notes_window.title("Poznámky")
+    notes_window.geometry("500x400")
+
+    text_widget = tk.Text(notes_window, wrap="word", font=("Arial", 11))
+    text_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+    # Load notes from basket
+    existing_note = basket_items.get("_notes", "")
+    text_widget.insert("1.0", existing_note)
+
+    def save_notes():
+        basket_items["_notes"] = text_widget.get("1.0", tk.END).strip()
+        save_callback()  # Save to file
+        notes_window.destroy()
+
+    notes_window.protocol("WM_DELETE_WINDOW", save_notes)
 
 def sync_postgres_to_sqlite(pg_conn):
     sqlite_conn = sqlite3.connect("local_backup.db")
@@ -86,10 +104,12 @@ def get_basket_filename(project_name):
 def save_basket(project_name, basket_items, user_name=""):
     data = {
         "user_name": user_name,
-        "basket": basket_items
+        "basket": {k: v for k, v in basket_items.items() if k != "_notes"},
+        "notes": basket_items.get("_notes", "")
     }
     with open(get_basket_filename(project_name), "w", encoding="utf-8") as f:
-        json.dump(data, f)
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
 
 
 def load_basket(project_name):
@@ -98,10 +118,15 @@ def load_basket(project_name):
         with open(filename, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
-                return data.get("basket", {}), data.get("user_name", "")
+                basket = data.get("basket", {})
+                notes = data.get("notes", "")
+                if notes:
+                    basket["_notes"] = notes
+                return basket, data.get("user_name", "")
             except json.JSONDecodeError:
                 print("⚠ JSON decode error - basket file is not valid.")
     return {}, ""
+
 
 
 def show_error(message):
@@ -305,3 +330,6 @@ def update_excel_from_basket(basket_items, project_name):
 
     # Notify the user
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
+    
+
+
