@@ -1,17 +1,17 @@
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 import os
-import subprocess
 import json
 import shutil
 from datetime import datetime
-from functools import partial  # for safer and faster lambda replacements
+from functools import partial
 
 project_files = []
 DEFAULT_TEMPLATE = {"data": "Default session content."}
 
 def launch_gui(project_path):
-    subprocess.Popen(["python", "gui.py", project_path])
+    import gui
+    gui.run_gui(project_path)
 
 def create_new_project():
     name = simpledialog.askstring("New Project", "Enter a name for your new project:")
@@ -21,8 +21,7 @@ def create_new_project():
             messagebox.showerror("Error", "Project already exists!")
         else:
             os.makedirs(folder_path)
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            file_path = os.path.join(folder_path, f"{timestamp}.json")
+            file_path = os.path.join(folder_path, "project.json")
             with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(DEFAULT_TEMPLATE, f)
             list_projects()
@@ -35,7 +34,7 @@ def open_project(event=None):
         folder_path = os.path.join("projects", project_name)
         show_project_files(folder_path)
 
-def open_file_direct(event, file_path):
+def open_file_direct(file_path):
     folder_path = os.path.dirname(file_path)
     launch_gui(folder_path)
 
@@ -56,26 +55,21 @@ def show_project_files(folder_path):
 
     if os.path.isdir(folder_path):
         files = sorted(os.listdir(folder_path))
+        file_list = tk.Listbox(file_list_container, font=("Arial", 12), height=25, activestyle="none", borderwidth=0, highlightthickness=0)
+        file_list.pack(fill=tk.BOTH, expand=True)
+
         for file in files:
-            file_path = os.path.join(folder_path, file)
-            if os.path.isfile(file_path):
-                row = tk.Frame(file_list_container)
-                row.pack(fill=tk.X, pady=1)
+            if os.path.isfile(os.path.join(folder_path, file)):
+                file_list.insert(tk.END, file)
 
-                file_label = tk.Label(row, text=file, font=("Arial", 12), anchor="w", cursor="hand2")
-                file_label.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-                file_label.bind("<Double-1>", partial(open_file_direct, file_path=file_path))
+        def on_file_open(event):
+            selection = file_list.curselection()
+            if selection:
+                file_name = file_list.get(selection[0])
+                file_path = os.path.join(folder_path, file_name)
+                open_file_direct(file_path)
 
-                x_button = tk.Button(
-                    row,
-                    text="x",
-                    font=("Arial", 10),
-                    fg="black",
-                    width=2,
-                    relief=tk.FLAT,
-                    command=partial(delete_file_with_confirm, file_path)
-                )
-                x_button.pack(side=tk.RIGHT, padx=(0, 5))
+        file_list.bind("<Double-1>", on_file_open)
 
 def delete_project():
     global project_files
@@ -97,9 +91,8 @@ def refresh_project_list():
     query = search_var.get().lower()
     project_listbox.delete(0, tk.END)
     for f in sorted(project_files):
-        name = os.path.splitext(f)[0]
-        if query in name.lower():
-            project_listbox.insert(tk.END, name)
+        if query in f.lower():
+            project_listbox.insert(tk.END, f)
 
 def list_projects():
     global project_files
@@ -108,21 +101,12 @@ def list_projects():
     refresh_project_list()
 
 def on_close():
-    try:
-        for project in project_files:
-            folder = os.path.join("projects", project)
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            file_path = os.path.join(folder, f"{timestamp}.json")
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(DEFAULT_TEMPLATE, f)
-    except Exception as e:
-        print(f"Error during saving: {e}")
     root.destroy()
 
 # GUI Setup
 root = tk.Tk()
 root.title("Project Manager")
-root.state("zoomed")
+root.geometry("600x400")
 
 main_frame = tk.Frame(root, padx=20, pady=20)
 main_frame.pack(expand=True, fill=tk.BOTH)
@@ -153,7 +137,7 @@ tk.Label(right_frame, text="Files in Project:", font=("Arial", 12)).pack(anchor=
 file_action_frame = tk.Frame(right_frame)
 file_action_frame.pack(fill=tk.BOTH, expand=True)
 
-file_listbox = tk.Label()  # Dummy, just for storing folder_path
+file_listbox = tk.Label()  # Dummy for storing folder path
 file_listbox.folder_path = None
 
 file_list_container = tk.Frame(file_action_frame)
