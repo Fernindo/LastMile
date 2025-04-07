@@ -1,4 +1,4 @@
-import win32com.client
+import xlwings as xw
 import os
 import shutil
 
@@ -21,14 +21,10 @@ def update_excel(selected_items, new_file, notes_text=""):
         print(f"🔍 Error: {e}")
         return
 
-    excel = win32com.client.Dispatch("Excel.Application")
-    excel.ScreenUpdating = False
-    excel.DisplayAlerts = False
-    excel.Visible = False
-
+    app = xw.App(visible=False)
     try:
-        wb = excel.Workbooks.Open(new_file)
-        sheet = wb.Sheets(1)
+        wb = app.books.open(new_file)
+        sheet = wb.sheets[0]
 
         TEMPLATE_ROW = 18
         insert_position = TEMPLATE_ROW
@@ -44,53 +40,48 @@ def update_excel(selected_items, new_file, notes_text=""):
             cena_prace = float(item[7])
             pocet = int(item[8])
 
-            # 👉 Insert and format row from template
-            sheet.Rows(insert_position).Insert()
-            sheet.Rows(TEMPLATE_ROW + 1).Copy()
-            sheet.Rows(insert_position).PasteSpecial(Paste=-4163)  # xlPasteFormats
+            # Instead of copying rows with .api (dangerous), just insert a new row and use the format from row 18
+            sheet.range(f"{insert_position}:{insert_position}").insert(shift="down")
+            sheet.range(f"{TEMPLATE_ROW}:{TEMPLATE_ROW}").copy(sheet.range(f"{insert_position}:{insert_position}"))
 
-            # 👉 Fill values
-            sheet.Cells(insert_position, 2).Value = counter
-            sheet.Cells(insert_position, 3).Value = produkt
-            sheet.Cells(insert_position, 4).Value = jednotky
-            sheet.Cells(insert_position, 5).Value = pocet
-            sheet.Cells(insert_position, 6).Formula = f"=N{insert_position}*M{insert_position}"
-            sheet.Cells(insert_position, 7).Formula = f"=F{insert_position}*E{insert_position}"
-            sheet.Cells(insert_position, 8).Formula = f"=E{insert_position}"
-            sheet.Cells(insert_position, 9).Value = cena_prace
-            sheet.Cells(insert_position,10).Formula = f"=I{insert_position}*H{insert_position}"
-            sheet.Cells(insert_position,11).Formula = f"=G{insert_position}+J{insert_position}"
-            sheet.Cells(insert_position,13).Value = koeficient
-            sheet.Cells(insert_position,14).Value = nakup_materialu
-            sheet.Cells(insert_position,15).Formula = f"=N{insert_position}*E{insert_position}"
-            sheet.Cells(insert_position,16).Formula = f"=G{insert_position}-O{insert_position}"
-            sheet.Cells(insert_position,17).Formula = f"=P{insert_position}/G{insert_position}"
+            # Fill in values
+            sheet.cells(insert_position, 2).value = counter
+            sheet.cells(insert_position, 3).value = produkt
+            sheet.cells(insert_position, 4).value = jednotky
+            sheet.cells(insert_position, 5).value = pocet
+            sheet.cells(insert_position, 6).formula = f"=N{insert_position}*M{insert_position}"
+            sheet.cells(insert_position, 7).formula = f"=F{insert_position}*E{insert_position}"
+            sheet.cells(insert_position, 8).formula = f"=E{insert_position}"
+            sheet.cells(insert_position, 9).value = cena_prace
+            sheet.cells(insert_position,10).formula = f"=I{insert_position}*H{insert_position}"
+            sheet.cells(insert_position,11).formula = f"=G{insert_position}+J{insert_position}"
+            sheet.cells(insert_position,13).value = koeficient
+            sheet.cells(insert_position,14).value = nakup_materialu
+            sheet.cells(insert_position,15).formula = f"=N{insert_position}*E{insert_position}"
+            sheet.cells(insert_position,16).formula = f"=G{insert_position}-O{insert_position}"
+            sheet.cells(insert_position,17).formula = f"=P{insert_position}/G{insert_position}"
 
-            if odkaz and dodavatel:
-                try:
-                    sheet.Hyperlinks.Add(Anchor=sheet.Cells(insert_position, 19), Address=str(odkaz), TextToDisplay=str(dodavatel))
-                except Exception as link_error:
-                    print(f"⚠ Could not add hyperlink at row {insert_position}: {link_error}")
-
+            # Skipping hyperlink for now
+            # if odkaz and dodavatel:
+            #     sheet.hyperlinks.add(sheet.cells(insert_position, 19), address=str(odkaz), text_to_display=str(dodavatel))
 
             insert_position += 1
             counter += 1
 
-        # ➕ Add notes if provided
         if notes_text.strip():
             try:
-                notes_sheet = wb.Sheets.Add(After=wb.Sheets(wb.Sheets.Count))
-                notes_sheet.Name = "Poznámky"
+                notes_sheet = wb.sheets.add(name="Poznámky", after=wb.sheets[-1])
                 for i, line in enumerate(notes_text.splitlines(), start=1):
-                    notes_sheet.Cells(i, 1).Value = line
+                    notes_sheet.cells(i, 1).value = line
             except Exception as e:
                 print("⚠ Failed to add notes sheet:", e)
 
-        excel.ScreenUpdating = True
-        wb.Save()
-        wb.Close(False)
+        wb.save()
         print(f"✅ Successfully exported to: {new_file}")
 
     except Exception as e:
         print("❌ Failed during Excel export.")
         print(f"🔍 Error: {e}")
+    finally:
+        wb.close()
+        app.quit()
