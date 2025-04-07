@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sys
+import os
 from collections import OrderedDict
 from excel_processing import update_excel
 from filter_panel import create_filter_panel
@@ -26,7 +27,11 @@ def block_expand_collapse(event):
 if len(sys.argv) < 2:
     print("❌ No project name provided.")
     sys.exit(1)
-project_name = sys.argv[1]
+project_path = sys.argv[1]
+project_name = os.path.basename(project_path)
+
+
+
 
 conn, db_type = get_database_connection()
 cursor = conn.cursor()
@@ -195,12 +200,12 @@ basket_tree.bind("<B1-Motion>", on_drag_motion)
 basket_tree.bind("<ButtonRelease-1>", on_drag_release)
 
 root.protocol("WM_DELETE_WINDOW", lambda: (
-    save_basket(project_name, basket_items, user_name_entry.get().strip()),
+    save_basket(project_path, basket_items, user_name_entry.get().strip()),
     conn.close(),
     root.destroy()
 ))
 
-basket_items_loaded, saved_user_name = load_basket(project_name)
+basket_items_loaded, saved_user_name = load_basket(project_path)
 basket_items.update(basket_items_loaded)
 user_name_entry.insert(0, saved_user_name)
 update_basket_table(basket_tree, basket_items)
