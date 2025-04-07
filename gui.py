@@ -137,46 +137,37 @@ def run_gui(project_path, basket_version=None):
         basket_tree.column(col, anchor="center")
     basket_tree.pack(fill=tk.BOTH, expand=True)
 
-    drag_line = None
+    # Drag preview setup
     ghost_label = None
-    canvas = tk.Canvas(basket_tree, highlightthickness=0, background=root.cget("background"))
-
-
+    canvas = tk.Canvas(basket_tree, highlightthickness=0, bd=0, bg="SystemWindow")
 
     def on_drag_start(event):
         nonlocal ghost_label
-        selected = basket_tree.identify_row(event.y)
-        if selected:
-            label = basket_tree.item(selected)['text'] or basket_tree.item(selected)['values'][0]
-            ghost_label = tk.Label(root, text=str(label), bg="lightyellow", relief="solid")
+        iid = basket_tree.identify_row(event.y)
+        if iid:
+            label = basket_tree.item(iid)['text'] or basket_tree.item(iid)['values'][0]
+            if ghost_label:
+                ghost_label.destroy()
+            ghost_label = tk.Label(root, text=label, bg="lightyellow", relief="solid", bd=1)
             ghost_label.place(x=event.x_root + 10, y=event.y_root + 10)
             canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
-            canvas.lift()
 
     def on_drag_motion(event):
-        nonlocal ghost_label, drag_line
-        iid = basket_tree.identify_row(event.y)
         if ghost_label:
             ghost_label.place(x=event.x_root + 10, y=event.y_root + 10)
         canvas.delete("all")
+        iid = basket_tree.identify_row(event.y)
         if iid:
             bbox = basket_tree.bbox(iid)
             if bbox:
                 y = bbox[1]
                 h = bbox[3]
-                center_y = y + h // 2
-                if event.y < center_y:
-                    drop_y = y  # insert above
-                else:
-                    drop_y = y + h  # insert below
-                canvas.create_rectangle(2, drop_y - 2, basket_tree.winfo_width() - 2, drop_y + 2, fill="red", outline="", width=0)
-
+                drop_y = y if event.y < (y + h // 2) else y + h
+                canvas.create_rectangle(2, drop_y - 1, basket_tree.winfo_width() - 2, drop_y + 1, fill="red", outline="", width=0)
 
     def on_drag_release(event):
-        nonlocal ghost_label
         if ghost_label:
             ghost_label.destroy()
-            ghost_label = None
         canvas.delete("all")
         canvas.place_forget()
 
