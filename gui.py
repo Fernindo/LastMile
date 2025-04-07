@@ -1,7 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 import os
 import sys
+import shutil
+from datetime import datetime
 from collections import OrderedDict
 from excel_processing import update_excel
 from filter_panel import create_filter_panel
@@ -20,9 +22,9 @@ from gui_functions import (
     remove_from_basket,
     update_excel_from_basket
 )
-import subprocess
+import json
 
-def run_gui(project_path):
+def run_gui(project_path, basket_version=None):
     project_name = os.path.basename(project_path)
     conn, db_type = get_database_connection()
     cursor = conn.cursor()
@@ -33,11 +35,35 @@ def run_gui(project_path):
     root.state('zoomed')
     root.title(f"Project: {project_name}")
 
+    basket_items = OrderedDict()
+    metadata_label = tk.StringVar()
+
+    def save_current_state():
+        user_name = user_name_entry.get().strip()
+        data = {
+            "basket": basket_items,
+            "user_name": user_name,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        custom_name = simpledialog.askstring("Názov archívu", "Zadaj názov pre uložený súbor:")
+        if not custom_name:
+            custom_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        archive_file = os.path.join(project_path, f"project_{custom_name}.json")
+        with open(archive_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        notes_file = f"{project_name}_notes.txt"
+        if os.path.exists(notes_file):
+            shutil.copy(notes_file, os.path.join(project_path, f"notes_{custom_name}.txt"))
+        messagebox.showinfo("Uložené", f"✅ Uložené ako: {custom_name}")
+        metadata_label.set(f"Súbor: {custom_name} | Dátum: {data['timestamp']} | Autor: {user_name}")
+
     def return_home():
-        save_basket(project_path, basket_items, user_name_entry.get().strip())
+        user_name = user_name_entry.get().strip()
+        data = {"basket": basket_items, "user_name": user_name}
+        with open(os.path.join(project_path, "project.json"), "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
         conn.close()
         root.destroy()
-        subprocess.Popen(["python", "project_selector.py"])
 
     category_structure = {}
     cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
@@ -58,18 +84,21 @@ def run_gui(project_path):
     top_frame = tk.Frame(main_frame)
     top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
 
-    home_button = tk.Button(top_frame, text="\U0001F3E0 Home", command=return_home)
+    home_button = tk.Button(top_frame, text="🏠 Home", command=return_home)
     home_button.pack(side=tk.LEFT, padx=(0, 10))
+
+    save_button = tk.Button(top_frame, text="💾 Uložiť", command=save_current_state)
+    save_button.pack(side=tk.LEFT, padx=(0, 10))
 
     tk.Label(top_frame, text="Tvoje meno:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0, 5))
     user_name_entry = tk.Entry(top_frame, width=20)
     user_name_entry.pack(side=tk.LEFT, padx=(0, 15))
 
+    metadata_display = tk.Label(top_frame, textvariable=metadata_label, font=("Arial", 9), fg="gray")
+    metadata_display.pack(side=tk.RIGHT)
+
     def on_name_change(*args):
-        if user_name_entry.get().strip():
-            export_button.config(state=tk.NORMAL)
-        else:
-            export_button.config(state=tk.DISABLED)
+        export_button.config(state=(tk.NORMAL if user_name_entry.get().strip() else tk.DISABLED))
 
     user_name_entry.bind("<KeyRelease>", lambda event: on_name_change())
 
@@ -94,11 +123,8 @@ def run_gui(project_path):
         if not values or "--" in str(values[1]):
             return
         add_to_basket(values, basket_items, update_basket_table, basket_tree)
-        print("\U0001F5C1 Double-clicked:", values)
 
     tree.bind("<Double-1>", on_tree_double_click)
-
-    basket_items = OrderedDict()
 
     basket_frame = tk.Frame(main_frame)
     basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -106,28 +132,66 @@ def run_gui(project_path):
 
     basket_columns = ("produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace", "pocet")
     basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="tree headings")
-
-    def block_expand_collapse(event):
-        return "break"
-
-    basket_tree.bind("<<TreeviewOpen>>", block_expand_collapse)
-    basket_tree.bind("<<TreeviewClose>>", block_expand_collapse)
-    basket_tree.bind("<Button-1>", lambda e: "break" if basket_tree.identify_region(e.x, e.y) == "tree" else None)
-
     for col in basket_columns:
         basket_tree.heading(col, text=col.capitalize())
         basket_tree.column(col, anchor="center")
     basket_tree.pack(fill=tk.BOTH, expand=True)
 
+    drag_line = None
+    ghost_label = None
+    canvas = tk.Canvas(basket_tree, highlightthickness=0, background=root.cget("background"))
+
+
+
+    def on_drag_start(event):
+        nonlocal ghost_label
+        selected = basket_tree.identify_row(event.y)
+        if selected:
+            label = basket_tree.item(selected)['text'] or basket_tree.item(selected)['values'][0]
+            ghost_label = tk.Label(root, text=str(label), bg="lightyellow", relief="solid")
+            ghost_label.place(x=event.x_root + 10, y=event.y_root + 10)
+            canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
+            canvas.lift()
+
+    def on_drag_motion(event):
+        nonlocal ghost_label, drag_line
+        iid = basket_tree.identify_row(event.y)
+        if ghost_label:
+            ghost_label.place(x=event.x_root + 10, y=event.y_root + 10)
+        canvas.delete("all")
+        if iid:
+            bbox = basket_tree.bbox(iid)
+            if bbox:
+                y = bbox[1]
+                h = bbox[3]
+                center_y = y + h // 2
+                if event.y < center_y:
+                    drop_y = y  # insert above
+                else:
+                    drop_y = y + h  # insert below
+                canvas.create_rectangle(2, drop_y - 2, basket_tree.winfo_width() - 2, drop_y + 2, fill="red", outline="", width=0)
+
+
+    def on_drag_release(event):
+        nonlocal ghost_label
+        if ghost_label:
+            ghost_label.destroy()
+            ghost_label = None
+        canvas.delete("all")
+        canvas.place_forget()
+
+    basket_tree.bind("<ButtonPress-1>", on_drag_start)
+    basket_tree.bind("<B1-Motion>", on_drag_motion)
+    basket_tree.bind("<ButtonRelease-1>", on_drag_release)
+
     create_notes_panel(basket_frame, project_name)
     basket_tree.bind("<Double-1>", lambda e: edit_pocet_cell(e, basket_tree, basket_items, update_basket_table))
-
     tk.Button(basket_frame, text="Odstrániť", command=lambda: remove_from_basket(basket_tree, basket_items, update_basket_table)).pack(pady=3)
 
     def try_export():
         user_name = user_name_entry.get().strip()
         if not user_name:
-            messagebox.showwarning("Meno chýba", "\u26a0 Prosím zadaj svoje meno pred exportom.")
+            messagebox.showwarning("Meno chýba", "⚠ Prosím zadaj svoje meno pred exportom.")
             return
         update_excel_from_basket(basket_items, project_name)
 
@@ -136,86 +200,28 @@ def run_gui(project_path):
 
     on_name_change()
 
-    dragging_item = {"item": None}
+    basket_file = os.path.join(project_path, basket_version) if basket_version else os.path.join(project_path, "project.json")
+    if os.path.exists(basket_file):
+        with open(basket_file, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+                basket_items.update(OrderedDict(data.get("basket", {})))
+                user_name_entry.insert(0, data.get("user_name", ""))
+                timestamp = data.get("timestamp", "")
+                metadata_label.set(f"Súbor: {os.path.basename(basket_file)} | Dátum: {timestamp} | Autor: {data.get('user_name', '')}")
+            except json.JSONDecodeError:
+                print("⚠ Could not load project file")
 
-    def on_drag_start(event):
-        iid = basket_tree.identify_row(event.y)
-        if not iid:
-            return
-        dragging_item["item"] = iid
-
-    def on_drag_motion(event):
-        if not dragging_item["item"]:
-            return
-
-        target_iid = basket_tree.identify_row(event.y)
-        if not target_iid or target_iid == dragging_item["item"]:
-            return
-
-        dragging_is_section = not basket_tree.parent(dragging_item["item"])
-        target_is_section = not basket_tree.parent(target_iid)
-
-        if dragging_is_section and target_is_section:
-            basket_tree.move(dragging_item["item"], '', basket_tree.index(target_iid))
-
-        elif not dragging_is_section and not target_is_section:
-            parent_drag = basket_tree.parent(dragging_item["item"])
-            parent_target = basket_tree.parent(target_iid)
-            if parent_drag == parent_target:
-                basket_tree.move(dragging_item["item"], parent_drag, basket_tree.index(target_iid))
-
-    def on_drag_release(event):
-        if dragging_item["item"]:
-            iid = dragging_item["item"]
-            if not basket_tree.parent(iid):
-                reorder_basket_sections()
-            else:
-                reorder_basket_data()
-        dragging_item["item"] = None
-
-    def reorder_basket_data():
-        for section in basket_tree.get_children():
-            reordered = OrderedDict()
-            for child in basket_tree.get_children(section):
-                values = basket_tree.item(child)["values"]
-                produkt = values[0]
-                reordered[produkt] = {
-                    "jednotky": values[1],
-                    "dodavatel": values[2],
-                    "odkaz": values[3],
-                    "koeficient": float(values[4]),
-                    "nakup_materialu": float(values[5]),
-                    "cena_prace": float(values[6]),
-                    "pocet": int(values[7])
-                }
-            basket_items[section] = reordered
-
-    def reorder_basket_sections():
-        new_basket = OrderedDict()
-        for section in basket_tree.get_children():
-            new_basket[section] = basket_items[section]
-        basket_items.clear()
-        basket_items.update(new_basket)
-
-    basket_tree.bind("<ButtonPress-1>", on_drag_start)
-    basket_tree.bind("<B1-Motion>", on_drag_motion)
-    basket_tree.bind("<ButtonRelease-1>", on_drag_release)
-
-    root.protocol("WM_DELETE_WINDOW", lambda: (
-        save_basket(project_path, basket_items, user_name_entry.get().strip()),
-        conn.close(),
-        root.destroy()
-    ))
-
-    basket_items_loaded, saved_user_name = load_basket(project_path)
-    basket_items.update(basket_items_loaded)
-    user_name_entry.insert(0, saved_user_name)
     update_basket_table(basket_tree, basket_items)
     apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
+
+    root.protocol("WM_DELETE_WINDOW", return_home)
     root.mainloop()
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("❌ No project name provided.")
+        print("❌ No project path provided.")
         sys.exit(1)
-    run_gui(sys.argv[1])
+    path = sys.argv[1]
+    version = sys.argv[2] if len(sys.argv) > 2 else None
+    run_gui(path, version)
