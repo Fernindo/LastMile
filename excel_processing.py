@@ -66,8 +66,12 @@ def update_excel(selected_items, new_file, notes_text=""):
             sheet.Cells(insert_position,16).Formula = f"=G{insert_position}-O{insert_position}"
             sheet.Cells(insert_position,17).Formula = f"=P{insert_position}/G{insert_position}"
 
-            if odkaz:
-                sheet.Hyperlinks.Add(Anchor=sheet.Cells(insert_position, 19), Address=odkaz, TextToDisplay=dodavatel)
+            if odkaz and dodavatel:
+                try:
+                    sheet.Hyperlinks.Add(Anchor=sheet.Cells(insert_position, 19), Address=str(odkaz), TextToDisplay=str(dodavatel))
+                except Exception as link_error:
+                    print(f"⚠ Could not add hyperlink at row {insert_position}: {link_error}")
+
 
             insert_position += 1
             counter += 1
