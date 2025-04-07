@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from tkinter import filedialog, simpledialog, messagebox
 import os
@@ -30,6 +29,19 @@ def open_project(event=None):
         index = selection[0]
         project_name = project_listbox.get(index)
         folder_path = os.path.join("projects", project_name)
+
+        # 🧠 Ask for new file name when a project is opened
+        new_file_name = simpledialog.askstring("Create New File", "Enter a name for your new .json file:")
+        if new_file_name:
+            if not new_file_name.endswith(".json"):
+                new_file_name += ".json"
+            file_path = os.path.join(folder_path, new_file_name)
+            if os.path.exists(file_path):
+                messagebox.showerror("Error", "File already exists!")
+            else:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    json.dump({}, f)
+        
         show_project_files(folder_path)
 
 def show_project_files(folder_path):
@@ -77,7 +89,26 @@ def list_projects():
     global project_files
     os.makedirs("projects", exist_ok=True)
     project_files = [f for f in os.listdir("projects") if os.path.isdir(os.path.join("projects", f))]
+    
+    for project_name in project_files:
+        folder_path = os.path.join("projects", project_name)
+        session_file = os.path.join(folder_path, "session.json")
+        if not os.path.exists(session_file):
+            with open(session_file, "w", encoding="utf-8") as f:
+                json.dump({"session_started": True}, f)
+
     refresh_project_list()
+
+def on_close():
+    try:
+        os.makedirs("projects", exist_ok=True)
+        output_path = os.path.join("projects", "closed_session_data.json")
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump({"message": "This file was created when the app closed."}, f)
+        print(f"Session file created at {output_path}")
+    except Exception as e:
+        print(f"Failed to create session file: {e}")
+    root.destroy()
 
 root = tk.Tk()
 root.title("Project Manager")
@@ -86,7 +117,6 @@ root.state("zoomed")
 main_frame = tk.Frame(root, padx=20, pady=20)
 main_frame.pack(expand=True, fill=tk.BOTH)
 
-# Search and project list
 left_frame = tk.Frame(main_frame)
 left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10)
 
@@ -103,7 +133,6 @@ project_listbox.bind("<Double-1>", open_project)
 tk.Button(left_frame, text="Create New Project", width=25, command=create_new_project).pack(pady=5)
 tk.Button(left_frame, text="Delete Selected Project", width=25, command=delete_project).pack(pady=5)
 
-# File list of selected project
 right_frame = tk.Frame(main_frame)
 right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10)
 
@@ -111,7 +140,8 @@ tk.Label(right_frame, text="Files in Project:", font=("Arial", 12)).pack()
 file_listbox = tk.Listbox(right_frame, width=50, height=20, font=("Arial", 12))
 file_listbox.pack(pady=5, fill=tk.BOTH, expand=True)
 file_listbox.bind("<Double-1>", open_selected_file)
-file_listbox.folder_path = None  # custom attribute to track current folder
+file_listbox.folder_path = None
 
 list_projects()
+root.protocol("WM_DELETE_WINDOW", on_close)
 root.mainloop()
