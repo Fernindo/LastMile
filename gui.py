@@ -20,6 +20,7 @@ from gui_functions import (
     remove_from_basket,
     update_excel_from_basket
 )
+import subprocess
 
 def block_expand_collapse(event):
     return "break"
@@ -30,9 +31,6 @@ if len(sys.argv) < 2:
 project_path = sys.argv[1]
 project_name = os.path.basename(project_path)
 
-
-
-
 conn, db_type = get_database_connection()
 cursor = conn.cursor()
 if db_type == 'postgres':
@@ -41,6 +39,12 @@ if db_type == 'postgres':
 root = tk.Tk()
 root.state('zoomed')
 root.title(f"Project: {project_name}")
+
+def return_home():
+    save_basket(project_path, basket_items, user_name_entry.get().strip())
+    conn.close()
+    root.destroy()
+    subprocess.Popen(["python", "project_selector.py"])  
 
 category_structure = {}
 cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
@@ -60,6 +64,9 @@ main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
 top_frame = tk.Frame(main_frame)
 top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
+
+home_button = tk.Button(top_frame, text="🏠 Home", command=return_home)
+home_button.pack(side=tk.LEFT, padx=(0, 10))
 
 tk.Label(top_frame, text="Tvoje meno:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0, 5))
 user_name_entry = tk.Entry(top_frame, width=20)
@@ -94,7 +101,7 @@ def on_tree_double_click(event):
     if not values or "--" in str(values[1]):
         return
     add_to_basket(values, basket_items, update_basket_table, basket_tree)
-    print("🖱 Double-clicked:", values)
+    print("🗁 Double-clicked:", values)
 
 tree.bind("<Double-1>", on_tree_double_click)
 
@@ -115,6 +122,7 @@ for col in basket_columns:
     basket_tree.heading(col, text=col.capitalize())
     basket_tree.column(col, anchor="center")
 basket_tree.pack(fill=tk.BOTH, expand=True)
+
 create_notes_panel(basket_frame, project_name)
 basket_tree.bind("<Double-1>", lambda e: edit_pocet_cell(e, basket_tree, basket_items, update_basket_table))
 
@@ -152,11 +160,9 @@ def on_drag_motion(event):
     target_is_section = not basket_tree.parent(target_iid)
 
     if dragging_is_section and target_is_section:
-        # Move section headers
         basket_tree.move(dragging_item["item"], '', basket_tree.index(target_iid))
 
     elif not dragging_is_section and not target_is_section:
-        # ✅ Allow item move only if both are under the same section
         parent_drag = basket_tree.parent(dragging_item["item"])
         parent_target = basket_tree.parent(target_iid)
         if parent_drag == parent_target:
