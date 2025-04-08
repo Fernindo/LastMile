@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from tkinter import messagebox, ttk
 import psycopg2
@@ -19,8 +18,11 @@ class AdminApp:
         tk.Button(button_frame, text="Správa používateľov", command=self.manage_users).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Pridať produkt", command=self.insert_product).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Update produktu", command=self.update_product).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Refresh", command=self.load_products).pack(side=tk.LEFT, padx=5)
 
-        self.tree = ttk.Treeview(self.root, columns=("delete", "produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace", "class_id"), show="headings")
+        self.tree = ttk.Treeview(self.root, columns=(
+            "delete", "produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace", "class_id"
+        ), show="headings")
         for col in self.tree["columns"]:
             self.tree.heading(col, text=col)
             self.tree.column(col, anchor="center")
@@ -55,7 +57,7 @@ class AdminApp:
         cur = conn.cursor()
         cur.execute("""
             SELECT c.nazov_tabulky, p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
-                p.koeficient, p.nakup_materialu, p.cena_prace
+                   p.koeficient, p.nakup_materialu, p.cena_prace
             FROM produkty p
             JOIN class c ON p.class_id = c.id
             ORDER BY c.nazov_tabulky, p.id
@@ -93,9 +95,19 @@ class AdminApp:
 
     def insert_product(self):
         insert_product_form(self.root)
+        self.load_products()
 
     def update_product(self):
         update_product_form(self.root)
+        self.load_products()
 
     def manage_users(self):
         UserManagementWindow(self.root)
+
+def main():
+    root = tk.Tk()
+    AdminApp(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
