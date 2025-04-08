@@ -1,0 +1,11 @@
+{
+  "admin": [
+    "produkt",
+    "jednotky",
+    "dodavatel",
+    "koeficient",
+    "nakup_materialu",
+    "cena_prace",
+    "class_id"
+  ]
+}
