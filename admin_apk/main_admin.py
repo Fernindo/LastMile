@@ -4,6 +4,7 @@ import psycopg2
 from insert_admin import insert_product_form
 from update_admin import update_product_form
 from pouzivatelia_admin import UserManagementWindow
+from class_admin import create_class_form
 
 class AdminApp:
     def __init__(self, root):
@@ -18,6 +19,7 @@ class AdminApp:
         tk.Button(button_frame, text="Správa používateľov", command=self.manage_users).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Pridať produkt", command=self.insert_product).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Update produktu", command=self.update_product).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Editovať triedu", command=self.create_class).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Refresh", command=self.load_products).pack(side=tk.LEFT, padx=5)
 
         self.tree = ttk.Treeview(self.root, columns=(
@@ -58,8 +60,8 @@ class AdminApp:
         cur.execute("""
             SELECT c.nazov_tabulky, p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
                    p.koeficient, p.nakup_materialu, p.cena_prace
-            FROM produkty p
-            JOIN class c ON p.class_id = c.id
+            FROM class c
+            LEFT JOIN produkty p ON p.class_id = c.id
             ORDER BY c.nazov_tabulky, p.id
         """)
         rows = cur.fetchall()
@@ -72,7 +74,8 @@ class AdminApp:
             if class_name != current_class:
                 current_class = class_name
                 self.tree.insert("", "end", values=("", f"-- {class_name} --", "", "", "", "", "", "", ""), tags=("header",))
-            self.tree.insert("", "end", values=("X", *row[1:], class_name))
+            if row[1] is not None:
+                self.tree.insert("", "end", values=("X", *row[1:], class_name))
 
         self.tree.tag_configure("header", font=("Arial", 10, "bold"))
 
@@ -84,6 +87,8 @@ class AdminApp:
             if item:
                 values = self.tree.item(item)['values']
                 prod_name = values[1]
+                if prod_name.startswith("--"):
+                    return
                 if messagebox.askyesno("Vymazať", f"Naozaj chceš vymazať produkt '{prod_name}'?"):
                     conn = self.get_connection()
                     cur = conn.cursor()
@@ -103,6 +108,10 @@ class AdminApp:
 
     def manage_users(self):
         UserManagementWindow(self.root)
+
+    def create_class(self):
+        create_class_form(self.root)
+        self.load_products()
 
 def main():
     root = tk.Tk()
