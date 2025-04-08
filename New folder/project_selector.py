@@ -140,7 +140,7 @@ def on_close():
 # GUI Setup
 root = tk.Tk()
 root.title("Project Manager")
-root.geometry("600x650")
+root.geometry("700x650")
 
 main_frame = tk.Frame(root, padx=20, pady=20)
 main_frame.pack(expand=True, fill=tk.BOTH)

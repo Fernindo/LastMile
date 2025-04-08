@@ -1,0 +1,25 @@
+{
+  "basket": {
+    "uchytenie": {
+      "Produkt 75": {
+        "jednotky": "ks",
+        "dodavatel": "Generic",
+        "odkaz": "https://example.com/uchytenie/75",
+        "koeficient": "1.00",
+        "nakup_materialu": "100.00",
+        "cena_prace": "15.00",
+        "pocet": 1
+      },
+      "Produkt 76": {
+        "jednotky": "ks",
+        "dodavatel": "Generic",
+        "odkaz": "https://example.com/uchytenie/76",
+        "koeficient": "1.00",
+        "nakup_materialu": "100.00",
+        "cena_prace": "15.00",
+        "pocet": 1
+      }
+    }
+  },
+  "user_name": ""
+}
