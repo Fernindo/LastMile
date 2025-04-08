@@ -2,7 +2,7 @@ potrebujes toto pip install
 psycopg2
 pywin32
 tkinter
-
+xlwings
 
 excel processing je na zapisovanie do excelu 
 backup je na robenie backup databazy 
