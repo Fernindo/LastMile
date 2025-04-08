@@ -1,10 +1,21 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 import psycopg2
+import json
+import os
+
 from insert_admin import insert_product_form
 from update_admin import update_product_form
 from pouzivatelia_admin import UserManagementWindow
 from class_admin import create_class_form
+
+USER_ID = "admin"  # Môžeš neskôr meniť podľa reálneho prihláseného užívateľa
+SETTINGS_FILE = "user_column_settings.json"
+
+ALL_COLUMNS = [
+    "produkt", "jednotky", "dodavatel", "odkaz",
+    "koeficient", "nakup_materialu", "cena_prace", "class_id"
+]
 
 class AdminApp:
     def __init__(self, root):
@@ -13,23 +24,64 @@ class AdminApp:
         self.root.geometry("1400x700")
         self.center_window(self.root)
 
+        self.selected_columns = self.load_user_settings()
+
         button_frame = tk.Frame(self.root)
         button_frame.pack(fill=tk.X, pady=5)
 
         tk.Button(button_frame, text="Správa používateľov", command=self.manage_users).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Pridať produkt", command=self.insert_product).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Update produktu", command=self.update_product).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Editovať triedu", command=self.create_class).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Editovať tabuľku", command=self.create_class).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Refresh", command=self.load_products).pack(side=tk.LEFT, padx=5)
 
-        self.tree = ttk.Treeview(self.root, columns=(
-            "delete", "produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace", "class_id"
-        ), show="headings")
+        # Výber stĺpcov cez checkboxy
+        self.check_frame = tk.Frame(self.root)
+        self.check_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.check_vars = {}
+        for i, col in enumerate(ALL_COLUMNS):
+            var = tk.BooleanVar(value=col in self.selected_columns)
+            cb = tk.Checkbutton(self.check_frame, text=col, variable=var, command=self.on_column_change)
+            cb.grid(row=0, column=i, sticky="w")
+            self.check_vars[col] = var
+
+        self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
         for col in self.tree["columns"]:
             self.tree.heading(col, text=col)
             self.tree.column(col, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True)
 
+        self.tree.bind("<ButtonRelease-1>", self.handle_delete_click)
+        self.load_products()
+
+    def load_user_settings(self):
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r") as f:
+                settings = json.load(f)
+                return settings.get(USER_ID, ALL_COLUMNS)
+        return ALL_COLUMNS
+
+    def save_user_settings(self):
+        settings = {}
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r") as f:
+                settings = json.load(f)
+        settings[USER_ID] = self.selected_columns
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(settings, f, indent=2)
+
+    def on_column_change(self):
+        self.selected_columns = [col for col, var in self.check_vars.items() if var.get()]
+        self.save_user_settings()
+        self.refresh_tree()
+
+    def refresh_tree(self):
+        self.tree.destroy()
+        self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
+        for col in self.tree["columns"]:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, anchor="center")
+        self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<ButtonRelease-1>", self.handle_delete_click)
         self.load_products()
 
@@ -59,7 +111,7 @@ class AdminApp:
         cur = conn.cursor()
         cur.execute("""
             SELECT c.nazov_tabulky, p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
-                   p.koeficient, p.nakup_materialu, p.cena_prace
+                   p.koeficient, p.nakup_materialu, p.cena_prace, p.class_id
             FROM class c
             LEFT JOIN produkty p ON p.class_id = c.id
             ORDER BY c.nazov_tabulky, p.id
@@ -71,11 +123,13 @@ class AdminApp:
         current_class = None
         for row in rows:
             class_name = row[0]
+            produkt_data = row[2:]  # [produkt, jednotky, dodavatel, odkaz, ...]
             if class_name != current_class:
                 current_class = class_name
-                self.tree.insert("", "end", values=("", f"-- {class_name} --", "", "", "", "", "", "", ""), tags=("header",))
+                self.tree.insert("", "end", values=("", f"-- {class_name} --", *[""] * len(self.selected_columns)), tags=("header",))
             if row[1] is not None:
-                self.tree.insert("", "end", values=("X", *row[1:], class_name))
+                values = [produkt_data[ALL_COLUMNS.index(col)] if col in ALL_COLUMNS else "" for col in self.selected_columns]
+                self.tree.insert("", "end", values=("X", *values))
 
         self.tree.tag_configure("header", font=("Arial", 10, "bold"))
 
