@@ -17,7 +17,6 @@ import unicodedata
 ###############################################################################
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
-    """Check if there's an active internet connection."""
     try:
         socket.setdefaulttimeout(timeout)
         socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
@@ -26,12 +25,6 @@ def is_online(host="8.8.8.8", port=53, timeout=3):
         return False
 
 def get_database_connection():
-    """
-    Connect to PostgreSQL if online, else fallback to local SQLite.
-    Ensure your DB has a table named "class" with columns:
-       id, hlavna_kategoria, nazov_tabulky
-    and your "produkty" table references them via class_id.
-    """
     if is_online():
         try:
             conn = psycopg2.connect(
@@ -51,7 +44,6 @@ def get_database_connection():
     return conn, 'sqlite'
 
 def sync_postgres_to_sqlite(pg_conn):
-    """Sync 'produkty' from PostgreSQL to local SQLite (for offline use)."""
     sqlite_conn = sqlite3.connect("local_backup.db")
     pg_cursor = pg_conn.cursor()
     sqlite_cursor = sqlite_conn.cursor()
@@ -94,15 +86,9 @@ def sync_postgres_to_sqlite(pg_conn):
     print("✔ Synced PostgreSQL → SQLite")
 
 def remove_accents(text):
-    """Remove accent marks for case-insensitive search."""
     return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
 def apply_filters(cursor, db_type, table_vars, name_entry, tree):
-    """
-    Filter products based on the state of the subcategory checkboxes (table_vars)
-    and the text in the name entry (Vyhľadávanie). If no subcategory is selected,
-    all products are shown.
-    """
     selected_table_ids = [str(cid) for cid, var in table_vars.items() if var.get()]
     name_filter = remove_accents(name_entry.get().strip().lower())
     
@@ -120,11 +106,6 @@ def apply_filters(cursor, db_type, table_vars, name_entry, tree):
         query += f" AND c.id IN ({placeholders})"
         params.extend(selected_table_ids)
     
-    print("\n=== apply_filters ===")
-    print("Name filter:", name_filter)
-    print("SQL Query:", query)
-    print("Params:", params)
-    
     try:
         cursor.execute(query, tuple(params))
         all_rows = cursor.fetchall()
@@ -132,17 +113,12 @@ def apply_filters(cursor, db_type, table_vars, name_entry, tree):
         messagebox.showerror("Chyba", str(e))
         return
     
-    print(f"Raw rows from DB: {len(all_rows)}")
-    
-    # Apply name filter
     rows = []
     for row in all_rows:
         produkt = row[0] or ""
         if name_filter and name_filter not in remove_accents(produkt.lower()):
             continue
         rows.append(row)
-    
-    print(f"Rows after name filter: {len(rows)}")
     
     tree.delete(*tree.get_children())
     rows.sort(key=lambda r: (r[8], r[9], r[0]))
@@ -162,9 +138,6 @@ def apply_filters(cursor, db_type, table_vars, name_entry, tree):
     tree.tag_configure("header", font=("Arial", 10, "bold"))
     tree.tag_configure("subheader", font=("Arial", 9, "italic"))
 
-###############################################################################
-# 2. BASKET & EXCEL FUNCTIONS
-###############################################################################
 
 def update_basket_table(basket_tree, basket_items):
     basket_tree.delete(*basket_tree.get_children())
@@ -283,48 +256,43 @@ def update_excel_from_basket(basket_items, project_name):
 # 3. CREATE FILTER PANEL (AUTO-EXPAND SUBCATEGORIES)
 ###############################################################################
 def create_filter_panel(parent, on_filter_callback):
-    """
-    Creates a scrollable filter panel.
-    Top-level category checkboxes start unchecked with no dash.
-    When checked, they roll out subcategory checkboxes and auto-check them.
-    Only subcategory checkboxes affect the SQL query.
-    """
     frame = tk.Frame(parent, bg="white", width=250)
     frame.pack_propagate(False)
-    
+
     canvas = tk.Canvas(frame, bg="white", highlightthickness=0)
     scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
     canvas.configure(yscrollcommand=scrollbar.set)
-    
+
     main_inner = tk.Frame(canvas, bg="white")
     canvas.create_window((0, 0), window=main_inner, anchor="nw")
-    
+
     canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
+
     def on_mousewheel(event):
         canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
     main_inner.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", on_mousewheel))
     main_inner.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
     main_inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-    
+
     category_vars = {}
     table_vars = {}
-    
+
     def setup_filter(category_structure):
         for widget in main_inner.winfo_children():
             widget.destroy()
-        
+
         tk.Label(main_inner, text="Filtre:", font=("Arial", 12, "bold"), bg="white").pack(anchor="w", padx=5, pady=5)
-        
+
         def on_subcat_toggle():
             on_filter_callback()
-        
+
         for cat, subcats in sorted(category_structure.items()):
             category_vars[cat] = tk.BooleanVar(value=False)
             cat_row = tk.Frame(main_inner, bg="white")
             cat_row.pack(anchor="w", fill="x", padx=5, pady=2)
-            
+
             def make_cat_toggler(cat=cat, subcats=subcats):
                 def cat_toggler():
                     if category_vars[cat].get():
@@ -349,9 +317,9 @@ def create_filter_panel(parent, on_filter_callback):
             )
             cat_chk.pack(anchor="w")
             cat_chk.state(['!alternate'])
-            
+
             subcat_frame = tk.Frame(cat_row, bg="white")
-            
+
             for class_id, table_name in sorted(subcats, key=lambda x: x[1]):
                 table_vars[class_id] = tk.BooleanVar(value=False)
                 sub_chk = tk.Checkbutton(
@@ -362,7 +330,7 @@ def create_filter_panel(parent, on_filter_callback):
                     command=on_subcat_toggle
                 )
                 sub_chk.pack(anchor="w", padx=20, pady=1)
-        
+
         tk.Button(
             main_inner,
             text="Resetovať filtre",
@@ -372,8 +340,9 @@ def create_filter_panel(parent, on_filter_callback):
                 on_filter_callback()
             )
         ).pack(anchor="w", padx=5, pady=10)
-    
+
     return frame, setup_filter, category_vars, table_vars
+
 
 ###############################################################################
 # 4. MAIN GUI
