@@ -106,19 +106,43 @@ def remove_accents(text):
     return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
-    selected_class_ids = [str(cid) for cid, var in table_vars.items() if var.get()]
+    selected_categories = [cat for cat, var in category_vars.items() if var.get()]
+    selected_table_ids = [str(cid) for cid, var in table_vars.items() if var.get()]
     name_filter = remove_accents(name_entry.get().strip().lower())
+
+    print("🔍 Selected hlavna_kategoria:", selected_categories)
+    print("📚 Selected class IDs (nazov_tabulky):", selected_table_ids)
+    print("🔤 Name filter:", name_filter)
 
     rows = []
     try:
-        query = "SELECT produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace, class_id FROM produkty WHERE 1=1"
+        query = """
+            SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
+                   p.koeficient, p.nakup_materialu, p.cena_prace,
+                   c.id, c.hlavna_kategoria, c.nazov_tabulky
+            FROM produkty p
+            JOIN class c ON p.class_id = c.id
+            WHERE 1=1
+        """
         params = []
-        if selected_class_ids:
-            placeholders = ','.join(['%s' if db_type == 'postgres' else '?'] * len(selected_class_ids))
-            query += f" AND class_id IN ({placeholders})"
-            params.extend(selected_class_ids)
+
+        if selected_categories:
+            placeholders = ','.join(['%s' if db_type == 'postgres' else '?'] * len(selected_categories))
+            query += f" AND c.hlavna_kategoria IN ({placeholders})"
+            params.extend(selected_categories)
+
+        if selected_table_ids:
+            placeholders = ','.join(['%s' if db_type == 'postgres' else '?'] * len(selected_table_ids))
+            query += f" AND c.id IN ({placeholders})"
+            params.extend(selected_table_ids)
+
+        print("📋 Final Query:\n", query)
+        print("📦 Params:", params)
+
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
+        print(f"✅ {len(rows)} rows matched")
+
     except Exception as e:
         show_error(str(e))
         return
@@ -129,22 +153,23 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     for row in rows:
         produkt = row[0]
         if not name_filter or name_filter in remove_accents(produkt.lower()):
-            class_id = row[-1]
-            grouped.setdefault(class_id, []).append(row[:-1])
+            hlavna_kategoria = row[8]
+            nazov_tabulky = row[9]
+            grouped.setdefault(hlavna_kategoria, {}).setdefault(nazov_tabulky, []).append(row[:8])
 
-    class_name_map = {}
-    cursor.execute("SELECT id, nazov_tabulky FROM class")
-    for cid, cname in cursor.fetchall():
-        class_name_map[str(cid)] = cname
-
-    for class_id in sorted(grouped):
-        class_name = class_name_map.get(class_id, f"Trieda {class_id}")
-        tree.insert("", "end", values=("", f"-- {class_name} --"), tags=("header",))
-        for row in grouped[class_id]:
-            tree.insert("", "end", values=row + (class_name,))
-
+    for category in sorted(grouped):
+        tree.insert("", "end", values=("", f"-- {category} --"), tags=("header",))
+        for subcat in sorted(grouped[category]):
+            tree.insert("", "end", values=("", f"  > {subcat}"), tags=("subheader",))
+            for row in grouped[category][subcat]:
+                tree.insert("", "end", values=row + (category,))
 
     tree.tag_configure("header", font=("Arial", 10, "bold"))
+    tree.tag_configure("subheader", font=("Arial", 9, "italic"))
+
+
+
+
 
 def update_basket_table(basket_tree, basket_items):
     
