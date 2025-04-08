@@ -1,0 +1,27 @@
+{
+  "basket": {
+    "Batériové balíky": {
+      "Produkt 20": {
+        "jednotky": "ks",
+        "dodavatel": "Generic",
+        "odkaz": "https://example.com/battery_packy/20",
+        "koeficient": "1.00",
+        "nakup_materialu": "100.00",
+        "cena_prace": "15.00",
+        "pocet": 1
+      }
+    },
+    "Dátové zásuvky": {
+      "Produkt 24": {
+        "jednotky": "ks",
+        "dodavatel": "Generic",
+        "odkaz": "https://example.com/datove_zasuvky/24",
+        "koeficient": "1.00",
+        "nakup_materialu": "100.00",
+        "cena_prace": "15.00",
+        "pocet": 1
+      }
+    }
+  },
+  "user_name": ""
+}
