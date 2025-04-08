@@ -64,7 +64,9 @@ def show_project_files(folder_path):
     for widget in file_list_container.winfo_children():
         widget.destroy()
 
-    file_listbox.folder_path = folder_path
+    global current_folder_path
+    current_folder_path = folder_path
+
 
     if os.path.isdir(folder_path):
         files = sorted(os.listdir(folder_path), reverse=True)
@@ -171,8 +173,8 @@ tk.Label(right_frame, text="Files in Project:", font=("Arial", 12)).pack(anchor=
 file_action_frame = tk.Frame(right_frame)
 file_action_frame.pack(fill=tk.BOTH, expand=True)
 
-file_listbox = tk.Label()  # Dummy for storing folder path
-file_listbox.folder_path = None
+current_folder_path = None  # This is now a global variable
+
 
 file_list_container = tk.Frame(file_action_frame)
 file_list_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=5)

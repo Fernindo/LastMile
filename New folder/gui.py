@@ -12,12 +12,7 @@ import psycopg2
 import decimal
 import unicodedata
 
-###############################################################################
-# 1. DATABASE & FILTERING FUNCTIONS
-###############################################################################
-
 def is_online(host="8.8.8.8", port=53, timeout=3):
-    """Check if there's an active internet connection."""
     try:
         socket.setdefaulttimeout(timeout)
         socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
@@ -26,12 +21,6 @@ def is_online(host="8.8.8.8", port=53, timeout=3):
         return False
 
 def get_database_connection():
-    """
-    Connect to PostgreSQL if online, else fallback to local SQLite.
-    Ensure your DB has a table named "class" with columns:
-       id, hlavna_kategoria, nazov_tabulky
-    and your "produkty" table references them via class_id.
-    """
     if is_online():
         try:
             conn = psycopg2.connect(
@@ -51,7 +40,6 @@ def get_database_connection():
     return conn, 'sqlite'
 
 def sync_postgres_to_sqlite(pg_conn):
-    """Sync 'produkty' from PostgreSQL to local SQLite (for offline use)."""
     sqlite_conn = sqlite3.connect("local_backup.db")
     pg_cursor = pg_conn.cursor()
     sqlite_cursor = sqlite_conn.cursor()
@@ -67,100 +55,101 @@ def sync_postgres_to_sqlite(pg_conn):
             koeficient REAL,
             nakup_materialu REAL,
             cena_prace REAL,
-            class_id TEXT,
+            class_id INTEGER,
             class_name TEXT
         )
     """)
     pg_cursor.execute("""
         SELECT p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
                p.koeficient, p.nakup_materialu, p.cena_prace,
-               c.id, c.nazov_tabulky
+               c.id::INTEGER, c.nazov_tabulky
         FROM produkty p
         JOIN class c ON p.class_id = c.id
+
     """)
     rows = pg_cursor.fetchall()
     safe_rows = []
     for row in rows:
-        safe_row = []
-        for value in row:
-            if isinstance(value, decimal.Decimal):
-                safe_row.append(float(value))
+        new_row = []
+        for val in row:
+            if isinstance(val, decimal.Decimal):
+                new_row.append(float(val))
             else:
-                safe_row.append(value)
-        safe_rows.append(tuple(safe_row))
+                new_row.append(val)
+        safe_rows.append(tuple(new_row))
     sqlite_cursor.executemany("INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", safe_rows)
     sqlite_conn.commit()
     sqlite_conn.close()
     print("✔ Synced PostgreSQL → SQLite")
 
 def remove_accents(text):
-    """Remove accent marks for case-insensitive search."""
     return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
-def apply_filters(cursor, db_type, table_vars, name_entry, tree):
-    """
-    Filter products based on the state of the subcategory checkboxes (table_vars)
-    and the text in the name entry (Vyhľadávanie). If no subcategory is selected,
-    all products are shown.
-    """
-    selected_table_ids = [str(cid) for cid, var in table_vars.items() if var.get()]
-    name_filter = remove_accents(name_entry.get().strip().lower())
-    
+def apply_filters(cursor, db_type, subcat_vars, name_entry, tree):
+    selected_subcategories = [name for name, var in subcat_vars.items() if var.get()]
+    print("[DEBUG] selected subcategories:", selected_subcategories)
+
+    name_filter_raw = name_entry.get().strip().lower()
+    name_filter = remove_accents(name_filter_raw)
+    tokens = name_filter.split() if name_filter else []
+
     query = """
         SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
                p.koeficient, p.nakup_materialu, p.cena_prace,
-               c.id, c.hlavna_kategoria, c.nazov_tabulky
+               c.hlavna_kategoria, c.nazov_tabulky
         FROM produkty p
         JOIN class c ON p.class_id = c.id
         WHERE 1=1
     """
     params = []
-    if selected_table_ids:
-        placeholders = ','.join(['%s' if db_type == 'postgres' else '?' for _ in selected_table_ids])
-        query += f" AND c.id IN ({placeholders})"
-        params.extend(selected_table_ids)
-    
-    print("\n=== apply_filters ===")
-    print("Name filter:", name_filter)
-    print("SQL Query:", query)
-    print("Params:", params)
-    
+    if selected_subcategories:
+        placeholders = ','.join(['%s' if db_type == 'postgres' else '?' for _ in selected_subcategories])
+        query += f" AND c.nazov_tabulky IN ({placeholders})"
+        params.extend(selected_subcategories)
+
+    print("[DEBUG] SQL:", query)
+    print("[DEBUG] Params:", params)
+
     try:
         cursor.execute(query, tuple(params))
         all_rows = cursor.fetchall()
     except Exception as e:
-        messagebox.showerror("Chyba", str(e))
+        messagebox.showerror("Chyba", f"Database error:\n{e}")
         return
-    
-    print(f"Raw rows from DB: {len(all_rows)}")
-    
-    # Apply name filter
-    rows = []
+
+    print(f"[DEBUG] DB returned {len(all_rows)} rows before text search.")
+
+    filtered_rows = []
     for row in all_rows:
         produkt = row[0] or ""
-        if name_filter and name_filter not in remove_accents(produkt.lower()):
+        dodavatel = row[2] or ""
+        norm_produkt = remove_accents(produkt.lower())
+        norm_dodavatel = remove_accents(dodavatel.lower())
+        if tokens and not all(token in norm_produkt or token in norm_dodavatel for token in tokens):
             continue
-        rows.append(row)
-    
-    print(f"Rows after name filter: {len(rows)}")
-    
+        filtered_rows.append(row)
+
+    print(f"[DEBUG] After text filter: {len(filtered_rows)} rows.")
+
     tree.delete(*tree.get_children())
-    rows.sort(key=lambda r: (r[8], r[9], r[0]))
+    filtered_rows.sort(key=lambda r: (r[7], r[8], r[0]))
     grouped = {}
-    for row in rows:
-        cat = row[8]
-        subcat = row[9]
-        grouped.setdefault(cat, {}).setdefault(subcat, []).append(row[:8])
-    
+    for row in filtered_rows:
+        cat = row[7]
+        subcat = row[8]
+        grouped.setdefault(cat, {}).setdefault(subcat, []).append(row[:7])
+
     for cat in sorted(grouped):
         tree.insert("", "end", values=("", f"-- {cat} --"), tags=("header",))
         for subcat in sorted(grouped[cat]):
             tree.insert("", "end", values=("", f"   > {subcat}"), tags=("subheader",))
             for row_data in grouped[cat][subcat]:
                 tree.insert("", "end", values=row_data)
-    
+
     tree.tag_configure("header", font=("Arial", 10, "bold"))
     tree.tag_configure("subheader", font=("Arial", 9, "italic"))
+
+
 
 ###############################################################################
 # 2. BASKET & EXCEL FUNCTIONS
@@ -215,7 +204,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     if not selected_item:
         return
     if basket_tree.get_children(selected_item):
-        return
+        return  # skip parent folder rows
     item_data = basket_tree.item(selected_item)
     if not item_data or not item_data.get("values"):
         return
@@ -228,6 +217,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     entry_popup.place(x=x, y=y, width=width, height=height)
     entry_popup.insert(0, basket_tree.item(selected_item)['values'][col_index])
     entry_popup.focus()
+
     def save_edit(event=None):
         try:
             new_value = float(entry_popup.get()) if col_index != 7 else int(entry_popup.get())
@@ -241,6 +231,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
             basket_items[parent][produkt][key_map[col_index]] = new_value
         update_basket_table(basket_tree, basket_items)
         entry_popup.destroy()
+
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
@@ -280,100 +271,61 @@ def update_excel_from_basket(basket_items, project_name):
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
 
 ###############################################################################
-# 3. CREATE FILTER PANEL (AUTO-EXPAND SUBCATEGORIES)
+# 3. SUBCATEGORY CHECKBOX PANEL (WITH DEBUG PRINTS)
 ###############################################################################
-def create_filter_panel(parent, on_filter_callback):
-    """
-    Creates a scrollable filter panel.
-    Top-level category checkboxes start unchecked with no dash.
-    When checked, they roll out subcategory checkboxes and auto-check them.
-    Only subcategory checkboxes affect the SQL query.
-    """
+def create_subcat_checkbox_panel(parent, category_structure, on_filter_callback):
     frame = tk.Frame(parent, bg="white", width=250)
     frame.pack_propagate(False)
-    
+
     canvas = tk.Canvas(frame, bg="white", highlightthickness=0)
     scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
     canvas.configure(yscrollcommand=scrollbar.set)
-    
+
     main_inner = tk.Frame(canvas, bg="white")
     canvas.create_window((0, 0), window=main_inner, anchor="nw")
-    
+
     canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
+
     def on_mousewheel(event):
         canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
     main_inner.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", on_mousewheel))
     main_inner.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
     main_inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-    
-    category_vars = {}
-    table_vars = {}
-    
-    def setup_filter(category_structure):
-        for widget in main_inner.winfo_children():
-            widget.destroy()
-        
-        tk.Label(main_inner, text="Filtre:", font=("Arial", 12, "bold"), bg="white").pack(anchor="w", padx=5, pady=5)
-        
-        def on_subcat_toggle():
-            on_filter_callback()
-        
-        for cat, subcats in sorted(category_structure.items()):
-            category_vars[cat] = tk.BooleanVar(value=False)
-            cat_row = tk.Frame(main_inner, bg="white")
-            cat_row.pack(anchor="w", fill="x", padx=5, pady=2)
-            
-            def make_cat_toggler(cat=cat, subcats=subcats):
-                def cat_toggler():
-                    if category_vars[cat].get():
-                        subcat_frame.pack(anchor="w", fill="x", padx=20)
-                        for (cid, _) in subcats:
-                            table_vars[cid].set(True)
-                    else:
-                        subcat_frame.pack_forget()
-                        for (cid, _) in subcats:
-                            table_vars[cid].set(False)
-                    on_filter_callback()
-                return cat_toggler
 
-            cat_chk = ttk.Checkbutton(
-                cat_row,
-                text=cat,
-                variable=category_vars[cat],
-                onvalue=True,
-                offvalue=False,
-                style='TCheckbutton',
-                command=make_cat_toggler()
-            )
-            cat_chk.pack(anchor="w")
-            cat_chk.state(['!alternate'])
-            
-            subcat_frame = tk.Frame(cat_row, bg="white")
-            
-            for class_id, table_name in sorted(subcats, key=lambda x: x[1]):
-                table_vars[class_id] = tk.BooleanVar(value=False)
-                sub_chk = tk.Checkbutton(
-                    subcat_frame,
-                    text=table_name,
-                    variable=table_vars[class_id],
-                    bg="white",
-                    command=on_subcat_toggle
-                )
-                sub_chk.pack(anchor="w", padx=20, pady=1)
-        
-        tk.Button(
-            main_inner,
-            text="Resetovať filtre",
-            command=lambda: (
-                [v.set(False) for v in category_vars.values()],
-                [v.set(False) for v in table_vars.values()],
+    subcat_vars = {}
+
+    tk.Label(main_inner, text="Filtre (subkategórie):",
+             font=("Arial", 12, "bold"), bg="white").pack(anchor="w", padx=5, pady=5)
+
+    for cat in sorted(category_structure):
+        tk.Label(main_inner, text=cat, font=("Arial", 10, "bold"), bg="white")\
+            .pack(anchor="w", padx=5, pady=(5, 1))
+
+        for (class_id, sub_name) in sorted(category_structure[cat], key=lambda x: x[1]):
+            var = tk.BooleanVar()
+            subcat_vars[sub_name] = var  # <- KEY is the subcategory name from DB
+
+            def var_changed(*args, _sub_name=sub_name, _var=var):
+                print(f"[TRACE] Checkbox '{_sub_name}' changed to {_var.get()}")
                 on_filter_callback()
+
+            var.trace_add("write", var_changed)
+
+            chk = tk.Checkbutton(
+                main_inner,
+                text=sub_name,
+                variable=var,
+                bg="white"
             )
-        ).pack(anchor="w", padx=5, pady=10)
-    
-    return frame, setup_filter, category_vars, table_vars
+            chk.pack(anchor="w", padx=20, pady=1)
+
+    return frame, subcat_vars
+
+
+
+
+
 
 ###############################################################################
 # 4. MAIN GUI
@@ -389,39 +341,36 @@ def run_gui(project_path, basket_version=None):
     root.title(f"Project: {project_name}")
     basket_items = OrderedDict()
     metadata_label = tk.StringVar()
-    
-    # Load category structure from the 'class' table
+
+    # Load the 'class' table
     category_structure = {}
     try:
         cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
-        for class_id, cat, subcat in cursor.fetchall():
+        rows = cursor.fetchall()
+        print("[DEBUG] class rows =>", rows)
+        for class_id, cat, subcat in rows:
             category_structure.setdefault(cat, []).append((class_id, subcat))
+        print("[DEBUG] final category_structure =>", category_structure)
     except Exception as e:
         messagebox.showerror("Chyba", f"Couldn't load categories:\n{e}")
-    
-    # Debug: Print category structure
-    print("DEBUG: final category_structure =>", category_structure)
-    for cat, subs in category_structure.items():
-        print(f"Category '{cat}': {subs}")
-    
-    # Container for filter panel (left) and main content (right)
+
     container = tk.Frame(root)
     container.pack(fill=tk.BOTH, expand=True)
-    
-    # FILTER PANEL
+
     def on_filter_changed():
-        apply_filters(cursor, db_type, table_vars, name_entry, tree)
-    filter_frame, setup_filter, category_vars, table_vars = create_filter_panel(container, on_filter_changed)
-    filter_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(5,0), pady=5)
-    setup_filter(category_structure)
-    
-    # MAIN CONTENT
+        apply_filters(cursor, db_type, subcat_vars, name_entry, tree)
+
+    # LEFT subcategory checkboxes
+    left_panel, subcat_vars = create_subcat_checkbox_panel(container, category_structure, on_filter_changed)
+    left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(5,0), pady=5)
+
+    # MAIN content area
     main_frame = tk.Frame(container)
     main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    
+
     top_frame = tk.Frame(main_frame)
     top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
-    
+
     def return_home():
         user_name = user_name_entry.get().strip()
         data = {"basket": basket_items, "user_name": user_name}
@@ -429,10 +378,10 @@ def run_gui(project_path, basket_version=None):
             json.dump(data, f, ensure_ascii=False, indent=2)
         conn.close()
         root.destroy()
-    
+
     home_button = tk.Button(top_frame, text="🏠 Home", command=return_home)
     home_button.pack(side=tk.LEFT, padx=(0,10))
-    
+
     def save_current_state():
         user_name = user_name_entry.get().strip()
         data = {
@@ -451,34 +400,32 @@ def run_gui(project_path, basket_version=None):
             shutil.copy(notes_file, os.path.join(project_path, f"notes_{custom_name}.txt"))
         messagebox.showinfo("Uložené", f"✅ Uložené ako: {custom_name}")
         metadata_label.set(f"Súbor: {custom_name} | Dátum: {data['timestamp']} | Autor: {user_name}")
-    
+
     save_button = tk.Button(top_frame, text="💾 Uložiť", command=save_current_state)
     save_button.pack(side=tk.LEFT, padx=(0,10))
-    
+
     tk.Label(top_frame, text="Tvoje meno:", font=("Arial", 10)).pack(side=tk.LEFT, padx=(0,5))
     user_name_entry = tk.Entry(top_frame, width=20)
     user_name_entry.pack(side=tk.LEFT, padx=(0,15))
-    
+
     metadata_display = tk.Label(top_frame, textvariable=metadata_label, font=("Arial", 9), fg="gray")
     metadata_display.pack(side=tk.RIGHT)
-    
-    user_name_entry.bind("<KeyRelease>", lambda e: export_button.config(state=(tk.NORMAL if user_name_entry.get().strip() else tk.DISABLED)))
-    
+
     tk.Label(top_frame, text="Vyhľadávanie:", font=("Arial", 10)).pack(side=tk.LEFT, padx=5)
     name_entry = tk.Entry(top_frame, width=30)
     name_entry.pack(side=tk.LEFT, padx=5)
     name_entry.bind("<KeyRelease>", lambda e: on_filter_changed())
-    
+
     tree_frame = tk.Frame(main_frame)
     tree_frame.pack(side=tk.TOP, padx=10, pady=10, fill=tk.BOTH, expand=True)
-    
+
     columns = ("produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace")
     tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
     for col in columns:
         tree.heading(col, text=col.capitalize())
         tree.column(col, anchor="center")
     tree.pack(fill=tk.BOTH, expand=True)
-    
+
     def on_tree_double_click(event):
         selected = tree.focus()
         values = tree.item(selected)["values"]
@@ -486,23 +433,23 @@ def run_gui(project_path, basket_version=None):
             return
         extended_values = list(values) + ["General"]
         add_to_basket(extended_values, basket_items, update_basket_table, basket_tree)
-    
+
     tree.bind("<Double-1>", on_tree_double_click)
-    
+
     basket_frame = tk.Frame(main_frame)
     basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
     tk.Label(basket_frame, text="Košík - vybraté položky:", font=("Arial", 10)).pack()
-    
+
     basket_columns = ("produkt", "jednotky", "dodavatel", "odkaz", "koeficient", "nakup_materialu", "cena_prace", "pocet")
     basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="tree headings")
     for col in basket_columns:
         basket_tree.heading(col, text=col.capitalize())
         basket_tree.column(col, anchor="center")
     basket_tree.pack(fill=tk.BOTH, expand=True)
-    
+
     ghost_label = None
     canvas = tk.Canvas(basket_tree, highlightthickness=0, bd=0, bg="SystemWindow")
-    
+
     def on_drag_start(event):
         nonlocal ghost_label
         iid = basket_tree.identify_row(event.y)
@@ -513,7 +460,7 @@ def run_gui(project_path, basket_version=None):
             ghost_label = tk.Label(root, text=label_text, bg="lightyellow", relief="solid", bd=1)
             ghost_label.place(x=event.x_root + 10, y=event.y_root + 10)
             canvas.place(relx=0, rely=0, relwidth=1, relheight=1)
-    
+
     def on_drag_motion(event):
         if ghost_label:
             ghost_label.place(x=event.x_root + 10, y=event.y_root + 10)
@@ -525,39 +472,42 @@ def run_gui(project_path, basket_version=None):
                 y = bbox[1]
                 h = bbox[3]
                 drop_y = y if event.y < (y + h//2) else y+h
-                canvas.create_rectangle(2, drop_y-1, basket_tree.winfo_width()-2, drop_y+1,
-                                          fill="red", outline="", width=0)
-    
+                canvas.create_rectangle(
+                    2, drop_y-1, basket_tree.winfo_width()-2, drop_y+1,
+                    fill="red", outline="", width=0
+                )
+
     def on_drag_release(event):
         if ghost_label:
             ghost_label.destroy()
         canvas.delete("all")
         canvas.place_forget()
-    
+
     basket_tree.bind("<ButtonPress-1>", on_drag_start)
     basket_tree.bind("<B1-Motion>", on_drag_motion)
     basket_tree.bind("<ButtonRelease-1>", on_drag_release)
-    
+
     from notes_panel import create_notes_panel
     create_notes_panel(basket_frame, project_name)
+
     basket_tree.bind("<Double-1>", lambda e: edit_pocet_cell(e, basket_tree, basket_items, update_basket_table))
-    
     tk.Button(basket_frame, text="Odstrániť", command=lambda: remove_from_basket(basket_tree, basket_items, update_basket_table))\
       .pack(pady=3)
-    
+
     def try_export():
         user_name = user_name_entry.get().strip()
         if not user_name:
             messagebox.showwarning("Meno chýba", "⚠ Prosím zadaj svoje meno pred exportom.")
             return
         update_excel_from_basket(basket_items, project_name)
-    
+
     export_button = tk.Button(basket_frame, text="Exportovať", command=try_export, state=tk.DISABLED)
     export_button.pack(pady=3)
-    
-    if user_name_entry.get().strip():
-        export_button.config(state=tk.NORMAL)
-    
+
+    def check_name(*_):
+        export_button.config(state=tk.NORMAL if user_name_entry.get().strip() else tk.DISABLED)
+    user_name_entry.bind("<KeyRelease>", check_name)
+
     basket_file = os.path.join(project_path, basket_version) if basket_version else os.path.join(project_path, "project.json")
     if os.path.exists(basket_file):
         with open(basket_file, "r", encoding="utf-8") as f:
@@ -568,13 +518,16 @@ def run_gui(project_path, basket_version=None):
                 if "user_name" in data:
                     user_name_entry.insert(0, data["user_name"])
                 if "timestamp" in data:
-                    metadata_label.set(f"Súbor: {os.path.basename(basket_file)} | Dátum: {data['timestamp']} | Autor: {data.get('user_name', '')}")
+                    metadata_label.set(
+                        f"Súbor: {os.path.basename(basket_file)} | Dátum: {data['timestamp']} | Autor: {data.get('user_name', '')}"
+                    )
             except json.JSONDecodeError:
-                print("⚠ Could not load project file")
-    
-    apply_filters(cursor, db_type, table_vars, name_entry, tree)
+                print("⚠ Could not parse project file")
+
+    # Initial load: no subcategory => show all
+    apply_filters(cursor, db_type, subcat_vars, name_entry, tree)
     update_basket_table(basket_tree, basket_items)
-    
+
     root.protocol("WM_DELETE_WINDOW", return_home)
     root.mainloop()
 
