@@ -48,6 +48,7 @@ def create_class_form(parent, refresh_callback=None):
         cur.close()
         conn.close()
 
+
     def save_class():
         kategoria = kat_combo.get().strip()
         nazov = nazov_entry.get().strip()
@@ -56,26 +57,26 @@ def create_class_form(parent, refresh_callback=None):
             messagebox.showwarning("Chyba", "Vyplň všetky polia.")
             return
 
-        class_id = generate_id(nazov)
-
         try:
             conn = get_connection()
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO class (id, hlavna_kategoria, nazov_tabulky) VALUES (%s, %s, %s)",
-                (class_id, kategoria, nazov)
+                "INSERT INTO class (hlavna_kategoria, nazov_tabulky) VALUES (%s, %s) RETURNING id",
+                (kategoria, nazov)
             )
+            new_id = cur.fetchone()[0]
             conn.commit()
             cur.close()
             conn.close()
 
-            messagebox.showinfo("Hotovo", f"Trieda bola vytvorená s ID: {class_id}")
+            messagebox.showinfo("Hotovo", f"Trieda bola vytvorená s ID: {new_id}")
             nazov_entry.delete(0, tk.END)
             load_classes()
             if refresh_callback:
                 refresh_callback()
         except Exception as e:
             messagebox.showerror("Chyba", str(e))
+
 
     def delete_class():
         selected = triedy_combo.get()
