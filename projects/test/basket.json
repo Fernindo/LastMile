@@ -1,0 +1,25 @@
+{
+  "user_name": "ja",
+  "basket": {
+    "Trieda 4": {
+      "TP-Link SG108": {
+        "jednotky": "ks",
+        "dodavatel": "TP-Link",
+        "odkaz": "https://example.com/switche/8",
+        "koeficient": "1.00",
+        "nakup_materialu": "45.00",
+        "cena_prace": "5.00",
+        "pocet": 1
+      },
+      "Cisco SG350": {
+        "jednotky": "ks",
+        "dodavatel": "Cisco",
+        "odkaz": "https://example.com/switche/7",
+        "koeficient": "1.20",
+        "nakup_materialu": "180.00",
+        "cena_prace": "20.00",
+        "pocet": 1
+      }
+    }
+  }
+}

@@ -44,7 +44,7 @@ def return_home():
     save_basket(project_path, basket_items, user_name_entry.get().strip())
     conn.close()
     root.destroy()
-    subprocess.Popen(["python", "project_selector.py"])  
+    subprocess.Popen(["python", "project_selector.py"])
 
 category_structure = {}
 cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
@@ -161,7 +161,6 @@ def on_drag_motion(event):
 
     if dragging_is_section and target_is_section:
         basket_tree.move(dragging_item["item"], '', basket_tree.index(target_iid))
-
     elif not dragging_is_section and not target_is_section:
         parent_drag = basket_tree.parent(dragging_item["item"])
         parent_target = basket_tree.parent(target_iid)
