@@ -33,7 +33,8 @@ class UserManagementWindow:
 
         tk.Label(form, text="Rola").grid(row=0, column=4, padx=5)
         self.role_var = tk.StringVar(value="user")
-        ttk.Combobox(form, textvariable=self.role_var, values=["admin", "user"]).grid(row=0, column=5, padx=5)
+        ttk.Combobox(form, textvariable=self.role_var, values=["admin", "user"], state="readonly").grid(row=0, column=5, padx=5)
+
 
         tk.Button(self.top, text="Pridať", command=self.add_user).pack(pady=5)
 
