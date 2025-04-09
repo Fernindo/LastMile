@@ -104,13 +104,11 @@ def load_basket(project_path):
             try:
                 data = json.load(f)
                 basket = data.get("basket", {})
-                # use OrderedDict if order matters:
                 return OrderedDict(basket), data.get("user_name", "")
             except json.JSONDecodeError:
                 print("⚠ JSON decode error - basket file is not valid.")
 
     return OrderedDict(), ""
-
 
 def show_error(message):
     messagebox.showerror("Chyba", message)
@@ -157,32 +155,23 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         for row in grouped[class_id]:
             tree.insert("", "end", values=row + (class_name,))
 
-
     tree.tag_configure("header", font=("Arial", 10, "bold"))
 
 def update_basket_table(basket_tree, basket_items):
-    
     basket_tree.delete(*basket_tree.get_children())
     for section, products in basket_items.items():
         basket_tree.insert("", "end", iid=section, text=section, open=True)
         for produkt, item_data in products.items():
-            basket_tree.insert(
-                section,
-                "end",
-                values=(
-                    produkt,
-                    item_data["jednotky"],
-                    item_data["dodavatel"],
-                    item_data["odkaz"],
-                    item_data["koeficient"],
-                    item_data["nakup_materialu"],
-                    item_data["cena_prace"],
-                    item_data["pocet"]
-                )
-            )
-
-
-
+            basket_tree.insert("", "end", values=(
+                produkt,
+                item_data["jednotky"],
+                item_data["dodavatel"],
+                item_data["odkaz"],
+                item_data["koeficient"],
+                item_data["nakup_materialu"],
+                item_data["cena_prace"],
+                item_data["pocet"]
+            ))
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
     print("📦 item =", item)
@@ -210,18 +199,16 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
 
     update_basket_table(basket_tree, basket_items)
 
-
 def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     region = basket_tree.identify("region", event.x, event.y)
     if region != "cell":
-        return  # Ignore clicks on icons or empty space
+        return
 
     selected_item = basket_tree.focus()
     if not selected_item:
         return
 
-    # Prevent editing or expanding/collapsing section headers
-    if basket_tree.get_children(selected_item):  # it's a parent row
+    if basket_tree.get_children(selected_item):
         return
 
     item_data = basket_tree.item(selected_item)
@@ -229,7 +216,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
         return
 
     col = basket_tree.identify_column(event.x)
-    col_index = int(col.replace('#', '')) - 1  # 0-based
+    col_index = int(col.replace('#', '')) - 1
 
     if col_index not in [4, 5, 6, 7]:
         return
@@ -250,13 +237,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
         produkt = item_data['values'][0]
         parent = basket_tree.parent(selected_item)
 
-        key_map = {
-            4: "koeficient",
-            5: "nakup_materialu",
-            6: "cena_prace",
-            7: "pocet"
-        }
-
+        key_map = { 4: "koeficient", 5: "nakup_materialu", 6: "cena_prace", 7: "pocet" }
         if parent in basket_items and produkt in basket_items[parent]:
             basket_items[parent][produkt][key_map[col_index]] = new_value
 
@@ -267,9 +248,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     entry_popup.bind("<FocusOut>", save_edit)
 
 def block_expand_collapse(event):
-    return "break"  # Prevent default behavior
-
-
+    return "break"
 
 def remove_from_basket(basket_tree, basket_items, update_basket_table):
     for item in basket_tree.selection():
@@ -282,22 +261,21 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
                 break
     update_basket_table(basket_tree, basket_items)
 
-
 def update_excel_from_basket(basket_items, project_name):
+    from tkinter import messagebox
     if not basket_items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
 
-    # Build path to Desktop
+    import os
     desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
     file_path = os.path.join(desktop_path, f"{project_name}.xlsx")
 
-    # Format the data to match what excel_processing expects
     excel_data = []
     for section, products in basket_items.items():
         for produkt, v in products.items():
             excel_data.append((
-                section,  # <-- pass section name as first item
+                section,  # section name
                 produkt,
                 v["jednotky"],
                 v["dodavatel"],
@@ -308,9 +286,6 @@ def update_excel_from_basket(basket_items, project_name):
                 v["pocet"]
             ))
 
-
     update_excel(excel_data, file_path, basket_items.get("_notes", ""))
 
-
-    # Notify the user
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")

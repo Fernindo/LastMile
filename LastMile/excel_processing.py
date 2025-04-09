@@ -14,6 +14,12 @@ def update_excel(selected_items, new_file, notes_text=""):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     template_file = os.path.join(base_dir, "Vzorova_CP3.xlsx")
 
+    # Check if the Excel template file exists
+    if not os.path.exists(template_file):
+        print(f"❌ Template file not found at: {template_file}")
+        print("Make sure that 'Vzorova_CP3.xlsx' is in the same folder as your scripts.")
+        return
+
     try:
         shutil.copy(template_file, new_file)
     except Exception as e:
@@ -44,12 +50,12 @@ def update_excel(selected_items, new_file, notes_text=""):
             cena_prace = float(item[7])
             pocet = int(item[8])
 
-            # 👉 Insert and format row from template
+            # Insert and format row from template
             sheet.Rows(insert_position).Insert()
             sheet.Rows(TEMPLATE_ROW + 1).Copy()
             sheet.Rows(insert_position).PasteSpecial(Paste=-4163)  # xlPasteFormats
 
-            # 👉 Fill values
+            # Fill values
             sheet.Cells(insert_position, 2).Value = counter
             sheet.Cells(insert_position, 3).Value = produkt
             sheet.Cells(insert_position, 4).Value = jednotky
@@ -58,20 +64,23 @@ def update_excel(selected_items, new_file, notes_text=""):
             sheet.Cells(insert_position, 7).Formula = f"=F{insert_position}*E{insert_position}"
             sheet.Cells(insert_position, 8).Formula = f"=E{insert_position}"
             sheet.Cells(insert_position, 9).Value = cena_prace
-            sheet.Cells(insert_position,10).Formula = f"=I{insert_position}*H{insert_position}"
-            sheet.Cells(insert_position,11).Formula = f"=G{insert_position}+J{insert_position}"
-            sheet.Cells(insert_position,13).Value = koeficient
-            sheet.Cells(insert_position,14).Value = nakup_materialu
-            sheet.Cells(insert_position,15).Formula = f"=N{insert_position}*E{insert_position}"
-            sheet.Cells(insert_position,16).Formula = f"=G{insert_position}-O{insert_position}"
-            sheet.Cells(insert_position,17).Formula = f"=P{insert_position}/G{insert_position}"
+            sheet.Cells(insert_position, 10).Formula = f"=I{insert_position}*H{insert_position}"
+            sheet.Cells(insert_position, 11).Formula = f"=G{insert_position}+J{insert_position}"
+            sheet.Cells(insert_position, 13).Value = koeficient
+            sheet.Cells(insert_position, 14).Value = nakup_materialu
+            sheet.Cells(insert_position, 15).Formula = f"=N{insert_position}*E{insert_position}"
+            sheet.Cells(insert_position, 16).Formula = f"=G{insert_position}-O{insert_position}"
+            sheet.Cells(insert_position, 17).Formula = f"=P{insert_position}/G{insert_position}"
 
             if odkaz and dodavatel:
                 try:
-                    sheet.Hyperlinks.Add(Anchor=sheet.Cells(insert_position, 19), Address=str(odkaz), TextToDisplay=str(dodavatel))
+                    sheet.Hyperlinks.Add(
+                        Anchor=sheet.Cells(insert_position, 19),
+                        Address=str(odkaz),
+                        TextToDisplay=str(dodavatel)
+                    )
                 except Exception as link_error:
                     print(f"⚠ Could not add hyperlink at row {insert_position}: {link_error}")
-
 
             insert_position += 1
             counter += 1

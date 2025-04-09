@@ -11,7 +11,17 @@ project_files = []
 DEFAULT_TEMPLATE = {"data": "Default session content."}
 
 def launch_gui(project_path):
-    subprocess.Popen(["python", "gui.py", project_path])
+    """
+    Launches the GUI (gui.py) using an absolute path.
+    This ensures that all local modules (like filter_panel.py) are correctly imported.
+    """
+    import sys
+    # Get the directory of this file (project_selector.py)
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    # Build the full path to gui.py (which is in the same folder)
+    gui_path = os.path.join(this_dir, "gui.py")
+    # Use sys.executable to invoke the same Python interpreter
+    subprocess.Popen([sys.executable, gui_path, project_path])
 
 def create_new_project():
     name = simpledialog.askstring("New Project", "Enter a name for your new project:")
