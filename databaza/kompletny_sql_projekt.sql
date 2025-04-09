@@ -1,52 +1,53 @@
 
-DROP TABLE IF EXISTS produkty;
-DROP TABLE IF EXISTS class;
+----DROP TABLE IF EXISTS produkty;
+----DROP TABLE IF EXISTS class;
 
 CREATE TABLE class (
-    id VARCHAR(100) PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     hlavna_kategoria VARCHAR(100) NOT NULL,
     nazov_tabulky VARCHAR(100) NOT NULL
 );
 
-INSERT INTO class (id, hlavna_kategoria, nazov_tabulky) VALUES
-('rozvadzace', 'SK', 'Rozvádzače'),
-('vybava_rozvadzacov', 'SK', 'Výbava rozvádzačov'),
-('wifi_ap', 'SK', 'WiFi prístupové body'),
-('switche', 'SK', 'Prepínače (switche)'),
-('zalozne_zdroje', 'SK', 'Záložné zdroje'),
-('zalozne_zdroje_extended', 'SK', 'Záložné zdroje – rozšírené'),
-('battery_packy', 'SK', 'Batériové balíky'),
-('kabelaz', 'SK', 'Štruktúrovaná kabeláž'),
-('datove_zasuvky', 'SK', 'Dátové zásuvky'),
-('podlahove_krabice', 'SK', 'Podlahové krabice'),
-('ustredne', 'EZS', 'Ústredne'),
-('radiove_moduly', 'EZS', 'Rádiové moduly'),
-('komunikatory', 'EZS', 'Komunikátory'),
-('rozhrania', 'EZS', 'Rozhrania'),
-('pristupove_moduly_bezdrotove', 'EZS', 'Prístupové moduly – bezdrôtové'),
-('pristupove_moduly', 'EZS', 'Prístupové moduly'),
-('klavesnice_bezdrotove', 'EZS', 'Klávesnice – bezdrôtové'),
-('klavesnice', 'EZS', 'Klávesnice'),
-('citacky_pristupovych_kariet', 'EZS', 'Čítačky prístupových kariet'),
-('ovladace', 'EZS', 'Ovládače'),
-('identifikacne_prvky', 'EZS', 'Identifikačné prvky'),
-('montazne_prislusenstvo', 'EZS', 'Montážne príslušenstvo'),
-('sireny_vnutorne', 'EZS', 'Sirény – vnútorné'),
-('sireny_vonkajsie', 'EZS', 'Sirény – vonkajšie'),
-('pohybove_detektory_bezdrotove', 'EZS', 'Pohybové detektory – bezdrôtové'),
-('pohybove_deterktory', 'EZS', 'Pohybové detektory'),
-('plastove_detektory_bezdrotove', 'EZS', 'Plastové detektory – bezdrôtové'),
-('magneticke_kontakty', 'EZS', 'Magnetické kontakty'),
-('enviromentalne_detektory_bezdrotove', 'EZS', 'Environmentálne detektory – bezdrôtové'),
-('enviromentalne_detektory', 'EZS', 'Environmentálne detektory'),
-('prislusenstvo', 'EZS', 'Príslušenstvo'),
-('vystupne_moduly', 'EZS', 'Výstupné moduly'),
-('vstupne_moduly', 'EZS', 'Vstupné moduly'),
-('rele', 'EZS', 'Relé moduly'),
-('indikatory', 'EZS', 'Indikátory'),
-('ip_kamery', 'CCTV', 'IP kamery'),
-('nvr', 'CCTV', 'Záznamové zariadenia (NVR)'),
-('uchytenie', 'CCTV', 'Uchytenie kamier');
+
+INSERT INTO class (hlavna_kategoria, nazov_tabulky) VALUES
+('SK', 'Rozvádzače'),
+('SK', 'Výbava rozvádzačov'),
+('SK', 'WiFi prístupové body'),
+('SK', 'Prepínače (switche)'),
+('SK', 'Záložné zdroje'),
+('SK', 'Záložné zdroje – rozšírené'),
+('SK', 'Batériové balíky'),
+('SK', 'Štruktúrovaná kabeláž'),
+('SK', 'Dátové zásuvky'),
+('SK', 'Podlahové krabice'),
+('EZS', 'Ústredne'),
+('EZS', 'Rádiové moduly'),
+('EZS', 'Komunikátory'),
+('EZS', 'Rozhrania'),
+('EZS', 'Prístupové moduly – bezdrôtové'),
+('EZS', 'Prístupové moduly'),
+('EZS', 'Klávesnice – bezdrôtové'),
+('EZS', 'Klávesnice'),
+('EZS', 'Čítačky prístupových kariet'),
+('EZS', 'Ovládače'),
+('EZS', 'Identifikačné prvky'),
+('EZS', 'Montážne príslušenstvo'),
+('EZS', 'Sirény – vnútorné'),
+('EZS', 'Sirény – vonkajšie'),
+('EZS', 'Pohybové detektory – bezdrôtové'),
+('EZS', 'Pohybové detektory'),
+('EZS', 'Plastové detektory – bezdrôtové'),
+('EZS', 'Magnetické kontakty'),
+('EZS', 'Environmentálne detektory – bezdrôtové'),
+('EZS', 'Environmentálne detektory'),
+('EZS', 'Príslušenstvo'),
+('EZS', 'Výstupné moduly'),
+('EZS', 'Vstupné moduly'),
+('EZS', 'Relé moduly'),
+('EZS', 'Indikátory'),
+('CCTV', 'IP kamery'),
+('CCTV', 'Záznamové zariadenia (NVR)'),
+('CCTV', 'Uchytenie kamier');
 
 CREATE TABLE produkty (
     id SERIAL PRIMARY KEY,
@@ -57,8 +58,11 @@ CREATE TABLE produkty (
     cena_prace DECIMAL(10,2),
     dodavatel VARCHAR(100),
     odkaz TEXT,
-    class_id VARCHAR(100) REFERENCES class(id)
+    class_id INTEGER REFERENCES class(id)
 );
+
+
+
 
 INSERT INTO produkty (produkt, jednotky, nakup_materialu, koeficient, cena_prace, dodavatel, odkaz, class_id) VALUES
 ('Rozvádzač 24U', 'ks', 150.00, 1.2, 45.00, 'ABB', 'https://example.com/rozvadzace/1', 'rozvadzace'),
