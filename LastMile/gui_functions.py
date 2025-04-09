@@ -11,6 +11,7 @@ from collections import OrderedDict
 import unicodedata
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
+    """Check if we're online by connecting to a known IP/port (Google DNS)."""
     try:
         socket.setdefaulttimeout(timeout)
         socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
@@ -19,6 +20,10 @@ def is_online(host="8.8.8.8", port=53, timeout=3):
         return False
 
 def get_database_connection():
+    """
+    Try connecting to PostgreSQL (online).
+    If that fails, fall back to SQLite (offline).
+    """
     if is_online():
         try:
             conn = psycopg2.connect(
@@ -33,15 +38,22 @@ def get_database_connection():
             return conn, 'postgres'
         except Exception as e:
             print("PostgreSQL connection failed:", e)
+
     conn = sqlite3.connect("local_backup.db")
     print("🕠 Using local SQLite database (offline mode)")
     return conn, 'sqlite'
 
 def sync_postgres_to_sqlite(pg_conn):
+    """
+    Sync data from the PostgreSQL 'produkty' table into a local SQLite table 'produkty'.
+    We do a LEFT JOIN with the public.class table to retrieve category names (nazov_tabulky).
+    Ensure your PostgreSQL has that table with columns (id, nazov_tabulky).
+    """
     sqlite_conn = sqlite3.connect("local_backup.db")
     pg_cursor = pg_conn.cursor()
     sqlite_cursor = sqlite_conn.cursor()
 
+    # Recreate the produkty table in SQLite
     sqlite_cursor.execute("DROP TABLE IF EXISTS produkty")
     sqlite_cursor.execute("""
         CREATE TABLE produkty (
@@ -58,14 +70,25 @@ def sync_postgres_to_sqlite(pg_conn):
         )
     """)
 
+    # Pull data from PostgreSQL, including the category name from public.class if present
     pg_cursor.execute("""
-        SELECT p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
-               p.koeficient, p.nakup_materialu, p.cena_prace, c.id, c.nazov_tabulky
+        SELECT 
+            p.id,
+            p.produkt,
+            p.jednotky,
+            p.dodavatel,
+            p.odkaz,
+            p.koeficient,
+            p.nakup_materialu,
+            p.cena_prace,
+            p.class_id,
+            c.nazov_tabulky
         FROM produkty p
-        JOIN class c ON p.class_id = c.id
+        LEFT JOIN public.class c ON p.class_id = c.id
     """)
     rows = pg_cursor.fetchall()
 
+    # Convert any decimal.Decimal to float
     safe_rows = []
     for row in rows:
         safe_row = []
@@ -76,7 +99,12 @@ def sync_postgres_to_sqlite(pg_conn):
                 safe_row.append(value)
         safe_rows.append(tuple(safe_row))
 
-    sqlite_cursor.executemany("INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", safe_rows)
+    # Insert into SQLite
+    sqlite_cursor.executemany("""
+        INSERT INTO produkty 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, safe_rows)
+
     sqlite_conn.commit()
     sqlite_conn.close()
     print("✔ Synced PostgreSQL → SQLite")
@@ -85,20 +113,24 @@ def get_basket_filename(project_name):
     return f"{project_name}.json"
 
 def save_basket(project_path, basket_items, user_name=""):
+    """
+    Save the current basket to project_path/basket.json as JSON.
+    """
     data = {
         "user_name": user_name,
         "basket": basket_items
     }
-
-    os.makedirs(project_path, exist_ok=True)  # make sure folder exists
-
+    os.makedirs(project_path, exist_ok=True)
     basket_path = os.path.join(project_path, "basket.json")
     with open(basket_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def load_basket(project_path):
+    """
+    Load the basket from project_path/basket.json if it exists.
+    Returns (basket_items, user_name).
+    """
     filename = os.path.join(project_path, "basket.json")
-
     if os.path.exists(filename) and os.path.getsize(filename) > 0:
         with open(filename, "r", encoding="utf-8") as f:
             try:
@@ -107,28 +139,53 @@ def load_basket(project_path):
                 return OrderedDict(basket), data.get("user_name", "")
             except json.JSONDecodeError:
                 print("⚠ JSON decode error - basket file is not valid.")
-
     return OrderedDict(), ""
 
 def show_error(message):
+    """Show a Tk error messagebox with the given error message."""
     messagebox.showerror("Chyba", message)
     return []
 
 def remove_accents(text):
-    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+    """
+    Strip accents (diacritics) from a string for simpler matching/filtering.
+    """
+    import unicodedata
+    return ''.join(
+        c 
+        for c in unicodedata.normalize('NFD', text) 
+        if unicodedata.category(c) != 'Mn'
+    )
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
+    """
+    Load products from our local SQLite 'produkty' table, optionally
+    filtered by 'class_id' (checked in table_vars) and text search (name_entry).
+    
+    Then group them by class_id and display them in the Treeview as:
+       [Header row:  -- <class_name> --]
+       [Data row: ... product columns + class_name]
+    """
     selected_class_ids = [str(cid) for cid, var in table_vars.items() if var.get()]
     name_filter = remove_accents(name_entry.get().strip().lower())
 
     rows = []
     try:
-        query = "SELECT produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace, class_id FROM produkty WHERE 1=1"
+        query = """
+            SELECT produkt, jednotky, dodavatel, odkaz, koeficient, 
+                   nakup_materialu, cena_prace, class_id
+            FROM produkty
+            WHERE 1=1
+        """
         params = []
         if selected_class_ids:
-            placeholders = ','.join(['%s' if db_type == 'postgres' else '?'] * len(selected_class_ids))
+            placeholders = ','.join(
+                ['%s' if db_type == 'postgres' else '?'] 
+                * len(selected_class_ids)
+            )
             query += f" AND class_id IN ({placeholders})"
             params.extend(selected_class_ids)
+
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
     except Exception as e:
@@ -137,47 +194,69 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
 
     tree.delete(*tree.get_children())
 
+    # Group rows by class_id
     grouped = {}
     for row in rows:
         produkt = row[0]
         if not name_filter or name_filter in remove_accents(produkt.lower()):
-            class_id = row[-1]
+            class_id = row[-1]  # The final column is class_id
             grouped.setdefault(class_id, []).append(row[:-1])
 
+    # Build mapping from class_id -> real name from public.class
     class_name_map = {}
-    cursor.execute("SELECT id, nazov_tabulky FROM class")
-    for cid, cname in cursor.fetchall():
-        class_name_map[str(cid)] = cname
+    try:
+        cursor.execute("SELECT id, nazov_tabulky FROM public.class")
+        for cid, cname in cursor.fetchall():
+            if cid is not None:
+                class_name_map[str(cid)] = cname
+    except Exception as e:
+        print("Warning: Unable to retrieve class names:", e)
 
+    # Populate Treeview
     for class_id in sorted(grouped):
-        class_name = class_name_map.get(class_id, f"Trieda {class_id}")
+        class_name = class_name_map.get(class_id, "Uncategorized")
+        # Insert a header row with the category name
         tree.insert("", "end", values=("", f"-- {class_name} --"), tags=("header",))
+        # Insert the products under that category
         for row in grouped[class_id]:
+            # row is (produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace)
+            # We append class_name to the end
             tree.insert("", "end", values=row + (class_name,))
 
     tree.tag_configure("header", font=("Arial", 10, "bold"))
 
 def update_basket_table(basket_tree, basket_items):
+    """
+    Rebuild the basket_tree (Treeview) from the basket_items dictionary structure.
+    Keys in basket_items = categories, each containing a dict of product details.
+    """
     basket_tree.delete(*basket_tree.get_children())
     for section, products in basket_items.items():
         basket_tree.insert("", "end", iid=section, text=section, open=True)
         for produkt, item_data in products.items():
-            basket_tree.insert("", "end", values=(
-                produkt,
-                item_data["jednotky"],
-                item_data["dodavatel"],
-                item_data["odkaz"],
-                item_data["koeficient"],
-                item_data["nakup_materialu"],
-                item_data["cena_prace"],
-                item_data["pocet"]
-            ))
+            basket_tree.insert(
+                section,
+                "end",
+                values=(
+                    produkt,
+                    item_data["jednotky"],
+                    item_data["dodavatel"],
+                    item_data["odkaz"],
+                    item_data["koeficient"],
+                    item_data["nakup_materialu"],
+                    item_data["cena_prace"],
+                    item_data["pocet"]
+                )
+            )
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
+    """
+    item is (produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace, class_name).
+    We group by class_name in the basket dict, incrementing 'pocet' if the product is already added.
+    """
     print("📦 item =", item)
-
     produkt = item[0]
-    class_name = item[7]  # section name
+    class_name = item[7] if len(item) >= 8 else "Uncategorized"
 
     item_data = {
         "jednotky": item[1],
@@ -200,6 +279,9 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
     update_basket_table(basket_tree, basket_items)
 
 def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
+    """
+    Allows editing of koeficient / nakup_materialu / cena_prace / pocet in the basket via double-click.
+    """
     region = basket_tree.identify("region", event.x, event.y)
     if region != "cell":
         return
@@ -208,6 +290,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     if not selected_item:
         return
 
+    # If the item is a parent (a section name), skip
     if basket_tree.get_children(selected_item):
         return
 
@@ -218,6 +301,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     col = basket_tree.identify_column(event.x)
     col_index = int(col.replace('#', '')) - 1
 
+    # We only allow editing columns 4..7 (koeficient, nakup_materialu, cena_prace, pocet)
     if col_index not in [4, 5, 6, 7]:
         return
 
@@ -237,7 +321,13 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
         produkt = item_data['values'][0]
         parent = basket_tree.parent(selected_item)
 
-        key_map = { 4: "koeficient", 5: "nakup_materialu", 6: "cena_prace", 7: "pocet" }
+        key_map = {
+            4: "koeficient",
+            5: "nakup_materialu",
+            6: "cena_prace",
+            7: "pocet"
+        }
+
         if parent in basket_items and produkt in basket_items[parent]:
             basket_items[parent][produkt][key_map[col_index]] = new_value
 
@@ -248,9 +338,15 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     entry_popup.bind("<FocusOut>", save_edit)
 
 def block_expand_collapse(event):
+    """
+    Stop the user from expanding/collapsing rows if they're set up that way.
+    """
     return "break"
 
 def remove_from_basket(basket_tree, basket_items, update_basket_table):
+    """
+    Remove the selected row(s) from the basket.
+    """
     for item in basket_tree.selection():
         produkt = basket_tree.item(item)["values"][0]
         for section in list(basket_items):
@@ -261,7 +357,12 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
                 break
     update_basket_table(basket_tree, basket_items)
 
+# ------------------- MISSING FUNCTION RE-ADDED -------------------
 def update_excel_from_basket(basket_items, project_name):
+    """
+    Exports the current basket to an Excel file on the Desktop. 
+    Calls update_excel() from excel_processing to handle the actual writing.
+    """
     from tkinter import messagebox
     if not basket_items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
@@ -275,7 +376,7 @@ def update_excel_from_basket(basket_items, project_name):
     for section, products in basket_items.items():
         for produkt, v in products.items():
             excel_data.append((
-                section,  # section name
+                section,  # Use the section name as the first column
                 produkt,
                 v["jednotky"],
                 v["dodavatel"],
@@ -286,6 +387,7 @@ def update_excel_from_basket(basket_items, project_name):
                 v["pocet"]
             ))
 
+    # We use the "update_excel" function from excel_processing.py
     update_excel(excel_data, file_path, basket_items.get("_notes", ""))
 
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
