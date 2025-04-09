@@ -1,0 +1,36 @@
+{
+  "user_name": "ja",
+  "basket": {
+    "Dátové zásuvky": {
+      "Produkt 23": {
+        "jednotky": "ks",
+        "dodavatel": "Generic",
+        "odkaz": "https://example.com/datove_zasuvky/23",
+        "koeficient": "1.00",
+        "nakup_materialu": "100.00",
+        "cena_prace": "15.00",
+        "pocet": 1
+      },
+      "Produkt 24": {
+        "jednotky": "ks",
+        "dodavatel": "Generic",
+        "odkaz": "https://example.com/datove_zasuvky/24",
+        "koeficient": "1.00",
+        "nakup_materialu": "100.00",
+        "cena_prace": "15.00",
+        "pocet": 1
+      }
+    },
+    "Environmentálne detektory": {
+      "Produkt 63": {
+        "jednotky": "ks",
+        "dodavatel": "Generic",
+        "odkaz": "https://example.com/enviromentalne_detektory/63",
+        "koeficient": "1.00",
+        "nakup_materialu": "100.00",
+        "cena_prace": "15.00",
+        "pocet": 1
+      }
+    }
+  }
+}

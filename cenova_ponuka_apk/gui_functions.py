@@ -7,6 +7,7 @@ import decimal
 import tkinter as tk
 from tkinter import messagebox, filedialog
 from excel_processing import update_excel
+from collections import OrderedDict
 import unicodedata
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
@@ -83,20 +84,33 @@ def sync_postgres_to_sqlite(pg_conn):
 def get_basket_filename(project_name):
     return f"{project_name}.json"
 
-def save_basket(project_name, basket_items):
-    with open(get_basket_filename(project_name), "w", encoding="utf-8") as f:
-        json.dump(basket_items, f)
+def save_basket(project_path, basket_items, user_name=""):
+    data = {
+        "user_name": user_name,
+        "basket": basket_items
+    }
 
-def load_basket(project_name):
-    basket_items = {}
-    filename = get_basket_filename(project_name)
+    os.makedirs(project_path, exist_ok=True)  # make sure folder exists
+
+    basket_path = os.path.join(project_path, "basket.json")
+    with open(basket_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def load_basket(project_path):
+    filename = os.path.join(project_path, "basket.json")
+
     if os.path.exists(filename) and os.path.getsize(filename) > 0:
         with open(filename, "r", encoding="utf-8") as f:
             try:
-                basket_items = json.load(f)
+                data = json.load(f)
+                basket = data.get("basket", {})
+                # use OrderedDict if order matters:
+                return OrderedDict(basket), data.get("user_name", "")
             except json.JSONDecodeError:
                 print("⚠ JSON decode error - basket file is not valid.")
-    return basket_items
+
+    return OrderedDict(), ""
+
 
 def show_error(message):
     messagebox.showerror("Chyba", message)
@@ -175,8 +189,7 @@ def update_basket_table(basket_tree, basket_items):
     
     basket_tree.delete(*basket_tree.get_children())
     for section, products in basket_items.items():
-        display_name = f"📁 {section}"
-        basket_tree.insert("", "end", iid=section, text=display_name, open=True)
+        basket_tree.insert("", "end", iid=section, text=section, open=True)
         for produkt, item_data in products.items():
             basket_tree.insert(
                 section,
@@ -278,6 +291,8 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
+def block_expand_collapse(event):
+    return "break"  # Prevent default behavior
 
 
 
@@ -319,7 +334,8 @@ def update_excel_from_basket(basket_items, project_name):
             ))
 
 
-    update_excel(excel_data, file_path)
+    update_excel(excel_data, file_path, basket_items.get("_notes", ""))
+
 
     # Notify the user
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
