@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "user_name": "ja",
   "basket": {
     "Dátové zásuvky": {
@@ -33,4 +34,8 @@
       }
     }
   }
+=======
+  "user_name": "",
+  "basket": {}
+>>>>>>> parent of eb02a9c (update)
 }
