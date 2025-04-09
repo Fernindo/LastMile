@@ -100,6 +100,7 @@ def sync_postgres_to_sqlite(pg_conn):
     sqlite_conn.close()
 
 def remove_accents(text):
+<<<<<<< HEAD:New folder/gui.py
     return ''.join(c for c in unicodedata.normalize('NFD', text)
                    if unicodedata.category(c) != 'Mn')
 
@@ -161,6 +162,13 @@ def apply_filters(cursor, db_type, subcat_vars, name_entry, tree):
     name_filter_raw = name_entry.get().strip().lower()
     name_filter = remove_accents(name_filter_raw)
     tokens = name_filter.split() if name_filter else []
+=======
+    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+
+def apply_filters(cursor, db_type, table_vars, name_entry, tree):
+    selected_table_ids = [str(cid) for cid, var in table_vars.items() if var.get()]
+    name_filter = remove_accents(name_entry.get().strip().lower())
+>>>>>>> 07f8e8e145ebfe986d05d38d991b869624a08bb7:cenova_ponuka_apk/gui.py
     
     query = """
         SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
@@ -171,10 +179,17 @@ def apply_filters(cursor, db_type, subcat_vars, name_entry, tree):
         WHERE 1=1
     """
     params = []
+<<<<<<< HEAD:New folder/gui.py
     if selected_class_ids:
         placeholders = ','.join(['%s' if db_type == 'postgres' else '?' for _ in selected_class_ids])
         query += f" AND p.class_id IN ({placeholders})"
         params.extend(selected_class_ids)
+=======
+    if selected_table_ids:
+        placeholders = ','.join(['%s' if db_type == 'postgres' else '?' for _ in selected_table_ids])
+        query += f" AND c.id IN ({placeholders})"
+        params.extend(selected_table_ids)
+>>>>>>> 07f8e8e145ebfe986d05d38d991b869624a08bb7:cenova_ponuka_apk/gui.py
     
     try:
         cursor.execute(query, tuple(params))
@@ -182,8 +197,13 @@ def apply_filters(cursor, db_type, subcat_vars, name_entry, tree):
     except Exception as e:
         messagebox.showerror("Chyba", f"Database error:\n{e}")
         return
+<<<<<<< HEAD:New folder/gui.py
 
     filtered_rows = []
+=======
+    
+    rows = []
+>>>>>>> 07f8e8e145ebfe986d05d38d991b869624a08bb7:cenova_ponuka_apk/gui.py
     for row in all_rows:
         produkt = row[0] or ""
         dodavatel = row[2] or ""
@@ -191,7 +211,11 @@ def apply_filters(cursor, db_type, subcat_vars, name_entry, tree):
         norm_dodavatel = remove_accents(dodavatel.lower())
         if tokens and not all(token in norm_produkt or token in norm_dodavatel for token in tokens):
             continue
+<<<<<<< HEAD:New folder/gui.py
         filtered_rows.append(row)
+=======
+        rows.append(row)
+>>>>>>> 07f8e8e145ebfe986d05d38d991b869624a08bb7:cenova_ponuka_apk/gui.py
     
     tree.delete(*tree.get_children())
     filtered_rows.sort(key=lambda r: (r[7], r[8], r[0]))
@@ -211,9 +235,13 @@ def apply_filters(cursor, db_type, subcat_vars, name_entry, tree):
     tree.tag_configure("header", font=("Arial", 10, "bold"))
     tree.tag_configure("subheader", font=("Arial", 9, "italic"))
 
+<<<<<<< HEAD:New folder/gui.py
 ###############################################################################
 # 4. BASKET & EXCEL FUNCTIONS (Same as your old code)
 ###############################################################################
+=======
+
+>>>>>>> 07f8e8e145ebfe986d05d38d991b869624a08bb7:cenova_ponuka_apk/gui.py
 def update_basket_table(basket_tree, basket_items):
     basket_tree.delete(*basket_tree.get_children())
     for section, products in basket_items.items():
@@ -328,7 +356,103 @@ def update_excel_from_basket(basket_items, project_name):
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
 
 ###############################################################################
+<<<<<<< HEAD:New folder/gui.py
 # 5. MAIN GUI
+=======
+# 3. CREATE FILTER PANEL (AUTO-EXPAND SUBCATEGORIES)
+###############################################################################
+def create_filter_panel(parent, on_filter_callback):
+    frame = tk.Frame(parent, bg="white", width=250)
+    frame.pack_propagate(False)
+
+    canvas = tk.Canvas(frame, bg="white", highlightthickness=0)
+    scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    main_inner = tk.Frame(canvas, bg="white")
+    canvas.create_window((0, 0), window=main_inner, anchor="nw")
+
+    canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    def on_mousewheel(event):
+        canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    main_inner.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", on_mousewheel))
+    main_inner.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+    main_inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+    category_vars = {}
+    table_vars = {}
+
+    def setup_filter(category_structure):
+        for widget in main_inner.winfo_children():
+            widget.destroy()
+
+        tk.Label(main_inner, text="Filtre:", font=("Arial", 12, "bold"), bg="white").pack(anchor="w", padx=5, pady=5)
+
+        def on_subcat_toggle():
+            on_filter_callback()
+
+        for cat, subcats in sorted(category_structure.items()):
+            category_vars[cat] = tk.BooleanVar(value=False)
+            cat_row = tk.Frame(main_inner, bg="white")
+            cat_row.pack(anchor="w", fill="x", padx=5, pady=2)
+
+            def make_cat_toggler(cat=cat, subcats=subcats):
+                def cat_toggler():
+                    if category_vars[cat].get():
+                        subcat_frame.pack(anchor="w", fill="x", padx=20)
+                        for (cid, _) in subcats:
+                            table_vars[cid].set(True)
+                    else:
+                        subcat_frame.pack_forget()
+                        for (cid, _) in subcats:
+                            table_vars[cid].set(False)
+                    on_filter_callback()
+                return cat_toggler
+
+            cat_chk = ttk.Checkbutton(
+                cat_row,
+                text=cat,
+                variable=category_vars[cat],
+                onvalue=True,
+                offvalue=False,
+                style='TCheckbutton',
+                command=make_cat_toggler()
+            )
+            cat_chk.pack(anchor="w")
+            cat_chk.state(['!alternate'])
+
+            subcat_frame = tk.Frame(cat_row, bg="white")
+
+            for class_id, table_name in sorted(subcats, key=lambda x: x[1]):
+                table_vars[class_id] = tk.BooleanVar(value=False)
+                sub_chk = tk.Checkbutton(
+                    subcat_frame,
+                    text=table_name,
+                    variable=table_vars[class_id],
+                    bg="white",
+                    command=on_subcat_toggle
+                )
+                sub_chk.pack(anchor="w", padx=20, pady=1)
+
+        tk.Button(
+            main_inner,
+            text="Resetovať filtre",
+            command=lambda: (
+                [v.set(False) for v in category_vars.values()],
+                [v.set(False) for v in table_vars.values()],
+                on_filter_callback()
+            )
+        ).pack(anchor="w", padx=5, pady=10)
+
+    return frame, setup_filter, category_vars, table_vars
+
+
+###############################################################################
+# 4. MAIN GUI
+>>>>>>> 07f8e8e145ebfe986d05d38d991b869624a08bb7:cenova_ponuka_apk/gui.py
 ###############################################################################
 def run_gui(project_path, basket_version=None):
     project_name = os.path.basename(project_path)
