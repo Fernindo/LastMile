@@ -7,9 +7,10 @@ import os
 from insert_admin import insert_product_form
 from update_admin import update_product_form
 from pouzivatelia_admin import UserManagementWindow
-from class_admin import create_class_form
+from class_admin import create_table_form
+from filter_panel import FilterPanel
 
-USER_ID = "admin"  # Môžeš neskôr meniť podľa reálneho prihláseného užívateľa
+USER_ID = "admin"
 SETTINGS_FILE = "user_column_settings.json"
 
 ALL_COLUMNS = [
@@ -25,29 +26,32 @@ class AdminApp:
         self.center_window(self.root)
 
         self.selected_columns = self.load_user_settings()
+        self.sort_column = None
+        self.sort_reverse = False
 
+        # Horný panel s tlačidlami
         button_frame = tk.Frame(self.root)
         button_frame.pack(fill=tk.X, pady=5)
 
         tk.Button(button_frame, text="Správa používateľov", command=self.manage_users).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Pridať produkt", command=self.insert_product).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Update produktu", command=self.update_product).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Editovať tabuľku", command=self.create_class).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Editovať tabuľku", command=self.create_table).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Refresh", command=self.load_products).pack(side=tk.LEFT, padx=5)
 
-        # Výber stĺpcov cez checkboxy
-        self.check_frame = tk.Frame(self.root)
-        self.check_frame.pack(fill=tk.X, padx=5, pady=5)
-        self.check_vars = {}
-        for i, col in enumerate(ALL_COLUMNS):
-            var = tk.BooleanVar(value=col in self.selected_columns)
-            cb = tk.Checkbutton(self.check_frame, text=col, variable=var, command=self.on_column_change)
-            cb.grid(row=0, column=i, sticky="w")
-            self.check_vars[col] = var
+        # Filter panel
+        self.filter_panel = FilterPanel(
+            self.root,
+            get_connection_func=self.get_connection,
+            on_filter_apply=self.on_filter_applied,
+            on_columns_change=self.on_column_change,
+            selected_columns=self.selected_columns
+        )
 
+        # Tabuľka produktov
         self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
         for col in self.tree["columns"]:
-            self.tree.heading(col, text=col)
+            self.tree.heading(col, text=col, command=lambda _col=col: self.sort_by_column(_col))
             self.tree.column(col, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True)
 
@@ -70,19 +74,35 @@ class AdminApp:
         with open(SETTINGS_FILE, "w") as f:
             json.dump(settings, f, indent=2)
 
-    def on_column_change(self):
-        self.selected_columns = [col for col, var in self.check_vars.items() if var.get()]
+    def on_column_change(self, selected_columns=None):
+        self.selected_columns = selected_columns or self.filter_panel.get_selected_columns()
         self.save_user_settings()
         self.refresh_tree()
 
+    def on_filter_applied(self, kategoria, tabulka):
+        self.active_filter_kat = kategoria
+        self.active_filter_tab = tabulka
+        self.load_products()
+
     def refresh_tree(self):
-        self.tree.destroy()
+        if hasattr(self, "tree") and self.tree.winfo_exists():
+            self.tree.destroy()
         self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
         for col in self.tree["columns"]:
-            self.tree.heading(col, text=col)
+            self.tree.heading(col, text=col, command=lambda _col=col: self.sort_by_column(_col))
             self.tree.column(col, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<ButtonRelease-1>", self.handle_delete_click)
+        self.load_products()
+
+    def sort_by_column(self, col):
+        if col not in self.selected_columns:
+            return
+        if self.sort_column == col:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_column = col
+            self.sort_reverse = False
         self.load_products()
 
     def center_window(self, win):
@@ -104,26 +124,55 @@ class AdminApp:
         )
 
     def load_products(self):
+        try:
+            if not hasattr(self, "tree") or not self.tree.winfo_exists():
+                return
+        except tk.TclError:
+            return  # Aplikácia bola zavretá
+
         for row in self.tree.get_children():
             self.tree.delete(row)
 
         conn = self.get_connection()
         cur = conn.cursor()
-        cur.execute("""
+
+        query = """
             SELECT c.nazov_tabulky, p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
                    p.koeficient, p.nakup_materialu, p.cena_prace, p.class_id
             FROM class c
             LEFT JOIN produkty p ON p.class_id = c.id
-            ORDER BY c.nazov_tabulky, p.id
-        """)
+        """
+        filters = []
+        params = []
+
+        if hasattr(self, "active_filter_kat") and self.active_filter_kat:
+            filters.append("c.hlavna_kategoria = %s")
+            params.append(self.active_filter_kat)
+        if hasattr(self, "active_filter_tab") and self.active_filter_tab:
+            filters.append("c.nazov_tabulky = %s")
+            params.append(self.active_filter_tab)
+
+        if filters:
+            query += " WHERE " + " AND ".join(filters)
+
+        query += " ORDER BY c.nazov_tabulky, p.id"
+
+        cur.execute(query, params)
         rows = cur.fetchall()
         cur.close()
         conn.close()
 
+        if self.sort_column:
+            try:
+                index = ALL_COLUMNS.index(self.sort_column) + 2
+                rows.sort(key=lambda x: (x[index] is None, x[index]), reverse=self.sort_reverse)
+            except Exception as e:
+                print(f"Sort error: {e}")
+
         current_class = None
         for row in rows:
             class_name = row[0]
-            produkt_data = row[2:]  # [produkt, jednotky, dodavatel, odkaz, ...]
+            produkt_data = row[2:]
             if class_name != current_class:
                 current_class = class_name
                 self.tree.insert("", "end", values=("", f"-- {class_name} --", *[""] * len(self.selected_columns)), tags=("header",))
@@ -163,9 +212,15 @@ class AdminApp:
     def manage_users(self):
         UserManagementWindow(self.root)
 
-    def create_class(self):
-        create_class_form(self.root)
-        self.load_products()
+    def create_table(self):
+        create_table_form(self.root, refresh_callback=self.safe_reload)
+
+    def safe_reload(self):
+        try:
+            self.load_products()
+        except tk.TclError:
+            print("Aplikácia bola zavretá – nemožno načítať produkty.")
+
 
 def main():
     root = tk.Tk()

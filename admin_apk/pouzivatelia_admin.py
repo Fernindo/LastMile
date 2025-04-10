@@ -6,16 +6,24 @@ class UserManagementWindow:
     def __init__(self, parent):
         self.top = tk.Toplevel(parent)
         self.top.title("Správa používateľov")
-        self.top.geometry("800x400")
+        self.top.geometry("900x500")
         self.center_window(self.top)
 
-        self.tree = ttk.Treeview(self.top, columns=("ID", "Meno", "Heslo", "Rola"), show="headings")
+        self.tree = ttk.Treeview(
+            self.top,
+            columns=("ID", "Username", "Password", "Rola", "Meno", "Priezvisko"),
+            show="headings"
+        )
         self.tree.heading("ID", text="ID")
-        self.tree.heading("Meno", text="Meno")
-        self.tree.heading("Heslo", text="Heslo")
+        self.tree.heading("Username", text="Username")
+        self.tree.heading("Password", text="Heslo")
         self.tree.heading("Rola", text="Rola")
-        for col in ("ID", "Meno", "Heslo", "Rola"):
+        self.tree.heading("Meno", text="Meno")
+        self.tree.heading("Priezvisko", text="Priezvisko")
+
+        for col in ("ID", "Username", "Password", "Rola", "Meno", "Priezvisko"):
             self.tree.column(col, anchor="center")
+
         self.tree.pack(fill=tk.BOTH, expand=True)
 
         tk.Button(self.top, text="Odstrániť vybraného", command=self.delete_selected).pack(pady=5)
@@ -23,7 +31,7 @@ class UserManagementWindow:
         form = tk.LabelFrame(self.top, text="Pridať používateľa")
         form.pack(fill=tk.X, padx=10, pady=5)
 
-        tk.Label(form, text="Meno").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(form, text="Username").grid(row=0, column=0, padx=5, pady=5)
         self.entry_username = tk.Entry(form)
         self.entry_username.grid(row=0, column=1, padx=5)
 
@@ -33,7 +41,15 @@ class UserManagementWindow:
 
         tk.Label(form, text="Rola").grid(row=0, column=4, padx=5)
         self.role_var = tk.StringVar(value="user")
-        ttk.Combobox(form, textvariable=self.role_var, values=["admin", "user"]).grid(row=0, column=5, padx=5)
+        ttk.Combobox(form, textvariable=self.role_var, values=["admin", "user"], state="readonly").grid(row=0, column=5, padx=5)
+
+        tk.Label(form, text="Meno").grid(row=1, column=0, padx=5, pady=5)
+        self.entry_meno = tk.Entry(form)
+        self.entry_meno.grid(row=1, column=1, padx=5)
+
+        tk.Label(form, text="Priezvisko").grid(row=1, column=2, padx=5, pady=5)
+        self.entry_priezvisko = tk.Entry(form)
+        self.entry_priezvisko.grid(row=1, column=3, padx=5)
 
         tk.Button(self.top, text="Pridať", command=self.add_user).pack(pady=5)
 
@@ -62,7 +78,11 @@ class UserManagementWindow:
             self.tree.delete(i)
         conn = self.get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT u.id, u.username, u.password, r.name FROM users u JOIN roles r ON u.role_id = r.id")
+        cur.execute("""
+            SELECT u.id, u.username, u.password, r.name, u.meno, u.priezvisko
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+        """)
         for row in cur.fetchall():
             self.tree.insert("", "end", values=row)
         cur.close()
@@ -86,15 +106,24 @@ class UserManagementWindow:
     def add_user(self):
         username = self.entry_username.get()
         password = self.entry_password.get()
+        meno = self.entry_meno.get()
+        priezvisko = self.entry_priezvisko.get()
         role_name = self.role_var.get()
-        if not username or not password:
+
+        if not username or not password or not meno or not priezvisko:
             messagebox.showwarning("Chyba", "Zadaj všetky údaje")
             return
+
         conn = self.get_connection()
         cur = conn.cursor()
         cur.execute("SELECT id FROM roles WHERE name = %s", (role_name,))
         role_id = cur.fetchone()[0]
-        cur.execute("INSERT INTO users (username, password, role_id) VALUES (%s, %s, %s)", (username, password, role_id))
+
+        cur.execute("""
+            INSERT INTO users (username, password, role_id, meno, priezvisko)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (username, password, role_id, meno, priezvisko))
+
         conn.commit()
         cur.close()
         conn.close()

@@ -1,5 +1,3 @@
-# notes_panel.py
-
 import tkinter as tk
 import os
 
@@ -32,7 +30,6 @@ def create_notes_panel(parent, project_name):
     text_widget.bind("<<Modified>>", on_text_change)
     text_widget.bind("<FocusOut>", lambda e: save_notes())
 
-    # Load existing notes if present
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             text_widget.insert("1.0", f.read())
