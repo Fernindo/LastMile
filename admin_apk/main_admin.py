@@ -7,7 +7,7 @@ import os
 from insert_admin import insert_product_form
 from update_admin import update_product_form
 from pouzivatelia_admin import UserManagementWindow
-from class_admin import create_class_form
+from class_admin import create_table_form
 from filter_panel import FilterPanel
 
 USER_ID = "admin"
@@ -26,6 +26,8 @@ class AdminApp:
         self.center_window(self.root)
 
         self.selected_columns = self.load_user_settings()
+        self.sort_column = None
+        self.sort_reverse = False
 
         # Horný panel s tlačidlami
         button_frame = tk.Frame(self.root)
@@ -34,10 +36,10 @@ class AdminApp:
         tk.Button(button_frame, text="Správa používateľov", command=self.manage_users).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Pridať produkt", command=self.insert_product).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Update produktu", command=self.update_product).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Editovať tabuľku", command=self.create_class).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Editovať tabuľku", command=self.create_table).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Refresh", command=self.load_products).pack(side=tk.LEFT, padx=5)
 
-        # Rozbalovací filter panel (medzi tlačidlami a tabuľkou)
+        # Filter panel
         self.filter_panel = FilterPanel(
             self.root,
             get_connection_func=self.get_connection,
@@ -46,10 +48,10 @@ class AdminApp:
             selected_columns=self.selected_columns
         )
 
-        # Tabuľka
+        # Tabuľka produktov
         self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
         for col in self.tree["columns"]:
-            self.tree.heading(col, text=col)
+            self.tree.heading(col, text=col, command=lambda _col=col: self.sort_by_column(_col))
             self.tree.column(col, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True)
 
@@ -83,13 +85,24 @@ class AdminApp:
         self.load_products()
 
     def refresh_tree(self):
-        self.tree.destroy()
+        if hasattr(self, "tree") and self.tree.winfo_exists():
+            self.tree.destroy()
         self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
         for col in self.tree["columns"]:
-            self.tree.heading(col, text=col)
+            self.tree.heading(col, text=col, command=lambda _col=col: self.sort_by_column(_col))
             self.tree.column(col, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<ButtonRelease-1>", self.handle_delete_click)
+        self.load_products()
+
+    def sort_by_column(self, col):
+        if col not in self.selected_columns:
+            return
+        if self.sort_column == col:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_column = col
+            self.sort_reverse = False
         self.load_products()
 
     def center_window(self, win):
@@ -111,6 +124,12 @@ class AdminApp:
         )
 
     def load_products(self):
+        try:
+            if not hasattr(self, "tree") or not self.tree.winfo_exists():
+                return
+        except tk.TclError:
+            return  # Aplikácia bola zavretá
+
         for row in self.tree.get_children():
             self.tree.delete(row)
 
@@ -142,6 +161,13 @@ class AdminApp:
         rows = cur.fetchall()
         cur.close()
         conn.close()
+
+        if self.sort_column:
+            try:
+                index = ALL_COLUMNS.index(self.sort_column) + 2
+                rows.sort(key=lambda x: (x[index] is None, x[index]), reverse=self.sort_reverse)
+            except Exception as e:
+                print(f"Sort error: {e}")
 
         current_class = None
         for row in rows:
@@ -186,9 +212,14 @@ class AdminApp:
     def manage_users(self):
         UserManagementWindow(self.root)
 
-    def create_class(self):
-        create_class_form(self.root)
-        self.load_products()
+    def create_table(self):
+        create_table_form(self.root, refresh_callback=self.safe_reload)
+
+    def safe_reload(self):
+        try:
+            self.load_products()
+        except tk.TclError:
+            print("Aplikácia bola zavretá – nemožno načítať produkty.")
 
 
 def main():
