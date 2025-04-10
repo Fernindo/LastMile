@@ -8,7 +8,7 @@ from insert_admin import insert_product_form
 from update_admin import update_product_form
 from pouzivatelia_admin import UserManagementWindow
 from class_admin import create_class_form
-from filter_panel import FilterPanel  # ⬅️ import filtra
+from filter_panel import FilterPanel
 
 USER_ID = "admin"
 SETTINGS_FILE = "user_column_settings.json"
