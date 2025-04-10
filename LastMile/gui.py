@@ -21,6 +21,7 @@ from gui_functions import (
     update_excel_from_basket
 )
 import subprocess
+import filter_panel
 
 def block_expand_collapse(event):
     return "break"
