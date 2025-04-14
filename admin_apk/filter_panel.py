@@ -1,3 +1,5 @@
+# filter_panel.py
+
 import tkinter as tk
 from tkinter import ttk
 import psycopg2
@@ -16,7 +18,6 @@ class FilterPanel:
         self.selected_columns = selected_columns
         self.visible = False
 
-        # Celý rámec pre filter (vrátane toggle)
         self.container = tk.Frame(self.parent)
         self.container.pack(fill=tk.X, padx=5, pady=2)
 
@@ -27,7 +28,7 @@ class FilterPanel:
         self.frame.grid(row=1, column=0, columnspan=10, sticky="ew")
         self.frame.grid_remove()
 
-        # Riadok: výber kategórie + tabuľky
+        # Výber kategórie + tabuľky
         tk.Label(self.frame, text="Hlavná kategória:").grid(row=0, column=0, padx=5, pady=5)
         self.kat_var = tk.StringVar()
         self.kat_combo = ttk.Combobox(self.frame, textvariable=self.kat_var, state="readonly")
@@ -49,6 +50,11 @@ class FilterPanel:
             cb = tk.Checkbutton(self.frame, text=col, variable=var, command=self.columns_changed)
             cb.grid(row=1, column=i, sticky="w", padx=5)
             self.check_vars[col] = var
+
+        # Checkbox: zobraziť prázdne kategórie
+        self.show_empty_var = tk.BooleanVar(value=False)
+        self.empty_cb = tk.Checkbutton(self.frame, text="Zobraziť prázdne kategórie", variable=self.show_empty_var)
+        self.empty_cb.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 10))
 
     def toggle(self):
         self.visible = not self.visible
@@ -85,3 +91,6 @@ class FilterPanel:
 
     def get_selected_columns(self):
         return self.selected_columns
+
+    def should_show_empty_categories(self):
+        return self.show_empty_var.get()

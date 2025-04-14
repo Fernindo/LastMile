@@ -29,7 +29,6 @@ class AdminApp:
         self.sort_column = None
         self.sort_reverse = False
 
-        # Horný panel s tlačidlami
         button_frame = tk.Frame(self.root)
         button_frame.pack(fill=tk.X, pady=5)
 
@@ -39,7 +38,6 @@ class AdminApp:
         tk.Button(button_frame, text="Editovať tabuľku", command=self.create_table).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Refresh", command=self.load_products).pack(side=tk.LEFT, padx=5)
 
-        # Filter panel
         self.filter_panel = FilterPanel(
             self.root,
             get_connection_func=self.get_connection,
@@ -48,7 +46,6 @@ class AdminApp:
             selected_columns=self.selected_columns
         )
 
-        # Tabuľka produktov
         self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
         for col in self.tree["columns"]:
             self.tree.heading(col, text=col, command=lambda _col=col: self.sort_by_column(_col))
@@ -128,7 +125,7 @@ class AdminApp:
             if not hasattr(self, "tree") or not self.tree.winfo_exists():
                 return
         except tk.TclError:
-            return  # Aplikácia bola zavretá
+            return
 
         for row in self.tree.get_children():
             self.tree.delete(row)
@@ -169,16 +166,31 @@ class AdminApp:
             except Exception as e:
                 print(f"Sort error: {e}")
 
+        show_empty = self.filter_panel.should_show_empty_categories()
         current_class = None
+        class_has_data = False
+
         for row in rows:
             class_name = row[0]
+            produkt_id = row[1]
             produkt_data = row[2:]
+
             if class_name != current_class:
                 current_class = class_name
-                self.tree.insert("", "end", values=("", f"-- {class_name} --", *[""] * len(self.selected_columns)), tags=("header",))
-            if row[1] is not None:
+                class_has_data = False
+
+            if produkt_id is not None:
+                if not class_has_data:
+                    self.tree.insert("", "end", values=("", f"-- {class_name} --", *[""] * len(self.selected_columns)), tags=("header",))
+                    class_has_data = True
+
                 values = [produkt_data[ALL_COLUMNS.index(col)] if col in ALL_COLUMNS else "" for col in self.selected_columns]
                 self.tree.insert("", "end", values=("X", *values))
+
+            elif show_empty and not class_has_data:
+                self.tree.insert("", "end", values=("", f"-- {class_name} --", *[""] * len(self.selected_columns)), tags=("header",))
+                self.tree.insert("", "end", values=(" ", "(žiadne produkty)", *[""] * len(self.selected_columns)))
+                class_has_data = True
 
         self.tree.tag_configure("header", font=("Arial", 10, "bold"))
 
@@ -220,7 +232,6 @@ class AdminApp:
             self.load_products()
         except tk.TclError:
             print("Aplikácia bola zavretá – nemožno načítať produkty.")
-
 
 def main():
     root = tk.Tk()
