@@ -9,6 +9,8 @@ from tkinter import messagebox, filedialog
 from excel_processing import update_excel
 from collections import OrderedDict
 import unicodedata
+from datetime import datetime
+import glob
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
     """Check if we are online by trying to connect to Google DNS."""
@@ -65,7 +67,7 @@ def sync_postgres_to_sqlite(pg_conn):
             class_name TEXT
         )
     """)
-
+    
     pg_cursor.execute("""
         SELECT 
             p.id,
@@ -81,8 +83,8 @@ def sync_postgres_to_sqlite(pg_conn):
         FROM produkty p
         LEFT JOIN public.class c ON p.class_id = c.id
     """)
+    
     rows = pg_cursor.fetchall()
-
     safe_rows = []
     for row in rows:
         safe_row = []
@@ -92,7 +94,7 @@ def sync_postgres_to_sqlite(pg_conn):
             else:
                 safe_row.append(value)
         safe_rows.append(tuple(safe_row))
-        
+    
     sqlite_cursor.executemany(
         "INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", safe_rows
     )
@@ -100,28 +102,35 @@ def sync_postgres_to_sqlite(pg_conn):
     sqlite_conn.close()
     print("✔ Synced PostgreSQL → SQLite")
 
-def get_basket_filename(project_name):
-    return f"{project_name}.json"
-
-def save_basket(project_path, basket_items, user_name=""):
+def save_basket(project_path, project_name, basket_items, user_name=""):
     """
-    Save the current basket and user name into project_path/basket.json.
+    Every save produces a new commit file: basket_YYYY-MM-DD_HH-MM-SS.json,
+    containing the entire basket data.
     """
     data = {
         "user_name": user_name,
         "basket": basket_items
     }
     os.makedirs(project_path, exist_ok=True)
-    basket_path = os.path.join(project_path, "basket.json")
-    with open(basket_path, "w", encoding="utf-8") as f:
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    commit_filename = os.path.join(project_path, f"basket_{timestamp}.json")
+    with open(commit_filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def load_basket(project_path):
+def load_basket(project_path, project_name, file_path=None):
     """
-    Loads the basket from project_path/basket.json if available.
+    Loads the basket from file_path if provided; otherwise loads from the newest 
+    file matching basket_*.json in project_path.
     Returns (basket_items as OrderedDict, user_name).
     """
-    filename = os.path.join(project_path, "basket.json")
+    if file_path and os.path.exists(file_path):
+        filename = file_path
+    else:
+        files = glob.glob(os.path.join(project_path, "basket_*.json"))
+        if not files:
+            return OrderedDict(), ""
+        filename = max(files, key=os.path.getmtime)
+    
     if os.path.exists(filename) and os.path.getsize(filename) > 0:
         with open(filename, "r", encoding="utf-8") as f:
             try:
@@ -145,17 +154,11 @@ def remove_accents(text):
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     """
-    Retrieve products from SQLite's produkty table,
-    optionally filtering by class IDs and a text search.
-    Groups products by class_id and displays them with the correct category name.
-    Uses conditional parameter placeholders:
-      - For PostgreSQL: `%s`
-      - For SQLite: `?`
+    Retrieves products from the SQLite 'produkty' table,
+    optionally filtering by selected classes and text search.
     """
-    # Get selected class IDs (stored as integers)
     selected_class_ids = [cid for cid, var in table_vars.items() if var.get()]
     name_filter = remove_accents(name_entry.get().strip().lower())
-    
     rows = []
     try:
         query = """
@@ -166,10 +169,9 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         """
         params = []
         if selected_class_ids:
-            # Use conditional placeholders
             if db_type == 'postgres':
                 placeholders = ','.join(['%s'] * len(selected_class_ids))
-            else:  # sqlite
+            else:
                 placeholders = ','.join(['?'] * len(selected_class_ids))
             query += f" AND class_id IN ({placeholders})"
             params.extend(selected_class_ids)
@@ -184,20 +186,18 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     for row in rows:
         produkt = row[0]
         if not name_filter or name_filter in remove_accents(produkt.lower()):
-            class_id = row[-1]  # class_id (an integer)
-            grouped.setdefault(class_id, []).append(row[:-1])  # Exclude the class_id from the data row
+            class_id = row[-1]
+            grouped.setdefault(class_id, []).append(row[:-1])
     
-    # Build mapping from class_id to the real category name from public.class
     class_name_map = {}
     try:
         cursor.execute("SELECT id, nazov_tabulky FROM public.class")
         for cid, cname in cursor.fetchall():
             if cid is not None:
-                class_name_map[cid] = cname  # store as integer key
+                class_name_map[cid] = cname
     except Exception as e:
         print("Warning: Unable to retrieve class names:", e)
     
-    # Populate the Treeview with group headers and product rows
     for class_id in sorted(grouped):
         class_name = class_name_map.get(class_id, "Uncategorized")
         tree.insert("", "end", values=("", f"-- {class_name} --"), tags=("header",))
@@ -207,7 +207,7 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
 
 def update_basket_table(basket_tree, basket_items):
     """
-    Update the basket Treeview with data from the basket_items dictionary.
+    Updates the basket Treeview with data from the basket_items dictionary.
     """
     basket_tree.delete(*basket_tree.get_children())
     for section, products in basket_items.items():
@@ -226,8 +226,7 @@ def update_basket_table(basket_tree, basket_items):
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
     """
-    Add a product (given as a tuple) to the basket.
-    The tuple is expected to have at least 8 items, with the 8th being the category name.
+    Adds a product (provided as a tuple) to the basket.
     """
     print("📦 item =", item)
     produkt = item[0]
@@ -251,34 +250,29 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
 
 def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     """
-    Allows editing numeric values in the basket by double-clicking a cell.
+    Allows editing of numeric cell values in the basket via double-click.
     """
     region = basket_tree.identify("region", event.x, event.y)
     if region != "cell":
         return
-
     selected_item = basket_tree.focus()
     if not selected_item:
         return
-
     if basket_tree.get_children(selected_item):
         return
-
     item_data = basket_tree.item(selected_item)
     if not item_data or not item_data.get("values"):
         return
-
     col = basket_tree.identify_column(event.x)
     col_index = int(col.replace('#', '')) - 1
     if col_index not in [4, 5, 6, 7]:
         return
-
     x, y, width, height = basket_tree.bbox(selected_item, col)
     entry_popup = tk.Entry(basket_tree)
     entry_popup.place(x=x, y=y, width=width, height=height)
     entry_popup.insert(0, basket_tree.item(selected_item)['values'][col_index])
     entry_popup.focus()
-
+    
     def save_edit(event):
         try:
             new_value = float(entry_popup.get()) if col_index != 7 else int(entry_popup.get())
@@ -292,7 +286,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
             basket_items[parent][produkt][key_map[col_index]] = new_value
         update_basket_table(basket_tree, basket_items)
         entry_popup.destroy()
-
+    
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
@@ -301,7 +295,7 @@ def block_expand_collapse(event):
 
 def remove_from_basket(basket_tree, basket_items, update_basket_table):
     """
-    Remove the selected product(s) from the basket.
+    Removes the selected product(s) from the basket.
     """
     for item in basket_tree.selection():
         produkt = basket_tree.item(item)["values"][0]
@@ -315,17 +309,14 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
 
 def update_excel_from_basket(basket_items, project_name):
     """
-    Export the current basket as an Excel file to the Desktop.
-    Calls update_excel() from excel_processing to handle the export.
+    Exports the current basket to an Excel file on the Desktop.
     """
     from tkinter import messagebox
     if not basket_items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
-
     desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
     file_path = os.path.join(desktop_path, f"{project_name}.xlsx")
-
     excel_data = []
     for section, products in basket_items.items():
         for produkt, v in products.items():
@@ -340,6 +331,5 @@ def update_excel_from_basket(basket_items, project_name):
                 v["cena_prace"],
                 v["pocet"]
             ))
-
     update_excel(excel_data, file_path, basket_items.get("_notes", ""))
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
