@@ -1,0 +1,36 @@
+{
+  "user_name": "",
+  "basket": {
+    "Rozvádzače": {
+      "produkt1": {
+        "jednotky": "ks",
+        "dodavatel": "Feri",
+        "odkaz": "aaaaaa",
+        "koeficient": 1.0,
+        "nakup_materialu": 150.0,
+        "cena_prace": 15.0,
+        "pocet": 1
+      },
+      "produkt 2": {
+        "jednotky": "m",
+        "dodavatel": "a",
+        "odkaz": "a",
+        "koeficient": 1.2,
+        "nakup_materialu": 460.0,
+        "cena_prace": 10.0,
+        "pocet": 1
+      }
+    },
+    "Výbava rozvádzačov": {
+      "Ventilátorový panel": {
+        "jednotky": "ks",
+        "dodavatel": "Eaton",
+        "odkaz": "https://example.com/vybava_rozvadzacov/4",
+        "koeficient": 1.1,
+        "nakup_materialu": 35.0,
+        "cena_prace": 7.0,
+        "pocet": 1
+      }
+    }
+  }
+}

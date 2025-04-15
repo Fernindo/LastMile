@@ -1,0 +1,93 @@
+{
+  "user_name": "",
+  "basket": {
+    "Prepínače (switche)": {
+      "TP-Link SG108": {
+        "jednotky": "ks",
+        "dodavatel": "TP-Link",
+        "odkaz": "https://example.com/switche/8",
+        "koeficient": 1.0,
+        "nakup_materialu": 45.0,
+        "cena_prace": 5.0,
+        "pocet_materialu": 0,
+        "pocet_prace": 0
+      },
+      "Cisco SG350": {
+        "jednotky": "ks",
+        "dodavatel": "Cisco",
+        "odkaz": "https://example.com/switche/7",
+        "koeficient": 1.2,
+        "nakup_materialu": 180.0,
+        "cena_prace": 20.0,
+        "pocet_materialu": 0,
+        "pocet_prace": 0
+      }
+    },
+    "Rozvádzače": {
+      "produkt1": {
+        "jednotky": "ks",
+        "dodavatel": "Feri",
+        "odkaz": "aaaaaa",
+        "koeficient": 1.0,
+        "nakup_materialu": 150.0,
+        "cena_prace": 15.0,
+        "pocet_materialu": 0,
+        "pocet_prace": 0
+      },
+      "produkt 2": {
+        "jednotky": "m",
+        "dodavatel": "a",
+        "odkaz": "a",
+        "koeficient": 1.2,
+        "nakup_materialu": 460.0,
+        "cena_prace": 10.0,
+        "pocet_materialu": 0,
+        "pocet_prace": 0
+      },
+      "Rozvádzač 24U": {
+        "jednotky": "ks",
+        "dodavatel": "ABB",
+        "odkaz": "https://example.com/rozvadzace/1",
+        "koeficient": 1.2,
+        "nakup_materialu": 150.0,
+        "cena_prace": 45.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      }
+    },
+    "Výbava rozvádzačov": {
+      "Ventilátorový panel": {
+        "jednotky": "ks",
+        "dodavatel": "Eaton",
+        "odkaz": "https://example.com/vybava_rozvadzacov/4",
+        "koeficient": 1.1,
+        "nakup_materialu": 35.0,
+        "cena_prace": 7.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      },
+      "produkt 3": {
+        "jednotky": "ks",
+        "dodavatel": "ja",
+        "odkaz": "ne",
+        "koeficient": 1.1,
+        "nakup_materialu": 140.0,
+        "cena_prace": 56.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      }
+    },
+    "WiFi prístupové body": {
+      "Mikrotik cAP": {
+        "jednotky": "ks",
+        "dodavatel": "Mikrotik",
+        "odkaz": "https://example.com/wifi_ap/6",
+        "koeficient": 1.1,
+        "nakup_materialu": 55.0,
+        "cena_prace": 8.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      }
+    }
+  }
+}
