@@ -6,7 +6,7 @@ import os
 import json
 import sys
 
-class LoginApp:
+class login_app:
     def __init__(self, root):
         self.root = root
         self.root.title("Prihlásenie")
@@ -131,5 +131,5 @@ class LoginApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    LoginApp(root)
+    login_app(root)
     root.mainloop()
