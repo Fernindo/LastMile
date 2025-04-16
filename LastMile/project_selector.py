@@ -1,75 +1,75 @@
-import tkinter as tk
-from tkinter import simpledialog, messagebox, filedialog
-import os
-import subprocess
-import json
-import shutil
-import zipfile
-from datetime import datetime
-from functools import partial
+import tkinter as tk  # Because making painful GUIs is more fun with 90s tech
+from tkinter import simpledialog, messagebox, filedialog  # All the dialogue boxes no one asked for
+import os  # For playing hide-and-seek with files
+import subprocess  # Used to launch other scripts like it's 2004
+import json  # For storing sadness in structured form
+import shutil  # For deleting entire projects in one line. What could go wrong?
+import zipfile  # For pretending compression makes you organized
+from datetime import datetime  # So you can timestamp your regrets
+from functools import partial  # The lazy man's lambda
 
 project_files = []
 DEFAULT_TEMPLATE = {"data": "Default session content."}
 
 def launch_gui(folder_path, file_path=None):
     """
-    Launches the GUI (gui.py).
-    If file_path is provided, it's passed as the second argument for loading that specific JSON.
+    Launches the GUI (gui.py). Because one GUI wasn't enough.
     """
-    import sys
-    this_dir = os.path.dirname(os.path.abspath(__file__))
-    gui_path = os.path.join(this_dir, "gui.py")
+    import sys  # Oh cool, another import. Right here. Why not.
+    this_dir = os.path.dirname(os.path.abspath(__file__))  # Locating this script like it owes us money
+    gui_path = os.path.join(this_dir, "gui.py")  # Hardcoded script name. Very robust.
     if file_path:
-        subprocess.Popen([sys.executable, gui_path, folder_path, file_path])
+        subprocess.Popen([sys.executable, gui_path, folder_path, file_path])  # Summon the demon with arguments
     else:
-        subprocess.Popen([sys.executable, gui_path, folder_path])
+        subprocess.Popen([sys.executable, gui_path, folder_path])  # Summon the demon with fewer arguments
+
 
 def create_new_project():
     """
-    Creates a new project folder under 'projects' and places a file named <project_name>.json in it.
+    Prompts user to name their next failed attempt at a project.
     """
-    name = simpledialog.askstring("New Project", "Enter a name for your new project:")
+    name = simpledialog.askstring("New Project", "Enter a name for your new project:")  # Probably something like "Test3"
     if name:
-        folder_path = os.path.join("projects", name)
+        folder_path = os.path.join("projects", name)  # Store it in the sacred Projects folder
         if os.path.exists(folder_path):
-            messagebox.showerror("Error", "Project already exists!")
+            messagebox.showerror("Error", "Project already exists!")  # Apparently you’ve made this mistake before
         else:
-            os.makedirs(folder_path)
-            # Create a file named <project_name>.json
-            file_path = os.path.join(folder_path, f"{name}.json")
+            os.makedirs(folder_path)  # The illusion of progress
+            file_path = os.path.join(folder_path, f"{name}.json")  # JSON: because nothing says "project" like curly braces
             with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(DEFAULT_TEMPLATE, f, ensure_ascii=False, indent=2)
-            list_projects()
+                json.dump(DEFAULT_TEMPLATE, f, ensure_ascii=False, indent=2)  # Writing default garbage into your shiny new file
+            list_projects()  # Let's pretend this function doesn't rely on globals and magic
 
 def open_project(event=None):
     """
     Handles double-click on a project in the left Listbox.
-    Shows the JSON files (backups and other files) of that project in the right Listbox.
+    AKA: the user's one act of commitment.
     """
-    selection = project_listbox.curselection()
+    selection = project_listbox.curselection()  # UI equivalent of “which one of my children did I click”
     if selection:
         index = selection[0]
-        proj_name = project_listbox.get(index)
-        folder_path = os.path.join("projects", proj_name)
-        show_project_files(folder_path)
+        proj_name = project_listbox.get(index)  # Get the chosen one's name
+        folder_path = os.path.join("projects", proj_name)  # Ah yes, folder-based data storage: so advanced
+        show_project_files(folder_path)  # Show the contents of their regrets
 
 def show_project_files(folder_path):
     """
     Reads all files in the project's folder and populates the right Listbox.
-    Files are sorted by modification time (newest first).
+    AKA: here's your mess, sorted.
     """
-    files_listbox.delete(0, tk.END)
-    files_listbox.folder_path = folder_path
-    if os.path.isdir(folder_path):
+    files_listbox.delete(0, tk.END)  # Wipe the slate clean, like the last 3 failed projects
+    files_listbox.folder_path = folder_path  # Store the folder path on the widget, because that's normal
+    if os.path.isdir(folder_path):  # Check that it's not imaginary like my girlfriend 
         files = sorted(
             os.listdir(folder_path),
-            key=lambda f: os.path.getmtime(os.path.join(folder_path, f)),
-            reverse=True
+            key=lambda f: os.path.getmtime(os.path.join(folder_path, f)),  # We sort by modification time, because why not judge a file by how recently it cried
+            reverse=True  # Newest to oldest, so you can ignore the fresh stuff first
         )
         for file in files:
             file_path = os.path.join(folder_path, file)
-            if os.path.isfile(file_path):
-                files_listbox.insert(tk.END, file)
+            if os.path.isfile(file_path):  # Sanity check for the one time someone added a folder called “lol”
+                files_listbox.insert(tk.END, file)  # Behold: the file parade
+
 
 def open_file_direct(event):
     """
@@ -82,7 +82,7 @@ def open_file_direct(event):
         file_name = files_listbox.get(index)
         folder_path = files_listbox.folder_path
         file_path = os.path.join(folder_path, file_name)
-        launch_gui(folder_path, file_path=file_path)
+        launch_gui(folder_path, file_path=file_path)# Time to launch the GUI from inside the GUI. What could go wrong?
 
 def delete_file():
     """
@@ -113,11 +113,11 @@ def delete_project():
         folder_path = os.path.join("projects", proj_name)
         if messagebox.askyesno("Delete Project", f"Are you sure you want to delete '{folder_path}'?"):
             try:
-                shutil.rmtree(folder_path)
+                shutil.rmtree(folder_path) # Bye-bye entire folder. No undo. No safety net.
                 list_projects()
                 files_listbox.delete(0, tk.END)
             except Exception as e:
-                messagebox.showerror("Error", f"Could not delete folder:\n{e}")
+                messagebox.showerror("Error", f"Could not delete folder:\n{e}")# Oopsie-daisy
 
 def export_project():
     """
@@ -139,12 +139,12 @@ def export_project():
                         for file in files:
                             abs_file = os.path.join(root_dir, file)
                             rel_path = os.path.relpath(abs_file, folder_path)
-                            zipf.write(abs_file, rel_path)
-                messagebox.showinfo("Export", f"Project folder exported as:\n{dest_path}")
+                            zipf.write(abs_file, rel_path)# Compress the failure into a single neat package
+                messagebox.showinfo("Export", f"Project folder exported as:\n{dest_path}")# Clap for yourself
             except Exception as e:
-                messagebox.showerror("Error", f"Could not export project folder:\n{e}")
+                messagebox.showerror("Error", f"Could not export project folder:\n{e}")# Export denied!
     else:
-        messagebox.showwarning("No Project Selected", "Please select a project to export.")
+        messagebox.showwarning("No Project Selected", "Please select a project to export.")# Because obviously you forgot
 
 def import_project():
     """
@@ -193,42 +193,48 @@ def import_project():
 def refresh_project_list():
     """
     Refreshes the project list on the left, filtering by search query.
+    Because typing a single letter should absolutely reshape the universe.
     """
-    query = search_var.get().lower()
-    project_listbox.delete(0, tk.END)
-    for f in sorted(project_files):
-        name = os.path.splitext(f)[0]
-        if query in name.lower():
-            project_listbox.insert(tk.END, name)
+    query = search_var.get().lower()  # lowercase, because case-sensitive searching is a war crime
+    project_listbox.delete(0, tk.END)  # Wipe the list clean, just like your dreams after a debugging session
+    for f in sorted(project_files):  # Alphabetical, because chaos must at least be orderly
+        name = os.path.splitext(f)[0]  # Cut off the .json like trimming dead ends
+        if query in name.lower():  # Crude filter logic, but good enough for the three projects you'll make
+            project_listbox.insert(tk.END, name)  # Resurrect from the void
+
 
 def list_projects():
     """
     Lists all subfolders in 'projects' (each subfolder is a project).
+    So, basically, "ls but worse."
     """
-    global project_files
-    os.makedirs("projects", exist_ok=True)
-    project_files = [f for f in os.listdir("projects") if os.path.isdir(os.path.join("projects", f))]
-    refresh_project_list()
+    global project_files  # Go ahead. Just declare a global. YOLO.
+    os.makedirs("projects", exist_ok=True)  # In case the "projects" folder spontaneously ceases to exist
+    project_files = [f for f in os.listdir("projects") if os.path.isdir(os.path.join("projects", f))]  # Basic directory spelunking
+    refresh_project_list()  # Now show the user their failures
+
 
 def on_close():
     """
     Closes the window.
     """
-    root.destroy()
+    root.destroy()# Execute order 66
 
 # -------------------- GUI Setup --------------------
-root = tk.Tk()
-root.title("Project Manager")
-root.state("zoomed")
+root = tk.Tk()  # Boot up the window like it’s Windows 98
+root.title("Project Manager")  # Misleading, but optimistic
+root.state("zoomed")  # Full screen by default, because users love surprise UI takeovers
 
-main_frame = tk.Frame(root, padx=20, pady=20)
-main_frame.pack(expand=True, fill=tk.BOTH)
+
+main_frame = tk.Frame(root, padx=20, pady=20)  # Padding to make your shame feel cozy
+main_frame.pack(expand=True, fill=tk.BOTH)  # Give it space to breathe. It’s dying.
+
 
 # LEFT PANEL - Projects
 left_frame = tk.Frame(main_frame)
 left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10)
 
-tk.Label(left_frame, text="Projects:", font=("Arial", 12)).pack()
+tk.Label(left_frame, text="Projects:", font=("Arial", 12)).pack()  # Because otherwise you wouldn’t know what this was
 search_var = tk.StringVar()
 search_entry = tk.Entry(left_frame, textvariable=search_var, width=30, font=("Arial", 12))
 search_entry.pack(pady=5)

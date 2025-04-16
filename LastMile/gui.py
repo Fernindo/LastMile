@@ -60,9 +60,7 @@ def update_basket_table(basket_tree, basket_items):
     """
     basket_tree.delete(*basket_tree.get_children())
     for section, products in basket_items.items():
-        # Use the full section name (or you can truncate if desired)
-        section_text = section  # change to section[:10] to truncate
-        section_id = basket_tree.insert("", "end", text=section_text, open=True)
+        section_id = basket_tree.insert("", "end", text=section, open=True)
         for produkt, item_data in products.items():
             basket_tree.insert(
                 section_id, "end", text="",
@@ -166,8 +164,6 @@ def on_drag_release(event):
     dragging_item["item"] = None
 
 # ---------- Dynamic Column Resizing Using Fixed Widths ----------
-# For the DB Items Treeview, you can choose to use either fixed values or proportions.
-# Here we keep the original proportion-based adjustment:
 db_column_proportions = {
     "produkt": 0.20,
     "jednotky": 0.10,
@@ -195,14 +191,11 @@ basket_column_widths = {
     "pocet prace": 100
 }
 def adjust_basket_columns(event):
-    # Set the default "#0" column (which shows the section text) to a fixed width.
     basket_tree.column("#0", width=100, anchor="w", stretch=False)
-    # Now set each other column to its fixed width.
     for col in basket_columns:
         fixed_width = basket_column_widths.get(col, 100)
         basket_tree.column(col, width=fixed_width, stretch=False)
 
-# ---------- Let the user edit Koeficient..Pocet_prace by double-click ----------
 def edit_basket_cell(event):
     """
     By double-clicking a cell in columns 4..8, user can edit them:
@@ -259,7 +252,6 @@ def edit_basket_cell(event):
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
-# ---------- Example add_to_basket that sets new fields to 1 ----------
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
     """
     Adds a product (provided as a tuple from DB) to the basket.
@@ -285,7 +277,7 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
         "odkaz":           item[3],
         "koeficient":      float(item[4]),
         "nakup_materialu": float(item[5]),
-        "cena prace":      float(item[6]),
+        "cena_prace":      float(item[6]),
         "pocet_materialu": 1,
         "pocet_prace":     1
     }
@@ -299,7 +291,6 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
     update_basket_table(basket_tree, basket_items)
     mark_modified()
 
-# ---------- Start of the GUI code ----------
 if len(sys.argv) < 2:
     root_prompt = tk.Tk()
     root_prompt.withdraw()
@@ -331,17 +322,18 @@ def return_home():
     root.destroy()
     subprocess.Popen(["python", "project_selector.py"])
 
-category_structure = {}
-cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
-for class_id, main_cat, tab_name in cursor.fetchall():
-    category_structure.setdefault(main_cat, []).append((class_id, tab_name))
-
 filter_frame, setup_category_tree, category_vars, table_vars = create_filter_panel(
     root,
     lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
 )
 filter_frame.config(width=280)
 filter_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(5,0), pady=5)
+
+category_structure = {}
+cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
+for class_id, main_cat, tab_name in cursor.fetchall():
+    category_structure.setdefault(main_cat, []).append((class_id, tab_name))
+
 setup_category_tree(category_structure)
 
 main_frame = tk.Frame(root)
@@ -389,6 +381,7 @@ def on_tree_double_click(event):
 tree.bind("<Double-1>", on_tree_double_click)
 
 basket_items = OrderedDict()
+
 basket_frame = tk.Frame(main_frame)
 basket_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
 tk.Label(basket_frame, text="Košík - vybraté položky:", font=("Arial", 10)).pack()
@@ -405,8 +398,8 @@ basket_columns = (
     "pocet prace"
 )
 basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="tree headings")
-basket_tree.heading("#0", text="")  # No text for the default (#0) column
-basket_tree.column("#0", width=100, anchor="w", stretch=False)  # Adjust the section column width as needed
+basket_tree.heading("#0", text="")
+basket_tree.column("#0", width=100, anchor="w", stretch=False)
 for col in basket_columns:
     basket_tree.heading(col, text=col.capitalize())
     basket_tree.column(col, anchor="center", stretch=False)
@@ -439,7 +432,6 @@ backup_button.pack(pady=3)
 
 on_name_change()
 
-# Drag-and-drop binds (if you don't need them, you can remove these lines)
 basket_tree.bind("<ButtonPress-1>", on_drag_start)
 basket_tree.bind("<B1-Motion>", on_drag_motion)
 basket_tree.bind("<ButtonRelease-1>", on_drag_release)

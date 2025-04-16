@@ -45,13 +45,40 @@ def get_database_connection():
 
 def sync_postgres_to_sqlite(pg_conn):
     """
-    Sync data from PostgreSQL (table 'produkty') into a local SQLite database.
-    Uses a LEFT JOIN with public.class to fetch the actual category name.
+    Sync data from PostgreSQL into a local SQLite DB so offline mode
+    works with both 'class' and 'produkty' data.
+
+    Steps:
+      1) Drop & recreate the local "class" table and copy data from public.class.
+      2) Drop & recreate the local "produkty" table and copy data from public.produkty 
+         (using a LEFT JOIN to include the class name from public.class).
     """
     sqlite_conn = sqlite3.connect("local_backup.db")
     pg_cursor = pg_conn.cursor()
     sqlite_cursor = sqlite_conn.cursor()
 
+    # 1) Drop & Recreate local "class" table.
+    sqlite_cursor.execute('DROP TABLE IF EXISTS "class"')
+    sqlite_cursor.execute("""
+        CREATE TABLE "class" (
+            id INTEGER PRIMARY KEY,
+            hlavna_kategoria TEXT,
+            nazov_tabulky TEXT
+        )
+    """)
+
+    # Copy data from public.class.
+    pg_cursor.execute("""
+        SELECT id, hlavna_kategoria, nazov_tabulky
+        FROM public.class
+    """)
+    class_rows = pg_cursor.fetchall()
+    sqlite_cursor.executemany(
+        'INSERT INTO "class" (id, hlavna_kategoria, nazov_tabulky) VALUES (?, ?, ?)',
+        class_rows
+    )
+
+    # 2) Drop & Recreate local "produkty" table.
     sqlite_cursor.execute("DROP TABLE IF EXISTS produkty")
     sqlite_cursor.execute("""
         CREATE TABLE produkty (
@@ -67,7 +94,8 @@ def sync_postgres_to_sqlite(pg_conn):
             class_name TEXT
         )
     """)
-    
+
+    # Copy data from public.produkty (with LEFT JOIN for class name).
     pg_cursor.execute("""
         SELECT 
             p.id,
@@ -80,11 +108,11 @@ def sync_postgres_to_sqlite(pg_conn):
             p.cena_prace,
             p.class_id,
             c.nazov_tabulky
-        FROM produkty p
+        FROM public.produkty p
         LEFT JOIN public.class c ON p.class_id = c.id
     """)
-    
     rows = pg_cursor.fetchall()
+
     safe_rows = []
     for row in rows:
         safe_row = []
@@ -94,13 +122,15 @@ def sync_postgres_to_sqlite(pg_conn):
             else:
                 safe_row.append(value)
         safe_rows.append(tuple(safe_row))
-    
+
     sqlite_cursor.executemany(
-        "INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", safe_rows
+        "INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        safe_rows
     )
+
     sqlite_conn.commit()
     sqlite_conn.close()
-    print("✔ Synced PostgreSQL → SQLite")
+    print("✔ Synced PostgreSQL → SQLite (produkty + class tables)")
 
 def save_basket(project_path, project_name, basket_items, user_name=""):
     """
@@ -130,7 +160,7 @@ def load_basket(project_path, project_name, file_path=None):
         if not files:
             return OrderedDict(), ""
         filename = max(files, key=os.path.getmtime)
-    
+
     if os.path.exists(filename) and os.path.getsize(filename) > 0:
         with open(filename, "r", encoding="utf-8") as f:
             try:
@@ -147,19 +177,18 @@ def show_error(message):
     return []
 
 def remove_accents(text):
-    """
-    Remove diacritics from the given text.
-    """
+    """Remove diacritics from the given text."""
     return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     """
-    Retrieves products from the SQLite 'produkty' table,
-    optionally filtering by selected classes and text search.
+    Retrieves products from the 'produkty' table,
+    optionally filtering by selected classes and a text search.
     """
     selected_class_ids = [cid for cid, var in table_vars.items() if var.get()]
     name_filter = remove_accents(name_entry.get().strip().lower())
     rows = []
+
     try:
         query = """
             SELECT produkt, jednotky, dodavatel, odkaz, koeficient, 
@@ -175,12 +204,14 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
                 placeholders = ','.join(['?'] * len(selected_class_ids))
             query += f" AND class_id IN ({placeholders})"
             params.extend(selected_class_ids)
+
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
+
     except Exception as e:
         show_error(str(e))
         return
-    
+
     tree.delete(*tree.get_children())
     grouped = {}
     for row in rows:
@@ -188,21 +219,32 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         if not name_filter or name_filter in remove_accents(produkt.lower()):
             class_id = row[-1]
             grouped.setdefault(class_id, []).append(row[:-1])
-    
+
+    # For offline mode, use the local "class" table to map class_id to nazov_tabulky.
     class_name_map = {}
-    try:
-        cursor.execute("SELECT id, nazov_tabulky FROM public.class")
-        for cid, cname in cursor.fetchall():
-            if cid is not None:
-                class_name_map[cid] = cname
-    except Exception as e:
-        print("Warning: Unable to retrieve class names:", e)
-    
+    if db_type == 'postgres':
+        try:
+            cursor.execute("SELECT id, nazov_tabulky FROM public.class")
+            for cid, cname in cursor.fetchall():
+                if cid is not None:
+                    class_name_map[cid] = cname
+        except Exception as e:
+            print("Warning: Unable to retrieve class names:", e)
+    else:
+        try:
+            cursor.execute("SELECT id, nazov_tabulky FROM class")
+            for cid, cname in cursor.fetchall():
+                if cid is not None:
+                    class_name_map[cid] = cname if cname else "Uncategorized"
+        except Exception as e:
+            print("Warning: Unable to retrieve class names from local DB:", e)
+
     for class_id in sorted(grouped):
         class_name = class_name_map.get(class_id, "Uncategorized")
         tree.insert("", "end", values=("", f"-- {class_name} --"), tags=("header",))
         for row in grouped[class_id]:
             tree.insert("", "end", values=row + (class_name,))
+
     tree.tag_configure("header", font=("Arial", 10, "bold"))
 
 def update_basket_table(basket_tree, basket_items):
@@ -212,16 +254,16 @@ def update_basket_table(basket_tree, basket_items):
     basket_tree.delete(*basket_tree.get_children())
     for section, products in basket_items.items():
         basket_tree.insert("", "end", iid=section, text=section, open=True)
-        for produkt, item_data in products.items():
+        for produkt, v in products.items():
             basket_tree.insert("", "end", values=(
                 produkt,
-                item_data["jednotky"],
-                item_data["dodavatel"],
-                item_data["odkaz"],
-                item_data["koeficient"],
-                item_data["nakup_materialu"],
-                item_data["cena_prace"],
-                item_data["pocet"]
+                v["jednotky"],
+                v["dodavatel"],
+                v["odkaz"],
+                v["koeficient"],
+                v["nakup_materialu"],
+                v["cena_prace"],
+                v["pocet"]
             ))
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
@@ -272,7 +314,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     entry_popup.place(x=x, y=y, width=width, height=height)
     entry_popup.insert(0, basket_tree.item(selected_item)['values'][col_index])
     entry_popup.focus()
-    
+
     def save_edit(event):
         try:
             new_value = float(entry_popup.get()) if col_index != 7 else int(entry_popup.get())
@@ -286,7 +328,7 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
             basket_items[parent][produkt][key_map[col_index]] = new_value
         update_basket_table(basket_tree, basket_items)
         entry_popup.destroy()
-    
+
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
@@ -311,7 +353,6 @@ def update_excel_from_basket(basket_items, project_name):
     """
     Exports the current basket to an Excel file on the Desktop.
     """
-    from tkinter import messagebox
     if not basket_items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
@@ -319,6 +360,8 @@ def update_excel_from_basket(basket_items, project_name):
     file_path = os.path.join(desktop_path, f"{project_name}.xlsx")
     excel_data = []
     for section, products in basket_items.items():
+        if section == "_notes":
+            continue
         for produkt, v in products.items():
             excel_data.append((
                 section,
@@ -329,7 +372,7 @@ def update_excel_from_basket(basket_items, project_name):
                 v["koeficient"],
                 v["nakup_materialu"],
                 v["cena_prace"],
-                v["pocet"]
+                v.get("pocet_materialu", 1)
             ))
     update_excel(excel_data, file_path, basket_items.get("_notes", ""))
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
