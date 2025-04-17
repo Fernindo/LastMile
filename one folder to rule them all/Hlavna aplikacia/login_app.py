@@ -105,7 +105,8 @@ class login_app:
 
             self.root.destroy()
             script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "project_selector.py")
-            subprocess.Popen([sys.executable, script_path])
+            subprocess.Popen(["python", script_path], creationflags=subprocess.CREATE_NEW_CONSOLE)
+
         else:
             messagebox.showerror("Odmietnutý prístup", "Admin nemá povolený prístup.")
 
