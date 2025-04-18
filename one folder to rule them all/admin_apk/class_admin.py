@@ -181,7 +181,7 @@ def create_table_form(parent, refresh_callback=None):
         cat_listbox.delete(0, tk.END)
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT DISTINCT hlavna_kategoria FROM class WHERE nazov_tabulky != '' ORDER BY hlavna_kategoria")
+        cur.execute("SELECT DISTINCT hlavna_kategoria FROM class ORDER BY hlavna_kategoria")  # <-- Zmenené tu
         categories = cur.fetchall()
         cat_listbox.insert(tk.END, *[cat[0] for cat in categories])
         kat_combo["values"] = [cat[0] for cat in categories]
@@ -189,6 +189,7 @@ def create_table_form(parent, refresh_callback=None):
             kat_combo.set(categories[0][0])
         cur.close()
         conn.close()
+
 
     def load_tables():
         for i in table_tree.get_children():

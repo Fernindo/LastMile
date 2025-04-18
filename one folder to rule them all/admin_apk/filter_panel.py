@@ -1,5 +1,3 @@
-# filter_panel.py
-
 import tkinter as tk
 from tkinter import ttk
 import psycopg2
@@ -32,7 +30,6 @@ class FilterPanel:
         tk.Label(self.frame, text="Hlavná kategória:").grid(row=0, column=0, padx=5, pady=5)
         self.kat_var = tk.StringVar()
         self.kat_combo = ttk.Combobox(self.frame, textvariable=self.kat_var, state="readonly")
-        self.kat_combo["values"] = ["SK", "EZS", "CCTV"]
         self.kat_combo.grid(row=0, column=1, padx=5)
         self.kat_combo.bind("<<ComboboxSelected>>", self.update_table_options)
 
@@ -56,6 +53,9 @@ class FilterPanel:
         self.empty_cb = tk.Checkbutton(self.frame, text="Zobraziť prázdne kategórie", variable=self.show_empty_var)
         self.empty_cb.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 10))
 
+        # Načítanie hlavných kategórií z databázy
+        self.load_main_categories()
+
     def toggle(self):
         self.visible = not self.visible
         if self.visible:
@@ -64,6 +64,18 @@ class FilterPanel:
         else:
             self.frame.grid_remove()
             self.toggle_btn.config(text="🢃 Zobraziť filter")
+
+    def load_main_categories(self):
+        conn = self.get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT hlavna_kategoria FROM class ORDER BY hlavna_kategoria")
+        kategorie = [row[0] for row in cur.fetchall()]
+        self.kat_combo["values"] = kategorie
+        if kategorie:
+            self.kat_combo.current(0)
+            self.update_table_options()
+        cur.close()
+        conn.close()
 
     def update_table_options(self, event=None):
         kategoria = self.kat_var.get()
