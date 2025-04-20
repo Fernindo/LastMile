@@ -1,9 +1,14 @@
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
 import sys
 import os
 import subprocess
 from collections import OrderedDict
+
+import ttkbootstrap as tb
+from ttkbootstrap import Style
+import tkinter as tk
+from tkinter import messagebox, filedialog, simpledialog
+import tkinter.ttk as ttk
+
 from excel_processing import update_excel
 from filter_panel import create_filter_panel
 from notes_panel import create_notes_panel
@@ -54,21 +59,18 @@ def reorder_basket_data():
         for child in basket_tree.get_children(sec):
             vals = basket_tree.item(child, "values")
             prods[vals[0]] = {
-                "jednotky":        vals[1],
-                "dodavatel":       vals[2],
-                "odkaz":           vals[3],
-                "koeficient":      float(vals[4]),
+                "jednotky": vals[1],
+                "dodavatel": vals[2],
+                "odkaz": vals[3],
+                "koeficient": float(vals[4]),
                 "nakup_materialu": float(vals[5]),
                 "pocet_materialu": int(vals[6]),
-                "cena_prace":      float(vals[7]),
-                "pocet_prace":     int(vals[8])
+                "cena_prace": float(vals[7]),
+                "pocet_prace": int(vals[8])
             }
         new_basket[sec_name] = prods
     basket_items.clear()
     basket_items.update(new_basket)
-
-def reorder_basket_sections():
-    reorder_basket_data()
 
 # ---------- Drag-and-Drop ----------
 dragging_item = {"item": None}
@@ -102,7 +104,9 @@ def on_drag_motion(event):
     if current_drop_target and current_drop_target != tgt:
         basket_tree.item(current_drop_target, tags=())
     current_drop_target = tgt
-    basket_tree.tag_configure("drop_target", background="lightblue", foreground="red")
+    basket_tree.tag_configure("drop_target",
+                              background=style.colors.secondary,
+                              foreground=style.colors.inverse)
     basket_tree.item(tgt, tags=("drop_target",))
     if dragging_is_section:
         basket_tree.move(dragging_item["item"], "", basket_tree.index(tgt))
@@ -115,10 +119,7 @@ def on_drag_motion(event):
 def on_drag_release(event):
     global current_drop_target
     if dragging_item["item"]:
-        if basket_tree.parent(dragging_item["item"]) == "":
-            reorder_basket_sections()
-        else:
-            reorder_basket_data()
+        reorder_basket_data()
         mark_modified()
     if current_drop_target:
         basket_tree.item(current_drop_target, tags=())
@@ -135,47 +136,62 @@ def adjust_db_columns(event):
     for col, pct in db_column_proportions.items():
         tree.column(col, width=int(w * pct))
 
+# basket_columns is defined here so adjust_basket_columns can reference it
+basket_columns = (
+    "produkt","jednotky","dodavatel","odkaz","koeficient",
+    "nakup materialu","pocet materialu","cena prace","pocet prace"
+)
 basket_column_widths = {
-    "produkt":200,"jednotky":150,"dodavatel":155,"odkaz":350,
-    "koeficient":120,"nakup materialu":140,"pocet materialu":100,
+    "produkt":200,"jednotky":150,"dodavatel":125,"odkaz":300,
+    "koeficient":120,"nakup materialu":160,"pocet materialu":160,
     "cena prace":100,"pocet prace":100
 }
 def adjust_basket_columns(event):
-    basket_tree.column("#0", width=200, anchor="w", stretch=False)
+    basket_tree.column("#0", width=150, anchor="w", stretch=False)
     for col in basket_columns:
         basket_tree.column(col, width=basket_column_widths[col], stretch=False)
 
-# ---------- Cell Editing ----------
+# ---------- Cell Editing via Dialog ----------
 def edit_basket_cell(event):
-    region = basket_tree.identify("region", event.x, event.y)
-    if region != "cell":
+    row_id = basket_tree.identify_row(event.y)
+    col_id = basket_tree.identify_column(event.x)
+    # ignore section headers or outside cells
+    if not row_id or basket_tree.parent(row_id) == "":
         return
-    iid = basket_tree.focus()
-    if not iid or basket_tree.get_children(iid):
+
+    col_index = int(col_id.replace("#","")) - 1
+    if col_index < 4 or col_index > 8:
         return
-    vals = basket_tree.item(iid)["values"]
-    col = int(basket_tree.identify_column(event.x).replace('#','')) - 1
-    if col < 4 or col > 8:
+
+    old_val = basket_tree.set(row_id, col_id)
+    col_names = ["Produkt","Jednotky","Dodávateľ","Odkaz","Koeficient",
+                 "Nákup materiálu","Počet materiálu","Cena práce","Počet práce"]
+    prompt = f"Nová hodnota pre '{col_names[col_index]}'"
+    if col_index in (6, 8):
+        new = simpledialog.askinteger("Upraviť bunku", prompt,
+                                      initialvalue=int(old_val),
+                                      parent=root)
+    else:
+        new = simpledialog.askfloat("Upraviť bunku", prompt,
+                                    initialvalue=float(old_val),
+                                    parent=root)
+    if new is None:
         return
-    x,y,w,h = basket_tree.bbox(iid, f"#{col+1}")
-    entry = tk.Entry(basket_tree)
-    entry.place(x=x, y=y, width=w, height=h)
-    entry.insert(0, vals[col])
-    entry.focus()
-    def save_edit(e):
-        try:
-            new = float(entry.get()) if col != 8 else int(entry.get())
-        except ValueError:
-            entry.destroy(); return
-        key_map = {4:"koeficient",5:"nakup_materialu",6:"pocet_materialu",7:"cena_prace",8:"pocet_prace"}
-        sec = basket_tree.parent(iid)
-        prod = vals[0]
-        basket_items[sec][prod][key_map[col]] = new
-        update_basket_table(basket_tree, basket_items)
-        mark_modified()
-        entry.destroy()
-    entry.bind("<Return>", save_edit)
-    entry.bind("<FocusOut>", save_edit)
+
+    # update UI cell
+    basket_tree.set(row_id, col_id, new)
+    # update data model
+    sec = basket_tree.parent(row_id)
+    prod = basket_tree.item(row_id)["values"][0]
+    key_map = {
+        4: "koeficient",
+        5: "nakup_materialu",
+        6: "pocet_materialu",
+        7: "cena_prace",
+        8: "pocet_prace"
+    }
+    basket_items[sec][prod][key_map[col_index]] = new
+    mark_modified()
 
 # ---------- Add to Basket ----------
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
@@ -207,7 +223,6 @@ else:
     project_path = sys.argv[1]
 
 project_name = os.path.basename(project_path)
-# Where to load/save basket JSONs:
 json_dir = os.path.join(project_path, "projects")
 os.makedirs(json_dir, exist_ok=True)
 commit_file = sys.argv[2] if len(sys.argv) > 2 else None
@@ -215,18 +230,37 @@ commit_file = sys.argv[2] if len(sys.argv) > 2 else None
 # DB setup
 conn, db_type = get_database_connection()
 cursor = conn.cursor()
-if db_type == 'postgres':
+if db_type == "postgres":
     sync_postgres_to_sqlite(conn)
 
-# Main window
-root = tk.Tk()
-root.state('zoomed')
+# Themed Window
+style = Style(theme="litera")
+root = style.master
 root.title(f"Project: {project_name}")
+root.state("zoomed")
+root.option_add("*Font", ("Segoe UI", 10))
+
+# Style Treeview
+style.configure(
+    "Treeview",
+    rowheight=28,
+    font=("Segoe UI", 10),
+    fieldbackground="#F8F9FA",
+    background="#FFFFFF",
+    foreground="#333333",
+)
+style.configure(
+    "Treeview.Heading",
+    font=("Segoe UI", 11, "bold"),
+    background="#E9ECEF",
+    foreground="#212529",
+)
 
 def return_home():
     if basket_modified:
         save_basket(json_dir, project_name, basket_items, user_name_entry.get().strip())
-    conn.close(); root.destroy()
+    conn.close()
+    root.destroy()
     subprocess.Popen(["python", os.path.join(os.path.dirname(__file__), "project_selector.py")])
 
 # Filter panel
@@ -240,38 +274,40 @@ filter_frame, setup_cat_tree, category_vars, table_vars = create_filter_panel(
     lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
 )
 filter_frame.config(width=280)
-filter_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(5,0), pady=5)
+filter_frame.pack(side="left", fill="y", padx=10, pady=10)
 setup_cat_tree(category_structure)
 
 # Main content
-main_frame = tk.Frame(root)
-main_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+main_frame = tb.Frame(root, padding=10)
+main_frame.pack(side="left", fill="both", expand=True)
 
-# Top bar: Home, user name, search
-top_frame = tk.Frame(main_frame)
-top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
-tk.Button(top_frame, text="🏠 Home", command=return_home).pack(side=tk.LEFT)
-tk.Label(top_frame, text="Tvoje meno:").pack(side=tk.LEFT, padx=(10,5))
-user_name_entry = tk.Entry(top_frame, width=20)
-user_name_entry.pack(side=tk.LEFT)
+# Top bar
+top_frame = tb.Frame(main_frame, padding=5)
+top_frame.pack(side="top", fill="x")
+tb.Button(top_frame, text="🏠 Home", bootstyle="light", command=return_home).pack(side="left")
+tb.Label(top_frame, text="Tvoje meno:").pack(side="left", padx=(10,5))
+user_name_entry = tb.Entry(top_frame, width=20)
+user_name_entry.pack(side="left")
 def on_name_change(*_):
-    export_btn.config(state=tk.NORMAL if user_name_entry.get().strip() else tk.DISABLED)
+    export_btn.config(state=tb.DISABLED if not user_name_entry.get().strip() else tb.NORMAL)
 user_name_entry.bind("<KeyRelease>", on_name_change)
-tk.Label(top_frame, text="Vyhľadávanie:").pack(side=tk.LEFT, padx=(20,5))
-name_entry = tk.Entry(top_frame, width=30)
-name_entry.pack(side=tk.LEFT)
+
+tb.Label(top_frame, text="Vyhľadávanie:").pack(side="left", padx=(20,5))
+name_entry = tb.Entry(top_frame, width=30)
+name_entry.pack(side="left")
 name_entry.bind("<KeyRelease>",
     lambda e: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
 )
 
 # Database Treeview
-tree_frame = tk.Frame(main_frame)
-tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+tree_frame = tb.Frame(main_frame)
+tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
 db_columns = ("produkt","jednotky","dodavatel","odkaz","koeficient","nakup materialu","cena prace")
 tree = ttk.Treeview(tree_frame, columns=db_columns, show="headings")
 for c in db_columns:
-    tree.heading(c, text=c.capitalize()); tree.column(c, anchor="center")
-tree.pack(fill=tk.BOTH, expand=True)
+    tree.heading(c, text=c.capitalize())
+    tree.column(c, anchor="center")
+tree.pack(fill="both", expand=True)
 tree.bind("<Configure>", adjust_db_columns)
 tree.bind("<Double-1>",
     lambda e: add_to_basket(tree.item(tree.focus())["values"], basket_items, update_basket_table, basket_tree)
@@ -279,9 +315,9 @@ tree.bind("<Double-1>",
 
 # Basket Treeview
 basket_items = OrderedDict()
-basket_frame = tk.Frame(main_frame)
-basket_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-tk.Label(basket_frame, text="Košík - vybraté položky:").pack(anchor="w")
+basket_frame = tb.Frame(main_frame, padding=5)
+basket_frame.pack(fill="both", expand=True, padx=10, pady=10)
+tb.Label(basket_frame, text="Košík - vybraté položky:").pack(anchor="w")
 basket_columns = (
     "produkt","jednotky","dodavatel","odkaz","koeficient",
     "nakup materialu","pocet materialu","cena prace","pocet prace"
@@ -289,36 +325,24 @@ basket_columns = (
 basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="tree headings")
 basket_tree.heading("#0", text=""); basket_tree.column("#0", width=200, stretch=False)
 for c in basket_columns:
-    basket_tree.heading(c, text=c.capitalize()); basket_tree.column(c, anchor="center", stretch=False)
-basket_tree.pack(fill=tk.BOTH, expand=True)
+    basket_tree.heading(c, text=c.capitalize())
+    basket_tree.column(c, anchor="center", stretch=False)
+basket_tree.pack(fill="both", expand=True)
 basket_tree.bind("<Configure>", adjust_basket_columns)
 basket_tree.bind("<Double-1>", edit_basket_cell)
 
 create_notes_panel(basket_frame, project_name)
 
 # Remove button
-tk.Button(basket_frame, text="Odstrániť",
-          command=lambda: ( __import__('gui_functions').remove_from_basket(basket_tree, basket_items, update_basket_table),
-                            mark_modified() )
+tb.Button(basket_frame, text="Odstrániť", bootstyle="danger-outline",
+          command=lambda: (__import__("gui_functions").remove_from_basket(basket_tree,basket_items,update_basket_table), mark_modified())
          ).pack(pady=3)
-
-# Export button
-export_btn = tk.Button(basket_frame, text="Exportovať",
-    command=lambda: (
-        messagebox.showwarning("Meno chýba","Prosím zadaj meno.")
-        if not user_name_entry.get().strip()
-        else update_excel_from_basket(basket_items, project_name)
-    )
-)
+export_btn = tb.Button(basket_frame, text="Exportovať", bootstyle="success", command=lambda: (
+    messagebox.showwarnings("Meno chýba","Prosím zadaj meno.")
+    if not user_name_entry.get().strip()
+    else update_excel_from_basket(basket_items, project_name)
+))
 export_btn.pack(pady=3)
-on_name_change()
-
-# Backup (archive) button
-def backup_project():
-    save_basket(json_dir, project_name, basket_items, user_name_entry.get().strip())
-    mark_modified()
-    messagebox.showinfo("Záloha", "🗄️ Záloha uložená do 'projects' priečinka.")
-tk.Button(basket_frame, text="Zálohovať", command=backup_project).pack(pady=3)
 
 # Drag & drop
 basket_tree.bind("<ButtonPress-1>", on_drag_start)
@@ -331,7 +355,6 @@ for section, prods in basket_items_loaded.items():
     for prod, data in prods.items():
         data.setdefault("pocet_materialu", 1)
         data.setdefault("pocet_prace", 1)
-        # refill missing cena_prace if needed
         if float(data.get("cena_prace", 0)) == 0:
             placeholder = "%s" if db_type=="postgres" else "?"
             cursor.execute(f"SELECT cena_prace FROM produkty WHERE produkt = {placeholder}", (prod,))
