@@ -67,7 +67,7 @@ def sync_postgres_to_sqlite(pg_conn):
             class_name TEXT
         )
     """)
-    
+
     pg_cursor.execute("""
         SELECT 
             p.id,
@@ -83,7 +83,6 @@ def sync_postgres_to_sqlite(pg_conn):
         FROM produkty p
         LEFT JOIN public.class c ON p.class_id = c.id
     """)
-    
     rows = pg_cursor.fetchall()
     safe_rows = []
     for row in rows:
@@ -94,9 +93,10 @@ def sync_postgres_to_sqlite(pg_conn):
             else:
                 safe_row.append(value)
         safe_rows.append(tuple(safe_row))
-    
+
     sqlite_cursor.executemany(
-        "INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", safe_rows
+        "INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        safe_rows
     )
     sqlite_conn.commit()
     sqlite_conn.close()
@@ -104,42 +104,79 @@ def sync_postgres_to_sqlite(pg_conn):
 
 def save_basket(project_path, project_name, basket_items, user_name=""):
     """
-    Every save produces a new commit file: basket_YYYY-MM-DD_HH-MM-SS.json,
-    containing the entire basket data.
+    Save a timestamped JSON that preserves section & product order
+    plus all current numeric values.
     """
-    data = {
+    out = {
         "user_name": user_name,
-        "basket": basket_items
+        "items": []
     }
+
+    # basket_items is OrderedDict[section, OrderedDict[product, info_dict]]
+    for section, products in basket_items.items():
+        sec_obj = {"section": section, "products": []}
+        for pname, info in products.items():
+            sec_obj["products"].append({
+                "produkt":         pname,
+                "jednotky":        info.get("jednotky", ""),
+                "dodavatel":       info.get("dodavatel", ""),
+                "odkaz":           info.get("odkaz", ""),
+                "koeficient":      info.get("koeficient", 0),
+                "nakup_materialu": info.get("nakup_materialu", 0),
+                "cena_prace":      info.get("cena_prace", 0),
+                "pocet_prace":     info.get("pocet_prace", 1),
+                "pocet_materialu": info.get("pocet_materialu", 1),
+            })
+        out["items"].append(sec_obj)
+
     os.makedirs(project_path, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    commit_filename = os.path.join(project_path, f"basket_{timestamp}.json")
-    with open(commit_filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = os.path.join(project_path, f"basket_{ts}.json")
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=2)
 
 def load_basket(project_path, project_name, file_path=None):
     """
-    Loads the basket from file_path if provided; otherwise loads from the newest 
-    file matching basket_*.json in project_path.
-    Returns (basket_items as OrderedDict, user_name).
+    Load the most recent basket JSON (or the specified file),
+    reconstructing an OrderedDict of sections→products and returning
+    (basket_items, saved_user_name).
     """
-    if file_path and os.path.exists(file_path):
-        filename = file_path
+    if file_path and os.path.isfile(file_path):
+        path = file_path
     else:
         files = glob.glob(os.path.join(project_path, "basket_*.json"))
         if not files:
             return OrderedDict(), ""
-        filename = max(files, key=os.path.getmtime)
-    
-    if os.path.exists(filename) and os.path.getsize(filename) > 0:
-        with open(filename, "r", encoding="utf-8") as f:
-            try:
-                data = json.load(f)
-                basket = data.get("basket", {})
-                return OrderedDict(basket), data.get("user_name", "")
-            except json.JSONDecodeError:
-                print("⚠ JSON decode error - basket file is not valid.")
-    return OrderedDict(), ""
+        path = max(files, key=os.path.getmtime)
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return OrderedDict(), ""
+
+    user_name = data.get("user_name", "")
+    basket_items = OrderedDict()
+    for sec_obj in data.get("items", []):
+        sec_name = sec_obj.get("section", "")
+        prods = OrderedDict()
+        for p in sec_obj.get("products", []):
+            pname = p.get("produkt")
+            if not pname:
+                continue
+            prods[pname] = {
+                "jednotky":        p.get("jednotky", ""),
+                "dodavatel":       p.get("dodavatel", ""),
+                "odkaz":           p.get("odkaz", ""),
+                "koeficient":      float(p.get("koeficient", 0)),
+                "nakup_materialu": float(p.get("nakup_materialu", 0)),
+                "cena_prace":      float(p.get("cena_prace", 0)),
+                "pocet_prace":     int(p.get("pocet_prace", 1)),
+                "pocet_materialu": int(p.get("pocet_materialu", 1)),
+            }
+        basket_items[sec_name] = prods
+
+    return basket_items, user_name
 
 def show_error(message):
     """Show an error message dialog."""
@@ -150,7 +187,10 @@ def remove_accents(text):
     """
     Remove diacritics from the given text.
     """
-    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'
+    )
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     """
@@ -221,31 +261,33 @@ def update_basket_table(basket_tree, basket_items):
                 item_data["koeficient"],
                 item_data["nakup_materialu"],
                 item_data["cena_prace"],
-                item_data["pocet"]
+                item_data["pocet_prace"],
+                item_data["pocet_materialu"]
             ))
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
     """
     Adds a product (provided as a tuple) to the basket.
     """
-    print("📦 item =", item)
-    produkt = item[0]
-    class_name = item[7] if len(item) >= 8 else "Uncategorized"
+    prod, jednotky, dodavatel, odkaz, koef, nakup, cena, *rest = item
+    class_name = rest[-1] if rest else "Uncategorized"
     item_data = {
-        "jednotky": item[1],
-        "dodavatel": item[2],
-        "odkaz": item[3],
-        "koeficient": item[4],
-        "nakup_materialu": item[5],
-        "cena_prace": item[6],
-        "pocet": 1
+        "jednotky": jednotky,
+        "dodavatel": dodavatel,
+        "odkaz": odkaz,
+        "koeficient": koef,
+        "nakup_materialu": nakup,
+        "cena_prace": cena,
+        "pocet_prace": 1,
+        "pocet_materialu": 1
     }
     if class_name not in basket_items:
-        basket_items[class_name] = {}
-    if produkt in basket_items[class_name]:
-        basket_items[class_name][produkt]["pocet"] += 1
+        basket_items[class_name] = OrderedDict()
+    if prod in basket_items[class_name]:
+        basket_items[class_name][prod]["pocet_prace"]    += 1
+        basket_items[class_name][prod]["pocet_materialu"]+= 1
     else:
-        basket_items[class_name][produkt] = item_data
+        basket_items[class_name][prod] = item_data
     update_basket_table(basket_tree, basket_items)
 
 def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
@@ -256,12 +298,10 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     if region != "cell":
         return
     selected_item = basket_tree.focus()
-    if not selected_item:
-        return
-    if basket_tree.get_children(selected_item):
+    if not selected_item or basket_tree.get_children(selected_item):
         return
     item_data = basket_tree.item(selected_item)
-    if not item_data or not item_data.get("values"):
+    if not item_data.get("values"):
         return
     col = basket_tree.identify_column(event.x)
     col_index = int(col.replace('#', '')) - 1
@@ -270,23 +310,21 @@ def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     x, y, width, height = basket_tree.bbox(selected_item, col)
     entry_popup = tk.Entry(basket_tree)
     entry_popup.place(x=x, y=y, width=width, height=height)
-    entry_popup.insert(0, basket_tree.item(selected_item)['values'][col_index])
+    entry_popup.insert(0, basket_tree.item(selected_item)["values"][col_index])
     entry_popup.focus()
-    
-    def save_edit(event):
+    def save_edit(e):
         try:
             new_value = float(entry_popup.get()) if col_index != 7 else int(entry_popup.get())
         except ValueError:
             entry_popup.destroy()
             return
-        produkt = item_data['values'][0]
+        prod = item_data['values'][0]
         parent = basket_tree.parent(selected_item)
-        key_map = {4: "koeficient", 5: "nakup_materialu", 6: "cena_prace", 7: "pocet"}
-        if parent in basket_items and produkt in basket_items[parent]:
-            basket_items[parent][produkt][key_map[col_index]] = new_value
+        key_map = {4: "koeficient", 5: "nakup_materialu", 6: "cena_prace", 7: "pocet_prace"}
+        if parent in basket_items and prod in basket_items[parent]:
+            basket_items[parent][prod][key_map[col_index]] = new_value
         update_basket_table(basket_tree, basket_items)
         entry_popup.destroy()
-    
     entry_popup.bind("<Return>", save_edit)
     entry_popup.bind("<FocusOut>", save_edit)
 
@@ -297,21 +335,21 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
     """
     Removes the selected product(s) from the basket.
     """
-    for item in basket_tree.selection():
-        produkt = basket_tree.item(item)["values"][0]
-        for section in list(basket_items):
-            if produkt in basket_items[section]:
-                del basket_items[section][produkt]
-                if not basket_items[section]:
-                    del basket_items[section]
-                break
+    for iid in basket_tree.selection():
+        parent = basket_tree.parent(iid)
+        if not parent:
+            sec = basket_tree.item(iid, "text")
+            basket_items.pop(sec, None)
+        else:
+            prod = basket_tree.item(iid)["values"][0]
+            sec = basket_tree.item(parent, "text")
+            basket_items[sec].pop(prod, None)
     update_basket_table(basket_tree, basket_items)
 
 def update_excel_from_basket(basket_items, project_name):
     """
     Exports the current basket to an Excel file on the Desktop.
     """
-    from tkinter import messagebox
     if not basket_items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
@@ -329,7 +367,7 @@ def update_excel_from_basket(basket_items, project_name):
                 v["koeficient"],
                 v["nakup_materialu"],
                 v["cena_prace"],
-                v["pocet"]
+                v["pocet_prace"]
             ))
-    update_excel(excel_data, file_path, basket_items.get("_notes", ""))
+    update_excel(excel_data, file_path)
     messagebox.showinfo("Export hotový", f"✅ Súbor bol úspešne uložený na plochu ako:\n{file_path}")
