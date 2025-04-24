@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk, messagebox
 import psycopg2
 import json
 import os
@@ -13,10 +13,25 @@ from filter_panel import FilterPanel
 USER_ID = "admin"
 SETTINGS_FILE = "user_column_settings.json"
 
+# Interné názvy zodpovedajúce databáze
 ALL_COLUMNS = [
     "produkt", "jednotky", "dodavatel", "odkaz",
     "koeficient", "nakup_materialu", "cena_prace", "class_id"
 ]
+
+# Zobrazenie názvov stĺpcov vo formáte pre užívateľa
+def format_column_name(name):
+    display_names = {
+        "produkt": "Produkt",
+        "jednotky": "Jednotky",
+        "dodavatel": "Dodávateľ",
+        "odkaz": "Odkaz",
+        "koeficient": "Koeficient",
+        "nakup_materialu": "Nákup materiálu",
+        "cena_prace": "Cena práce",
+        "class_id": "Class_id"
+    }
+    return display_names.get(name, name.capitalize())
 
 class AdminApp:
     def __init__(self, root):
@@ -48,7 +63,7 @@ class AdminApp:
 
         self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
         for col in self.tree["columns"]:
-            self.tree.heading(col, text=col, command=lambda _col=col: self.sort_by_column(_col))
+            self.tree.heading(col, text=format_column_name(col), command=lambda _col=col: self.sort_by_column(_col))
             self.tree.column(col, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True)
 
@@ -86,7 +101,7 @@ class AdminApp:
             self.tree.destroy()
         self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
         for col in self.tree["columns"]:
-            self.tree.heading(col, text=col, command=lambda _col=col: self.sort_by_column(_col))
+            self.tree.heading(col, text=format_column_name(col), command=lambda _col=col: self.sort_by_column(_col))
             self.tree.column(col, anchor="center")
         self.tree.pack(fill=tk.BOTH, expand=True)
         self.tree.bind("<ButtonRelease-1>", self.handle_delete_click)
@@ -202,7 +217,7 @@ class AdminApp:
             if item:
                 values = self.tree.item(item)['values']
                 prod_name = values[1]
-                if prod_name.startswith("--"):
+                if str(prod_name).startswith("--"):
                     return
                 if messagebox.askyesno("Vymazať", f"Naozaj chceš vymazať produkt '{prod_name}'?"):
                     conn = self.get_connection()
