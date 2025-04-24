@@ -123,12 +123,13 @@ root.mainloop()
             return
 
         # 8) Clean up
+        """
         shutil.rmtree(os.path.join(project_dir, "build"), ignore_errors=True)
         spec = os.path.join(project_dir, f"{name}.spec")
         if os.path.exists(spec):
             os.remove(spec)
         shutil.rmtree(dist, ignore_errors=True)
-
+        """
         messagebox.showinfo(
             "Success",
             f"Project '{name}' created at:\n\n{project_dir}\n\n"
