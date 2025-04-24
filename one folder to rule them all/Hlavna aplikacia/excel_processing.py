@@ -1,6 +1,7 @@
 import xlwings as xw
 import os
 import shutil
+import sys
 
 def update_excel(selected_items, new_file, notes_text=""):
     if not selected_items:
@@ -12,6 +13,11 @@ def update_excel(selected_items, new_file, notes_text=""):
         return
 
     base_dir = os.path.dirname(os.path.abspath(__file__))
+    if getattr(sys, 'frozen', False):
+        base_dir = sys._MEIPASS
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
     template_file = os.path.join(base_dir, "Vzorova_CP3.xlsx")
 
     # Check if the Excel template file exists
