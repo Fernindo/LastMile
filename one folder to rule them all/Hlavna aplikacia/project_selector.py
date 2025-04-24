@@ -108,20 +108,20 @@ root.mainloop()
         with open(launcher_py, "w", encoding="utf-8") as f:
             f.write(launcher_code)
 
-        # 6) Build single-file exe
-        subprocess.run(
-            ["pyinstaller", "--onefile", "--name", name, "launcher.py"],
-            cwd=project_dir,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        # 7) Move exe up
-        dist = os.path.join(project_dir, "dist")
+       # 6) Copy prebuilt launcher.exe and rename it
+        prebuilt_launcher = os.path.join(base_dir, "launcher.exe")
         exe_name = name + (".exe" if os.name == "nt" else "")
-        src_exe = os.path.join(dist, exe_name)
-        if os.path.exists(src_exe):
-            shutil.move(src_exe, os.path.join(project_dir, exe_name))
+        target_exe = os.path.join(project_dir, exe_name)
+
+        if os.path.exists(prebuilt_launcher):
+            shutil.copy(prebuilt_launcher, target_exe)
+        else:
+            messagebox.showerror(
+                "Error",
+                "Missing prebuilt 'launcher.exe'.\nPlease make sure it's in the same folder as this app."
+            )
+            return
+
         # 8) Clean up
         shutil.rmtree(os.path.join(project_dir, "build"), ignore_errors=True)
         spec = os.path.join(project_dir, f"{name}.spec")

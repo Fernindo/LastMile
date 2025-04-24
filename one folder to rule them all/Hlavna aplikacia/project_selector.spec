@@ -5,7 +5,7 @@ a = Analysis(
     ['project_selector.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\nikol\\AppData\\Local\\Programs\\Python\\Python313\\tcl\\tcl8.6', 'tcl8.6'), ('C:\\Users\\nikol\\AppData\\Local\\Programs\\Python\\Python313\\tcl\\tk8.6', 'tk8.6'), ('Vzorova_CP3.xlsx', '.'), ('gui.py', '.'), ('gui_functions.py', '.'), ('filter_panel.py', '.'), ('notes_panel.py', '.'), ('excel_processing.py', '.')],
+    datas=[('launcher.exe', '.'), ('Vzorova_CP3.xlsx', '.'), ('gui.py', '.'), ('gui_functions.py', '.'), ('filter_panel.py', '.'), ('notes_panel.py', '.'), ('excel_processing.py', '.'), ('C:\\Users\\nikol\\AppData\\Local\\Programs\\Python\\Python313\\tcl\\tcl8.6', 'tcl8.6'), ('C:\\Users\\nikol\\AppData\\Local\\Programs\\Python\\Python313\\tcl\\tk8.6', 'tk8.6')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
