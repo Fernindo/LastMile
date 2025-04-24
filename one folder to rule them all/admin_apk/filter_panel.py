@@ -3,8 +3,8 @@ from tkinter import ttk
 import psycopg2
 
 ALL_COLUMNS = [
-    "produkt", "jednotky", "dodavatel", "odkaz",
-    "koeficient", "nakup_materialu", "cena_prace", "class_id"
+    "Produkt", "Jednotky", "Dodavatel", "Odkaz",
+    "Koeficient", "Nákup Materialu", "Cena Prace", "Class_id"
 ]
 
 class FilterPanel:
@@ -13,7 +13,7 @@ class FilterPanel:
         self.get_connection = get_connection_func
         self.on_filter_apply = on_filter_apply
         self.on_columns_change = on_columns_change
-        self.selected_columns = selected_columns
+        self.selected_columns = ALL_COLUMNS[:]  # všetky zaškrtnuté predvolene
         self.visible = False
 
         self.container = tk.Frame(self.parent)
@@ -43,7 +43,7 @@ class FilterPanel:
         # Checkboxy (stĺpce)
         self.check_vars = {}
         for i, col in enumerate(ALL_COLUMNS):
-            var = tk.BooleanVar(value=col in self.selected_columns)
+            var = tk.BooleanVar(value=True)  # predvolene všetko zaškrtnuté
             cb = tk.Checkbutton(self.frame, text=col, variable=var, command=self.columns_changed)
             cb.grid(row=1, column=i, sticky="w", padx=5)
             self.check_vars[col] = var
@@ -70,30 +70,39 @@ class FilterPanel:
         cur = conn.cursor()
         cur.execute("SELECT DISTINCT hlavna_kategoria FROM class ORDER BY hlavna_kategoria")
         kategorie = [row[0] for row in cur.fetchall()]
-        self.kat_combo["values"] = kategorie
-        if kategorie:
-            self.kat_combo.current(0)
-            self.update_table_options()
         cur.close()
         conn.close()
+
+        kategorie.insert(0, "---")  # možnosť pre zobrazenie všetkého
+        self.kat_combo["values"] = kategorie
+        self.kat_combo.current(0)
+        self.update_table_options()
 
     def update_table_options(self, event=None):
         kategoria = self.kat_var.get()
         conn = self.get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT nazov_tabulky FROM class WHERE hlavna_kategoria = %s ORDER BY nazov_tabulky", (kategoria,))
-        tables = [row[0] for row in cur.fetchall()]
+
+        if kategoria == "---":
+            tables = ["---"]
+        else:
+            cur.execute("SELECT nazov_tabulky FROM class WHERE hlavna_kategoria = %s ORDER BY nazov_tabulky", (kategoria,))
+            tables = [row[0] for row in cur.fetchall()]
+            tables.insert(0, "---")
+
         self.tab_combo["values"] = tables
-        if tables:
-            self.tab_combo.current(0)
+        self.tab_combo.current(0)
+
         cur.close()
         conn.close()
 
     def apply_filter(self):
         if self.on_filter_apply:
+            kat = self.kat_var.get()
+            tab = self.tab_var.get()
             self.on_filter_apply(
-                kategoria=self.kat_var.get(),
-                tabulka=self.tab_var.get()
+                kategoria=None if kat == "---" else kat,
+                tabulka=None if tab == "---" else tab
             )
 
     def columns_changed(self):
