@@ -29,15 +29,15 @@ def browse_destination():
 
 def create_project():
     name = name_var.get().strip()
-    dest = dest_var.get().strip()
+    dest = dest_var.get().strip()                # <-- here we read into `dest`
     if not name:
         messagebox.showerror("Error", "Please enter a project name.")
         return
-    if not dest or not os.path.isdir(dest):
+    if not dest or not os.path.isdir(dest):      # <-- we check `dest`, not `dist`
         messagebox.showerror("Error", "Please choose a valid destination folder.")
         return
 
-    project_dir = os.path.join(dest, name)
+    project_dir = os.path.join(dest, name)       # <-- build your path from `dest`
     if os.path.exists(project_dir):
         messagebox.showerror("Error", f"Folder '{project_dir}' already exists.")
         return
@@ -54,7 +54,6 @@ def create_project():
             json.dump(DEFAULT_TEMPLATE, f, ensure_ascii=False, indent=2)
 
         # 3) Copy your helper .py scripts
-        #    base_dir = where this script or .exe lives
         if getattr(sys, "frozen", False):
             base_dir = sys._MEIPASS
         else:
@@ -93,6 +92,7 @@ def create_project():
     except Exception as e:
         messagebox.showerror("Error", str(e))
 
+
 # --- GUI Setup ---
 style = Style(theme="litera")
 root = style.master
@@ -108,7 +108,9 @@ tb.Label(frm, text="Destination Folder:", font=("Segoe UI", 10)).grid(
     row=0, column=0, sticky="e", padx=5, pady=5
 )
 dest_var = tk.StringVar(value=os.path.join(os.path.expanduser("~"), "Desktop"))
-tb.Entry(frm, textvariable=dest_var, width=35).grid(row=0, column=1, padx=5, pady=5)
+tb.Entry(frm, textvariable=dest_var, width=35).grid(
+    row=0, column=1, padx=5, pady=5
+)
 tb.Button(frm, text="Browse…", bootstyle="secondary", command=browse_destination).grid(
     row=0, column=2, padx=5
 )
@@ -118,7 +120,9 @@ tb.Label(frm, text="Project Name:", font=("Segoe UI", 10)).grid(
     row=1, column=0, sticky="e", padx=5, pady=5
 )
 name_var = tk.StringVar()
-tb.Entry(frm, textvariable=name_var, width=35).grid(row=1, column=1, columnspan=2, padx=5, pady=5)
+tb.Entry(frm, textvariable=name_var, width=35).grid(
+    row=1, column=1, columnspan=2, padx=5, pady=5
+)
 
 # Create button
 tb.Button(
