@@ -12,6 +12,7 @@ DEFAULT_TEMPLATE = {"data": "Default session content."}
 
 # Your helper scripts (these get copied into each new project folder)
 SCRIPT_FILES = [
+    "gui.exe"
     "gui.py",
     "gui_functions.py",
     "filter_panel.py",
