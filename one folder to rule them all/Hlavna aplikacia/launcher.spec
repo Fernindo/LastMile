@@ -4,7 +4,7 @@
 a = Analysis(
     ['launcher.py'],
     pathex=[],
-    binaries=[],
+    binaries=[('C:/Users/nikol/AppData/Local/Programs/Python/Python313/tcl/tcl8.6', 'tcl/tcl8.6'), ('C:/Users/nikol/AppData/Local/Programs/Python/Python313/tcl/tk8.6', 'tcl/tk8.6')],
     datas=[],
     hiddenimports=[],
     hookspath=[],

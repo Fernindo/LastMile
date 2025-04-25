@@ -4,8 +4,8 @@
 a = Analysis(
     ['project_selector.py'],
     pathex=[],
-    binaries=[],
-    datas=[('launcher.exe', '.'), ('Vzorova_CP3.xlsx', '.'), ('gui.py', '.'), ('gui_functions.py', '.'), ('filter_panel.py', '.'), ('notes_panel.py', '.'), ('excel_processing.py', '.'), ('C:\\Users\\nikol\\AppData\\Local\\Programs\\Python\\Python313\\tcl\\tcl8.6', 'tcl8.6'), ('C:\\Users\\nikol\\AppData\\Local\\Programs\\Python\\Python313\\tcl\\tk8.6', 'tk8.6')],
+    binaries=[('C:/Windows/System32/vcruntime140.dll', '.'), ('C:/Windows/System32/vcruntime140_1.dll', '.'), ('C:/Windows/System32/msvcp140.dll', '.'), ('C:/Users/nikol/AppData/Local/Programs/Python/Python313/tcl/tcl8.6', 'tcl/tcl8.6'), ('C:/Users/nikol/AppData/Local/Programs/Python/Python313/tcl/tk8.6', 'tcl/tk8.6')],
+    datas=[('gui.exe', '.'), ('launcher.exe', '.'), ('gui.py', '.'), ('launcher.py', '.'), ('filter_panel.py', '.'), ('gui_functions.py', '.'), ('notes_panel.py', '.'), ('excel_processing.py', '.'), ('Vzorova_CP3.xlsx', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
