@@ -5,8 +5,7 @@ import shutil
 import tkinter as tk
 import ttkbootstrap as tb
 from ttkbootstrap import Style
-from tkinter import messagebox, filedialog, simpledialog
-from collections import OrderedDict
+from tkinter import messagebox, filedialog
 
 # ─── Default JSON template ────────────────────────────────────────────────
 DEFAULT_TEMPLATE = {"data": "Default session content."}
@@ -20,10 +19,6 @@ SCRIPT_FILES = [
     "excel_processing.py",
 ]
 
-# ─── XOR‐stream “encrypt” / “decrypt” helpers ───────────────────────────────
-def _xor_stream(data: bytes, key: bytes) -> bytes:
-    return bytes(b ^ key[i % len(key)] for i, b in enumerate(data))
-
 # ─── Browse for a destination directory ────────────────────────────────────
 def browse_destination():
     folder = filedialog.askdirectory(
@@ -33,7 +28,7 @@ def browse_destination():
     if folder:
         dest_var.set(folder)
 
-# ─── Create a new locked project ───────────────────────────────────────────
+# ─── Create a new project ───────────────────────────────────────────
 def create_project():
     name = name_var.get().strip()
     dest = dest_var.get().strip()
@@ -49,27 +44,18 @@ def create_project():
         messagebox.showerror("Error", f"Folder '{project_dir}' already exists.")
         return
 
-    # ask for a password
-    pwd = simpledialog.askstring("Password",
-            "Set a password to lock your project JSON:",
-            show="*", parent=root)
-    if not pwd:
-        messagebox.showwarning("Aborted", "You must set a password.")
-        return
-
     try:
         # 1) Create the project folders
         os.makedirs(project_dir)
         json_dir = os.path.join(project_dir, "projects")
         os.makedirs(json_dir)
 
-        # 2) Build & encrypt the initial JSON
-        plain = json.dumps(DEFAULT_TEMPLATE, ensure_ascii=False, indent=2).encode("utf-8")
-        cipher = _xor_stream(plain, pwd.encode("utf-8"))
-        bin_name = f"{name}.bin"
-        bin_path = os.path.join(json_dir, bin_name)
-        with open(bin_path, "wb") as f:
-            f.write(cipher)
+        # 2) Save the initial JSON (not encrypted)
+        json_data = json.dumps(DEFAULT_TEMPLATE, ensure_ascii=False, indent=2)
+        json_name = f"{name}.json"
+        json_path = os.path.join(json_dir, json_name)
+        with open(json_path, "w", encoding="utf-8") as f:
+            f.write(json_data)
 
         # 3) Copy all the helper .py files
         if getattr(sys, "frozen", False):
@@ -86,7 +72,7 @@ def create_project():
         # 4) Copy the launcher.exe (renaming to <project>.exe)
         prebuilt = os.path.join(base_dir, "launcher.exe")
         exe_name = name + (".exe" if os.name == "nt" else "")
-        target  = os.path.join(project_dir, exe_name)
+        target = os.path.join(project_dir, exe_name)
         if not os.path.exists(prebuilt):
             messagebox.showerror("Error",
                 "Missing 'launcher.exe'.\nMake sure it sits next to this script.")
@@ -96,8 +82,8 @@ def create_project():
         # 5) Success!
         messagebox.showinfo("Success",
             f"Project '{name}' created at:\n\n{project_dir}\n\n"
-            f"• Locked JSON: projects/{bin_name}\n"
-            f"• Launcher:    {exe_name}")
+            f"• JSON file: projects/{json_name}\n"
+            f"• Launcher:  {exe_name}")
         root.destroy()
 
     except Exception as e:
