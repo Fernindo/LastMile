@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk, simpledialog
+from tkinter import messagebox, ttk
 import psycopg2
 
 def create_table_form(parent, refresh_callback=None):
@@ -21,14 +21,12 @@ def create_table_form(parent, refresh_callback=None):
             sslmode="require"
         )
 
-    # Layout
     left_frame = tk.Frame(window)
     left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
 
     right_frame = tk.Frame(window)
     right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-    # --- Sekcia: Vytvorenie tabuľky ---
     form_frame = tk.LabelFrame(left_frame, text="Pridať novú tabuľku", padx=10, pady=10)
     form_frame.pack(fill="x", pady=10)
 
@@ -67,7 +65,6 @@ def create_table_form(parent, refresh_callback=None):
 
     tk.Button(form_frame, text="Vytvoriť tabuľku", command=save_table).grid(row=2, column=0, columnspan=2, pady=10)
 
-    # --- Sekcia: Pridať kategóriu ---
     cat_frame = tk.LabelFrame(left_frame, text="Hlavné kategórie", padx=10, pady=10)
     cat_frame.pack(fill="x", pady=10)
 
@@ -103,28 +100,18 @@ def create_table_form(parent, refresh_callback=None):
         confirm = messagebox.askyesno("Potvrdenie", f"Naozaj chceš zmazať kategóriu: {kat}?")
         if not confirm:
             return
-
-        password = simpledialog.askstring("Overenie", "Zadaj heslo admina:", show="*")
-        if not password:
-            return
-
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM users u JOIN roles r ON u.role_id = r.id WHERE u.password = %s AND r.name = 'admin'", (password,))
-        if not cur.fetchone():
-            messagebox.showerror("Chyba", "Zlé heslo alebo nie si admin.")
-        else:
-            cur.execute("DELETE FROM class WHERE hlavna_kategoria = %s", (kat,))
-            conn.commit()
-            messagebox.showinfo("Hotovo", f"Kategória '{kat}' bola vymazaná.")
+        cur.execute("DELETE FROM class WHERE hlavna_kategoria = %s", (kat,))
+        conn.commit()
         cur.close()
         conn.close()
+        messagebox.showinfo("Hotovo", f"Kategória '{kat}' bola vymazaná.")
         load_categories()
         load_tables()
 
     tk.Button(cat_frame, text="Vymazať kategóriu", fg="red", command=delete_category).grid(row=3, column=0, columnspan=2, pady=5)
 
-    # --- Tabuľka tabuliek ---
     table_tree = ttk.Treeview(right_frame, columns=("id", "hlavna_kategoria", "nazov"), show="headings")
     table_tree.heading("id", text="ID", command=lambda: sort_tables("id"))
     table_tree.heading("hlavna_kategoria", text="Hlavná kategória", command=lambda: sort_tables("hlavna_kategoria"))
@@ -148,22 +135,14 @@ def create_table_form(parent, refresh_callback=None):
         if not confirm:
             return
 
-        password = simpledialog.askstring("Overenie", "Zadaj heslo admina:", show="*")
-        if not password:
-            return
-
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM users u JOIN roles r ON u.role_id = r.id WHERE u.password = %s AND r.name = 'admin'", (password,))
-        if not cur.fetchone():
-            messagebox.showerror("Chyba", "Zlé heslo alebo nie si admin.")
-        else:
-            cur.execute("DELETE FROM produkty WHERE class_id = %s", (table_id,))
-            cur.execute("DELETE FROM class WHERE id = %s", (table_id,))
-            conn.commit()
-            messagebox.showinfo("Hotovo", f"Tabuľka '{nazov}' bola vymazaná.")
+        cur.execute("DELETE FROM produkty WHERE class_id = %s", (table_id,))
+        cur.execute("DELETE FROM class WHERE id = %s", (table_id,))
+        conn.commit()
         cur.close()
         conn.close()
+        messagebox.showinfo("Hotovo", f"Tabuľka '{nazov}' bola vymazaná.")
         load_tables()
         if refresh_callback:
             refresh_callback()
@@ -181,7 +160,7 @@ def create_table_form(parent, refresh_callback=None):
         cat_listbox.delete(0, tk.END)
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT DISTINCT hlavna_kategoria FROM class ORDER BY hlavna_kategoria")  # <-- Zmenené tu
+        cur.execute("SELECT DISTINCT hlavna_kategoria FROM class ORDER BY hlavna_kategoria")
         categories = cur.fetchall()
         cat_listbox.insert(tk.END, *[cat[0] for cat in categories])
         kat_combo["values"] = [cat[0] for cat in categories]
@@ -189,7 +168,6 @@ def create_table_form(parent, refresh_callback=None):
             kat_combo.set(categories[0][0])
         cur.close()
         conn.close()
-
 
     def load_tables():
         for i in table_tree.get_children():
@@ -207,7 +185,6 @@ def create_table_form(parent, refresh_callback=None):
         cur.close()
         conn.close()
 
-    # Inicializácia
     load_categories()
     load_tables()
     window.mainloop()
