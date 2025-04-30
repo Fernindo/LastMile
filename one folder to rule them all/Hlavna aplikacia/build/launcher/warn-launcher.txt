@@ -61,7 +61,6 @@ missing module named olefile - imported by PIL.FpxImagePlugin (top-level), PIL.M
 missing module named PIL._avif - imported by PIL (optional), PIL.AvifImagePlugin (optional)
 missing module named defusedxml - imported by PIL.Image (optional)
 missing module named jinja2 - imported by xlwings.pro.reports.main (optional)
-missing module named cryptography - imported by xlwings.pro.utils (optional)
 missing module named mistune - imported by xlwings.pro.reports.markdown (optional)
 missing module named numpy - imported by PIL._typing (conditional, optional), xlwings.utils (optional), xlwings.pro.reports.filters (optional), xlwings.conversion (optional), xlwings.conversion.standard (optional), xlwings.conversion.numpy_conv (optional), xlwings.pro.reports.main (optional), xlwings._xlwindows (optional), xlwings._xlmac (optional), xlwings.pro._xlofficejs (optional), xlwings.pro._xlremote (optional), xlwings.pro._xlcalamine (optional)
 missing module named pandas - imported by xlwings.pro.reports.filters (optional), xlwings.conversion (optional), xlwings.conversion.numpy_conv (conditional, optional), xlwings.conversion.pandas_conv (optional), xlwings.pro.reports.main (optional), xlwings.main (optional), xlwings._xlwindows (optional), xlwings._xlmac (optional), xlwings.pro._xlofficejs (optional), xlwings.pro._xlremote (optional), xlwings.pro._xlcalamine (optional)
