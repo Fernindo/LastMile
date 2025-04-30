@@ -24,6 +24,38 @@ from gui_functions import (
     update_excel_from_basket
 )
 
+# ─── Determine project_path & commit_file ─────────────────────────────────
+if len(sys.argv) >= 2:
+    # Launched by launcher.exe or CLI
+    project_path = sys.argv[1]
+    commit_file  = sys.argv[2] if len(sys.argv) >= 3 else None
+else:
+    # Fallback if someone double-clicks gui.py
+    tmp = tk.Tk(); tmp.withdraw()
+    project_path = filedialog.askdirectory(title="Select project folder")
+    tmp.destroy()
+    if not project_path:
+        sys.exit(1)
+    commit_file = None
+
+# ─── Prepare project & JSON directory ──────────────────────────────────────
+project_name = os.path.basename(project_path)
+json_dir     = os.path.join(project_path, "projects")
+os.makedirs(json_dir, exist_ok=True)
+
+# ─── Database setup ─────────────────────────────────────────────────────────
+conn, db_type = get_database_connection()
+cursor = conn.cursor()
+if db_type == "postgres":
+    sync_postgres_to_sqlite(conn)
+
+# ─── Themed Window ──────────────────────────────────────────────────────────
+style = Style(theme="litera")
+root  = style.master
+root.title(f"Project: {project_name}")
+root.state("zoomed")
+root.option_add("*Font", ("Segoe UI", 10))
+
 # ---------------- Global Modification Flag ---------------
 basket_modified = False
 def mark_modified():
@@ -76,7 +108,8 @@ def reorder_basket_data():
 # ---------- Column Resizing ----------
 db_column_proportions = {
     "produkt":0.20, "jednotky":0.15, "dodavatel":0.15,
-    "odkaz":0.21, "koeficient":0.10, "nakup_materialu":0.089, "cena_prace":0.075
+    "odkaz":0.21, "koeficient":0.10, "nakup_materialu":0.089,
+    "cena_prace":0.075
 }
 def adjust_db_columns(event):
     w = event.width
@@ -122,11 +155,9 @@ def edit_basket_cell(event):
     if new is None:
         return
 
-    # update UI cell
     basket_tree.set(row_id, col_id, new)
-    # write back to data
     section = basket_tree.parent(row_id)
-    prod = basket_tree.item(row_id)["values"][0]
+    prod    = basket_tree.item(row_id)["values"][0]
     key_map = {
         4:"koeficient",5:"nakup_materialu",6:"pocet_materialu",
         7:"cena_prace",8:"pocet_prace"
@@ -135,7 +166,7 @@ def edit_basket_cell(event):
     mark_modified()
 
 # ---------- Add to Basket ----------
-def add_to_basket(item, basket_items, update_basket_table, basket_tree):
+def add_to_basket(item):
     produkt = item[0]
     section = item[7] if len(item)>7 else "Uncategorized"
     data = {
@@ -147,61 +178,28 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
         basket_items[section] = OrderedDict()
     if produkt in basket_items[section]:
         basket_items[section][produkt]["pocet_materialu"] += 1
-        basket_items[section][produkt]["pocet_prace"] += 1
+        basket_items[section][produkt]["pocet_prace"]    += 1
     else:
         basket_items[section][produkt] = data
     update_basket_table(basket_tree, basket_items)
     mark_modified()
 
-# ---------- Start of GUI ----------
-if len(sys.argv)<2:
-    tmp = tk.Tk(); tmp.withdraw()
-    project_path = filedialog.askdirectory(title="Select project folder")
-    tmp.destroy()
-    if not project_path:
-        sys.exit(1)
-else:
-    project_path = sys.argv[1]
-
-project_name = os.path.basename(project_path)
-json_dir = os.path.join(project_path, "projects")
-os.makedirs(json_dir, exist_ok=True)
-commit_file = sys.argv[2] if len(sys.argv)>2 else None
-
-# DB setup
-conn, db_type = get_database_connection()
-cursor = conn.cursor()
-if db_type=="postgres":
-    sync_postgres_to_sqlite(conn)
-
-# Themed Window
-style = Style(theme="litera")
-root = style.master
-root.title(f"Project: {project_name}")
-root.state("zoomed")
-root.option_add("*Font", ("Segoe UI",10))
-
-# Style Treeview
-style.configure("Treeview",
-                rowheight=28, font=("Segoe UI",10),
-                fieldbackground="#F8F9FA", background="#FFFFFF", foreground="#333333")
-style.configure("Treeview.Heading",
-                font=("Segoe UI",11,"bold"),
-                background="#E9ECEF", foreground="#212529")
-
+# ---------- Return Home ----------
 def return_home():
     if basket_modified:
         save_basket(json_dir, project_name, basket_items, user_name_entry.get().strip())
     conn.close()
     root.destroy()
-    subprocess.Popen([sys.executable,
-                      os.path.join(os.path.dirname(__file__),"project_selector.py")])
+    subprocess.Popen([
+        sys.executable,
+        os.path.join(os.path.dirname(__file__),"project_selector.py")
+    ])
 
-# Filter panel
+# ─── Filter panel setup ────────────────────────────────────────────────────
 category_structure = {}
 cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
 for cid, main_cat, tablename in cursor.fetchall():
-    category_structure.setdefault(main_cat,[]).append((cid,tablename))
+    category_structure.setdefault(main_cat, []).append((cid, tablename))
 
 filter_frame, setup_cat_tree, category_vars, table_vars = create_filter_panel(
     root,
@@ -211,7 +209,7 @@ filter_frame.config(width=280)
 filter_frame.pack(side="left", fill="y", padx=10, pady=10)
 setup_cat_tree(category_structure)
 
-# Main content
+# ─── Main content layout ───────────────────────────────────────────────────
 main_frame = tb.Frame(root, padding=10)
 main_frame.pack(side="left", fill="both", expand=True)
 
@@ -219,14 +217,14 @@ main_frame.pack(side="left", fill="both", expand=True)
 top = tb.Frame(main_frame, padding=5)
 top.pack(side="top", fill="x")
 tb.Button(top, text="🏠 Home", bootstyle="light", command=return_home).pack(side="left")
-tb.Label(top,text="Tvoje meno:").pack(side="left", padx=(10,5))
+tb.Label(top, text="Tvoje meno:").pack(side="left", padx=(10,5))
 user_name_entry = tb.Entry(top, width=20)
 user_name_entry.pack(side="left")
 def on_name_change(*_):
     export_btn.config(state=tb.DISABLED if not user_name_entry.get().strip() else tb.NORMAL)
 user_name_entry.bind("<KeyRelease>", on_name_change)
 
-tb.Label(top,text="Vyhľadávanie:").pack(side="left", padx=(20,5))
+tb.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20,5))
 name_entry = tb.Entry(top, width=30)
 name_entry.pack(side="left")
 name_entry.bind("<KeyRelease>",
@@ -239,39 +237,42 @@ tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
 db_columns = ("produkt","jednotky","dodavatel","odkaz","koeficient","nakup_materialu","cena_prace")
 tree = ttk.Treeview(tree_frame, columns=db_columns, show="headings")
 for c in db_columns:
-    tree.heading(c,text=c.capitalize())
-    tree.column(c,anchor="center")
-tree.pack(fill="both",expand=True)
-tree.bind("<Configure>",adjust_db_columns)
-tree.bind("<Double-1>",
-    lambda e: add_to_basket(tree.item(tree.focus())["values"], basket_items, update_basket_table, basket_tree)
-)
+    tree.heading(c, text=c.capitalize())
+    tree.column(c, anchor="center")
+tree.pack(fill="both", expand=True)
+tree.bind("<Configure>", adjust_db_columns)
+tree.bind("<Double-1>", lambda e: add_to_basket(tree.item(tree.focus())["values"]))
 
 # Basket Treeview
 basket_items = OrderedDict()
 basket_frame = tb.Frame(main_frame, padding=5)
-basket_frame.pack(fill="both",expand=True,padx=10,pady=10)
-tb.Label(basket_frame,text="Košík - vybraté položky:").pack(anchor="w")
+basket_frame.pack(fill="both", expand=True, padx=10, pady=10)
+tb.Label(basket_frame, text="Košík - vybraté položky:").pack(anchor="w")
 
-basket_tree = ttk.Treeview(basket_frame, columns=basket_columns, show="tree headings")
-basket_tree.heading("#0",text=""); basket_tree.column("#0",width=200,stretch=False)
+basket_tree = ttk.Treeview(
+    basket_frame,
+    columns=basket_columns,
+    show="tree headings"
+)
+basket_tree.heading("#0", text="")
+basket_tree.column("#0", width=200, stretch=False)
 for c in basket_columns:
-    basket_tree.heading(c,text=c.capitalize())
-    basket_tree.column(c,anchor="center",stretch=False)
-basket_tree.pack(fill="both",expand=True)
-basket_tree.bind("<Configure>",adjust_basket_columns)
+    basket_tree.heading(c, text=c.capitalize())
+    basket_tree.column(c, anchor="center", stretch=False)
+basket_tree.pack(fill="both", expand=True)
+basket_tree.bind("<Configure>", adjust_basket_columns)
 basket_tree.bind("<Double-1>", edit_basket_cell)
 
-# ── Drag‑drop reordering only among siblings ──
+# Drag-drop reordering
 _drag = {"item": None}
 def _start(evt):
     _drag["item"] = basket_tree.identify_row(evt.y)
 def _motion(evt):
     iid = _drag["item"]
-    if not iid: return
-    tgt = basket_tree.identify_row(evt.y)
-    if tgt and tgt!=iid and basket_tree.parent(tgt)==basket_tree.parent(iid):
-        basket_tree.move(iid, basket_tree.parent(iid), basket_tree.index(tgt))
+    if iid:
+        tgt = basket_tree.identify_row(evt.y)
+        if tgt and tgt != iid and basket_tree.parent(tgt) == basket_tree.parent(iid):
+            basket_tree.move(iid, basket_tree.parent(iid), basket_tree.index(tgt))
 def _release(evt):
     _drag["item"] = None
 
@@ -279,34 +280,46 @@ basket_tree.bind("<ButtonPress-1>", _start)
 basket_tree.bind("<B1-Motion>", _motion)
 basket_tree.bind("<ButtonRelease-1>", _release)
 
+# Notes panel
 create_notes_panel(basket_frame, project_name)
 
 # Remove & Export
-tb.Button(basket_frame, text="Odstrániť", bootstyle="danger-outline",
-          command=lambda: (__import__("gui_functions").remove_from_basket(basket_tree,basket_items,update_basket_table), mark_modified())
-         ).pack(pady=3)
-export_btn = tb.Button(basket_frame, text="Exportovať", bootstyle="success",
-                       command=lambda: (
-                           messagebox.showwarning("Meno chýba","Prosím zadaj meno.")
-                           if not user_name_entry.get().strip()
-                           else update_excel_from_basket(basket_items, project_name)
-                       ))
+tb.Button(
+    basket_frame, text="Odstrániť", bootstyle="danger-outline",
+    command=lambda: (
+        __import__("gui_functions").remove_from_basket(
+            basket_tree, basket_items, update_basket_table
+        ),
+        mark_modified()
+    )
+).pack(pady=3)
+
+export_btn = tb.Button(
+    basket_frame, text="Exportovať", bootstyle="success",
+    command=lambda: (
+        messagebox.showwarning("Meno chýba","Prosím zadaj meno.")
+        if not user_name_entry.get().strip()
+        else update_excel_from_basket(basket_items, project_name)
+    )
+)
 export_btn.pack(pady=3)
 on_name_change()
 
 # Load basket
 basket_items_loaded, saved = load_basket(json_dir, project_name, file_path=commit_file)
 basket_items.update(basket_items_loaded)
-user_name_entry.insert(0,saved)
-update_basket_table(basket_tree,basket_items)
+user_name_entry.insert(0, saved)
+update_basket_table(basket_tree, basket_items)
 
 # Initial filter
 apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
 
+# Handle close
 def on_closing():
     if basket_modified:
         save_basket(json_dir, project_name, basket_items, user_name_entry.get().strip())
     conn.close()
     root.destroy()
+
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
