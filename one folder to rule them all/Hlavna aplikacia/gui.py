@@ -299,27 +299,18 @@ def start(project_dir, json_path):
         basket_frame,
         text="Odstrániť",
         bootstyle="danger-outline",
-        command=lambda: (
-            remove_from_basket(basket_tree, basket_items, update_basket_table),
-            mark_modified()
-        )
+        command=lambda: (remove_from_basket(basket_tree,basket_items,update_basket_table),mark_modified())
     ).pack(pady=3)
-
-    # New export handler:
-    def on_export():
-        if not user_name_entry.get().strip():
-            messagebox.showwarning("Meno chýba","Prosím zadaj meno.")
-            return
-        # 1) pull all edits out of the Treeview into basket_items
-        reorder_basket_data()
-        # 2) now export the up-to-date basket
-        update_excel_from_basket(basket_items, project_name)
-
     export_btn = tb.Button(
+        
         basket_frame,
         text="Exportovať",
         bootstyle="success",
-        command=on_export
+        command=lambda: (    
+            messagebox.showwarning("Meno chýba","Prosím zadaj meno.")
+            if not user_name_entry.get().strip()
+            else update_excel_from_basket(basket_items,project_name)
+        )
     )
     export_btn.pack(pady=3)
     def on_name_change(*_):

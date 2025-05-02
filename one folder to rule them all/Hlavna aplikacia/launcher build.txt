@@ -1,2 +1,7 @@
 pyinstaller --onefile --add-data "Vzorova_CP3.xlsx;." launcher.py
 
+
+
+
+
+pyinstaller --noconsole --onefile project_selector.py --add-data "gui.py;." --add-data "gui_functions.py;." --add-data "filter_panel.py;." --add-data "notes_panel.py;." --add-data "excel_processing.py;." --add-data "launcher.exe;."
