@@ -58,9 +58,9 @@ def start(project_dir, json_path):
     # ─── Helpers for the database Treeview (responsive columns)
     db_column_proportions = {
         "produkt":         0.22,  # a bit more room for long names
-        "jednotky":        0.10,
+        "jednotky":        0.15,
         "dodavatel":       0.12,
-        "odkaz":           0.25,  # trimmed down from 30%
+        "odkaz":           0.20,  # trimmed down from 30%
         "koeficient":      0.10,  # up from .08
         "nakup_materialu": 0.13,  # up from .12
         "cena_prace":      0.08,  # down from .10
@@ -78,9 +78,9 @@ def start(project_dir, json_path):
     )
     basket_column_proportions = {
         "produkt":         0.12,
-        "jednotky":        0.10,
+        "jednotky":        0.07,
         "dodavatel":       0.12,
-        "odkaz":           0.20,
+        "odkaz":           0.18,
         "koeficient":      0.10,
         "nakup_materialu": 0.12,
         "pocet_materialu": 0.06,
@@ -89,7 +89,7 @@ def start(project_dir, json_path):
     }
     def adjust_basket_columns(event):
         total = event.width
-        icon_w = int(total * 0.10)
+        icon_w = int(total * 0.12)
         # keep expand/collapse icon small & fixed
         basket_tree.column("#0", width=icon_w, anchor="w", stretch=False)
         avail = max(total - icon_w, 100)
