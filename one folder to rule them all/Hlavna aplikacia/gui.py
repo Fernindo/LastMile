@@ -171,6 +171,7 @@ def start(project_dir, json_path):
 
     def return_home():
         if basket_modified:
+            reorder_basket_data()
             save_basket(json_dir, project_name, basket_items, user_name_entry.get().strip())
         conn.close()
         root.destroy()
@@ -308,13 +309,17 @@ def start(project_dir, json_path):
 
     # ─── Closing handler ───────────────────────────────────────────────
     def on_closing():
-        if basket_modified:
-            save_basket(
-                json_dir, project_name,
-                basket_items, user_name_entry.get().strip()
-            )
+        answer = messagebox.askyesnocancel(
+            "Uložiť zmeny?",
+            "Chceš uložiť zmeny v košíku pred zatvorením?"
+        )
+        if answer is None:
+            return  # Cancel zatvorenie
+        elif answer:
+            reorder_basket_data()
+            save_basket(json_dir, project_name, basket_items, user_name_entry.get().strip())
         conn.close()
         root.destroy()
-    root.protocol("WM_DELETE_WINDOW", on_closing)
 
+    root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()

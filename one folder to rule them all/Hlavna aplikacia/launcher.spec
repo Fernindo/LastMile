@@ -5,7 +5,7 @@ a = Analysis(
     ['launcher.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('Vzorova_CP3.xlsx', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -1,0 +1,2 @@
+pyinstaller --onefile --add-data "Vzorova_CP3.xlsx;." launcher.py
+
