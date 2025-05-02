@@ -57,13 +57,13 @@ def start(project_dir, json_path):
 
     # ─── Helpers for the database Treeview (responsive columns)
     db_column_proportions = {
-        "produkt":         0.18,
+        "produkt":         0.22,  # a bit more room for long names
         "jednotky":        0.10,
         "dodavatel":       0.12,
-        "odkaz":           0.30,
-        "koeficient":      0.08,
-        "nakup_materialu": 0.12,
-        "cena_prace":      0.10
+        "odkaz":           0.25,  # trimmed down from 30%
+        "koeficient":      0.10,  # up from .08
+        "nakup_materialu": 0.13,  # up from .12
+        "cena_prace":      0.08,  # down from .10
     }
     def adjust_db_columns(event):
         total = event.width
@@ -77,19 +77,19 @@ def start(project_dir, json_path):
         "cena_prace", "pocet_prace"
     )
     basket_column_proportions = {
-        "produkt":         0.20,
+        "produkt":         0.12,
         "jednotky":        0.10,
-        "dodavatel":       0.15,
-        "odkaz":           0.30,
-        "koeficient":      0.08,
-        "nakup_materialu": 0.07,
-        "pocet_materialu": 0.05,
-        "cena_prace":      0.03,
-        "pocet_prace":     0.02
+        "dodavatel":       0.12,
+        "odkaz":           0.20,
+        "koeficient":      0.10,
+        "nakup_materialu": 0.12,
+        "pocet_materialu": 0.06,
+        "cena_prace":      0.07,
+        "pocet_prace":     0.06,
     }
     def adjust_basket_columns(event):
         total = event.width
-        icon_w = 20
+        icon_w = int(total * 0.10)
         # keep expand/collapse icon small & fixed
         basket_tree.column("#0", width=icon_w, anchor="w", stretch=False)
         avail = max(total - icon_w, 100)
@@ -299,17 +299,27 @@ def start(project_dir, json_path):
         basket_frame,
         text="Odstrániť",
         bootstyle="danger-outline",
-        command=lambda: (remove_from_basket(basket_tree,basket_items,update_basket_table),mark_modified())
+        command=lambda: (
+            remove_from_basket(basket_tree, basket_items, update_basket_table),
+            mark_modified()
+        )
     ).pack(pady=3)
+
+    # New export handler:
+    def on_export():
+        if not user_name_entry.get().strip():
+            messagebox.showwarning("Meno chýba","Prosím zadaj meno.")
+            return
+        # 1) pull all edits out of the Treeview into basket_items
+        reorder_basket_data()
+        # 2) now export the up-to-date basket
+        update_excel_from_basket(basket_items, project_name)
+
     export_btn = tb.Button(
         basket_frame,
         text="Exportovať",
         bootstyle="success",
-        command=lambda: (
-            messagebox.showwarning("Meno chýba","Prosím zadaj meno.")
-            if not user_name_entry.get().strip()
-            else update_excel_from_basket(basket_items,project_name)
-        )
+        command=on_export
     )
     export_btn.pack(pady=3)
     def on_name_change(*_):
