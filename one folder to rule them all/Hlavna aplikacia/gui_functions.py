@@ -43,15 +43,18 @@ def get_database_connection():
     conn = sqlite3.connect("local_backup.db")
     print("🕠 Using local SQLite database (offline mode)")
     return conn, 'sqlite'
-
+sqlite3.register_adapter(decimal.Decimal, float)
 def sync_postgres_to_sqlite(pg_conn):
     """
-    Sync data from PostgreSQL (table 'produkty') into local SQLite.
+    Pull both produkty and class tables from Postgres into local_backup.db.
+    Converts any decimal.Decimal values into floats so sqlite3 can bind them.
     """
-    sqlite_conn = sqlite3.connect("local_backup.db")
-    pg_cursor = pg_conn.cursor()
+    # open (or create) the local SQLite file
+    sqlite_conn   = sqlite3.connect("local_backup.db")
     sqlite_cursor = sqlite_conn.cursor()
+    pg_cursor     = pg_conn.cursor()
 
+    # ── Sync produkty ──────────────────────────────────────────────────────────
     sqlite_cursor.execute("DROP TABLE IF EXISTS produkty")
     sqlite_cursor.execute("""
         CREATE TABLE produkty (
@@ -67,38 +70,52 @@ def sync_postgres_to_sqlite(pg_conn):
             class_name TEXT
         )
     """)
-
+    # grab produkty and join in the class name
     pg_cursor.execute("""
-        SELECT 
-            p.id,
-            p.produkt,
-            p.jednotky,
-            p.dodavatel,
-            p.odkaz,
-            p.koeficient,
-            p.nakup_materialu,
-            p.cena_prace,
-            p.class_id,
-            c.nazov_tabulky
+        SELECT
+            p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
+            p.koeficient, p.nakup_materialu, p.cena_prace,
+            p.class_id, c.nazov_tabulky
         FROM produkty p
         LEFT JOIN public.class c ON p.class_id = c.id
     """)
     rows = pg_cursor.fetchall()
 
-    safe_rows = []
-    for row in rows:
-        safe_row = []
-        for v in row:
-            safe_row.append(float(v) if isinstance(v, decimal.Decimal) else v)
-        safe_rows.append(tuple(safe_row))
+    # convert any Decimal → float (sqlite3.register_adapter also handles this,
+    # but we do it explicitly here as well for clarity)
+    cleaned = [
+        tuple(float(col) if isinstance(col, decimal.Decimal) else col
+              for col in row)
+        for row in rows
+    ]
 
     sqlite_cursor.executemany(
         "INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        safe_rows
+        cleaned
     )
+
+    # ── Sync class ────────────────────────────────────────────────────────────
+    sqlite_cursor.execute("DROP TABLE IF EXISTS class")
+    sqlite_cursor.execute("""
+        CREATE TABLE class (
+            id INTEGER PRIMARY KEY,
+            hlavna_kategoria TEXT,
+            nazov_tabulky TEXT
+        )
+    """)
+    pg_cursor.execute(
+        "SELECT id, hlavna_kategoria, nazov_tabulky FROM public.class"
+    )
+    class_rows = pg_cursor.fetchall()
+    sqlite_cursor.executemany(
+        "INSERT INTO class VALUES (?, ?, ?)",
+        class_rows
+    )
+
+    # finalize
     sqlite_conn.commit()
     sqlite_conn.close()
-    print("✔ Synced PostgreSQL → SQLite")
+    print("✔ Synced PostgreSQL → SQLite (produkty + class)")
 
 def save_basket(project_path, project_name, basket_items, user_name=""):
     """

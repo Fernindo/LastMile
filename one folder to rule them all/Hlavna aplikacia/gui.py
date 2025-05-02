@@ -80,16 +80,16 @@ def start(project_dir, json_path):
         "produkt":         0.12,
         "jednotky":        0.07,
         "dodavatel":       0.12,
-        "odkaz":           0.18,
+        "odkaz":           0.16,
         "koeficient":      0.10,
         "nakup_materialu": 0.12,
-        "pocet_materialu": 0.06,
+        "pocet_materialu": 0.12,
         "cena_prace":      0.07,
-        "pocet_prace":     0.06,
+        "pocet_prace":     0.071,
     }
     def adjust_basket_columns(event):
         total = event.width
-        icon_w = int(total * 0.12)
+        icon_w = int(total * 0.11)
         # keep expand/collapse icon small & fixed
         basket_tree.column("#0", width=icon_w, anchor="w", stretch=False)
         avail = max(total - icon_w, 100)
