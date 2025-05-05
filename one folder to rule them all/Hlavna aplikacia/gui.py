@@ -3,13 +3,13 @@ import os
 import subprocess
 import copy
 from collections import OrderedDict
-
+from datetime import datetime
 import ttkbootstrap as tb
 from ttkbootstrap import Style
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import tkinter.ttk as ttk
-
+import json
 from excel_processing import update_excel
 from filter_panel import create_filter_panel
 from notes_panel import create_notes_panel
@@ -45,6 +45,18 @@ def start(project_dir, json_path):
     # ─── Themed Window
     style = Style(theme="litera")
     root  = style.master
+    style.configure(
+    "Main.Treeview.Heading",
+    background="#e6e6fa",   # e.g. light cyan
+    foreground="#006064",   # dark teal
+    relief="flat"
+    )
+    style.configure(
+    "Basket.Treeview.Heading",
+    background="#e6e6fa",   # e.g. light cyan
+    foreground="#006064",   # dark teal
+    relief="flat"
+    )
     root.title(f"Project: {project_name}")
     root.state("zoomed")
     root.option_add("*Font", ("Segoe UI", 10))
@@ -68,7 +80,9 @@ def start(project_dir, json_path):
     def adjust_db_columns(event):
         total = event.width
         for col, pct in db_column_proportions.items():
-            tree.column(col, width=int(total * pct), stretch=True)
+            tree.column(col, width=int(total * pct), stretch=True,background="#ffd1dc",   # a pale pink
+    foreground="#880000",   # a deep red
+    relief="flat")
 
     # ─── Basket Table Helpers (responsive columns)
     basket_columns = (
@@ -337,17 +351,76 @@ def start(project_dir, json_path):
 
     # Closing handler
     def on_closing():
-        ans = messagebox.askyesnocancel(
+        # 1) Confirm save / cancel
+        resp = messagebox.askyesnocancel(
             "Uložiť zmeny?",
             "Chceš uložiť zmeny pred zatvorením košíka?"
         )
-        if ans is None:
+        if resp is None:
+            return            # Cancel → do nothing
+        if resp is False:
+            root.destroy()    # No → just close
             return
-        if ans:
-            reorder_basket_data()
-            save_basket(json_dir,project_name,basket_items,)
-        conn.close()
+
+        # 2) Ask for the base filename
+        default_base = "basket"
+        fname = simpledialog.askstring(
+            "Košík — Uložiť ako",
+            "Zadaj názov súboru (bez prípony):",
+            initialvalue=default_base,
+            parent=root
+        )
+        if not fname:
+            return  # user canceled → stay open
+
+        # 3) Append timestamp and build full path
+        ts = datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
+        filename = f"{fname}{ts}.json"
+        fullpath = os.path.join(json_dir, filename)
+
+        # 4) If it exists, confirm overwrite
+        if os.path.exists(fullpath):
+            if not messagebox.askyesno(
+                "Prepis existujúceho súboru?",
+                f"“{filename}” už existuje. Chceš ho prepísať?"
+            ):
+                return
+
+        # 5) Build the JSON payload in the shape load_basket() expects
+        out = {
+            "project": project_name,
+            "items": []
+        }
+        for section, prods in basket_items.items():
+            sec_obj = {"section": section, "products": []}
+            for pname, info in prods.items():
+                sec_obj["products"].append({
+                    "produkt":         pname,
+                    "jednotky":        info.get("jednotky", ""),
+                    "dodavatel":       info.get("dodavatel", ""),
+                    "odkaz":           info.get("odkaz", ""),
+                    "koeficient":      info.get("koeficient", 0),
+                    "nakup_materialu": info.get("nakup_materialu", 0),
+                    "cena_prace":      info.get("cena_prace", 0),
+                    "pocet_prace":     info.get("pocet_prace", 1),
+                    "pocet_materialu": info.get("pocet_materialu", 1),
+                })
+            out["items"].append(sec_obj)
+
+        # 6) Write file
+        try:
+            with open(fullpath, "w", encoding="utf-8") as f:
+                json.dump(out, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            messagebox.showerror(
+                "Chyba pri ukladaní",
+                f"Nepodarilo sa uložiť súbor:\n{e}"
+            )
+            return
+
+        # 7) Success → close
         root.destroy()
+
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()

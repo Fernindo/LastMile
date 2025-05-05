@@ -11,6 +11,7 @@ from collections import OrderedDict
 import unicodedata
 from datetime import datetime
 import glob
+from tkinter import filedialog, messagebox
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
     """Check if we are online by trying to connect to Google DNS."""
@@ -119,30 +120,55 @@ def sync_postgres_to_sqlite(pg_conn):
 
 def save_basket(project_path, project_name, basket_items, user_name=""):
     """
-    Save the basket JSON (with timestamp) in the project's 'projects' folder.
+    Ask the user for a filename and save the basket JSON there.
     """
-    out = {"user_name": user_name, "items": []}
+    # ensure folder exists
+    os.makedirs(project_path, exist_ok=True)
+
+    # build a sane default name
+    default_name = f"basket_{datetime.now():%Y-%m-%d_%H-%M-%S}.json"
+
+    # show Save As dialog
+    file_path = filedialog.asksaveasfilename(
+        title="Uložiť košík ako…",
+        initialdir=project_path,
+        initialfile=default_name,
+        defaultextension=".json",
+        filetypes=[("JSON súbory", "*.json")],
+    )
+    if not file_path:
+        # user cancelled
+        return False
+
+    # assemble the payload
+    out = {
+        "user_name": user_name,
+        "items": []
+    }
     for section, prods in basket_items.items():
         sec_obj = {"section": section, "products": []}
         for pname, info in prods.items():
             sec_obj["products"].append({
-                "produkt":        pname,
-                "jednotky":       info.get("jednotky", ""),
-                "dodavatel":      info.get("dodavatel", ""),
-                "odkaz":          info.get("odkaz", ""),
-                "koeficient":     info.get("koeficient", 0),
-                "nakup_materialu":info.get("nakup_materialu", 0),
-                "cena_prace":     info.get("cena_prace", 0),
-                "pocet_prace":    info.get("pocet_prace", 1),
-                "pocet_materialu":info.get("pocet_materialu", 1),
+                "produkt":         pname,
+                "jednotky":        info.get("jednotky", ""),
+                "dodavatel":       info.get("dodavatel", ""),
+                "odkaz":           info.get("odkaz", ""),
+                "koeficient":      info.get("koeficient", 0),
+                "nakup_materialu": info.get("nakup_materialu", 0),
+                "cena_prace":      info.get("cena_prace", 0),
+                "pocet_prace":     info.get("pocet_prace", 1),
+                "pocet_materialu": info.get("pocet_materialu", 1),
             })
         out["items"].append(sec_obj)
 
-    os.makedirs(project_path, exist_ok=True)
-    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    fname = os.path.join(project_path, f"basket_{ts}.json")
-    with open(fname, "w", encoding="utf-8") as f:
-        json.dump(out, f, ensure_ascii=False, indent=2)
+    # write it out
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        messagebox.showerror("Chyba pri ukladaní", f"Nepodarilo sa uložiť súbor:\n{e}")
+        return False
 
 def load_basket(project_path, project_name, file_path=None):
     """
