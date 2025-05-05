@@ -236,7 +236,14 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         tree.insert("", "end", values=("", f"-- {header} --"), tags=("header",))
         for row in grouped[cid]:
             tree.insert("", "end", values=row + (header,))
-    tree.tag_configure("header", font=("Arial", 10, "bold"))
+        # Make the section headers visually pop
+    tree.tag_configure(
+        "header",
+        font=("Arial", 10, "bold"),
+        background="#e0f7fa",   
+        foreground="#006064"    
+    )
+
 
 def update_basket_table(basket_tree, basket_items):
     basket_tree.delete(*basket_tree.get_children())

@@ -18,11 +18,7 @@ DEFAULT_TEMPLATE = {"data": "Default session content."}
 
 # ─── Files to copy into each new project ──────────────────────────────────
 SCRIPT_FILES = [
-    "gui.py",
-    "gui_functions.py",
-    "filter_panel.py",
-    "notes_panel.py",
-    "excel_processing.py",
+    
 ]
 
 # ─── Browse for a destination directory ────────────────────────────────────

@@ -218,7 +218,10 @@ def start(project_dir, json_path):
     def return_home():
         if basket_modified:
             reorder_basket_data()
+            save_basket(json_dir, project_name, basket_items)
+            """
             save_basket(json_dir, project_name, basket_items, user_name_entry.get().strip())
+            """
         conn.close()
         root.destroy()
         subprocess.Popen([sys.executable, os.path.join(project_dir,"launcher.exe")], cwd=project_dir)
@@ -244,9 +247,11 @@ def start(project_dir, json_path):
     top = tb.Frame(main_frame,padding=5)
     top.pack(side="top",fill="x")
     tb.Button(top,text="🏠 Home",bootstyle="light",command=return_home).pack(side="left")
+    """
     tb.Label(top,text="Tvoje meno:").pack(side="left",padx=(10,5))
     user_name_entry = tb.Entry(top,width=20)
     user_name_entry.pack(side="left")
+    """
     tb.Label(top,text="Vyhľadávanie:").pack(side="left",padx=(20,5))
     name_entry = tb.Entry(top,width=30)
     name_entry.pack(side="left")
@@ -307,17 +312,19 @@ def start(project_dir, json_path):
         text="Exportovať",
         bootstyle="success",
         command=lambda: (    
-            messagebox.showwarning("Meno chýba","Prosím zadaj meno.")
-            if not user_name_entry.get().strip()
-            else update_excel_from_basket(basket_items,project_name)
+            
+           update_excel_from_basket(basket_items,project_name)
         )
     )
     export_btn.pack(pady=3)
+    """
     def on_name_change(*_):
         export_btn.config(state=tb.DISABLED if not user_name_entry.get().strip() else tb.NORMAL)
     user_name_entry.bind("<KeyRelease>",on_name_change)
     on_name_change()
 
+    """
+    
     # Initial load & record originals
     basket_items_loaded, saved = load_basket(json_dir,project_name,file_path=commit_file)
     for sec, prods in basket_items_loaded.items():
@@ -338,7 +345,7 @@ def start(project_dir, json_path):
             return
         if ans:
             reorder_basket_data()
-            save_basket(json_dir,project_name,basket_items,user_name_entry.get().strip())
+            save_basket(json_dir,project_name,basket_items,)
         conn.close()
         root.destroy()
 
