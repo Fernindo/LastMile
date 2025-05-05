@@ -204,6 +204,7 @@ def start(project_dir, json_path):
                    7:"cena_prace",8:"pocet_prace"}
         basket_items[sec][prod][key_map[idx]] = new
         mark_modified()
+        update_basket_table(basket_tree, basket_items)
 
     # ─── Reset logic via right-click context menu
     def reset_item(iid):
@@ -320,14 +321,15 @@ def start(project_dir, json_path):
         bootstyle="danger-outline",
         command=lambda: (remove_from_basket(basket_tree,basket_items,update_basket_table),mark_modified())
     ).pack(pady=3)
+
     export_btn = tb.Button(
         
         basket_frame,
         text="Exportovať",
         bootstyle="success",
         command=lambda: (    
-            
-           update_excel_from_basket(basket_items,project_name)
+            reorder_basket_data(), 
+            update_excel_from_basket(basket_items,project_name)
         )
     )
     export_btn.pack(pady=3)
@@ -351,18 +353,21 @@ def start(project_dir, json_path):
 
     # Closing handler
     def on_closing():
-        # 1) Confirm save / cancel
+        # 1) Confirm Save / Cancel
         resp = messagebox.askyesnocancel(
             "Uložiť zmeny?",
             "Chceš uložiť zmeny pred zatvorením košíka?"
         )
         if resp is None:
-            return            # Cancel → do nothing
+            return            # Cancel → stay open
         if resp is False:
-            root.destroy()    # No → just close
+            root.destroy()    # No → just close without saving
             return
 
-        # 2) Ask for the base filename
+        # 2) Make sure all in-memory edits are reflected
+        reorder_basket_data()
+
+        # 3) Ask for the base filename
         default_base = "basket"
         fname = simpledialog.askstring(
             "Košík — Uložiť ako",
@@ -371,22 +376,22 @@ def start(project_dir, json_path):
             parent=root
         )
         if not fname:
-            return  # user canceled → stay open
+            return  # user cancelled → stay open
 
-        # 3) Append timestamp and build full path
+        # 4) Append timestamp and build the full path
         ts = datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
         filename = f"{fname}{ts}.json"
         fullpath = os.path.join(json_dir, filename)
 
-        # 4) If it exists, confirm overwrite
+        # 5) Confirm overwrite if it already exists
         if os.path.exists(fullpath):
             if not messagebox.askyesno(
                 "Prepis existujúceho súboru?",
                 f"“{filename}” už existuje. Chceš ho prepísať?"
             ):
-                return
+                return  # user chose not to overwrite → stay open
 
-        # 5) Build the JSON payload in the shape load_basket() expects
+        # 6) Build the JSON payload from basket_items
         out = {
             "project": project_name,
             "items": []
@@ -407,7 +412,7 @@ def start(project_dir, json_path):
                 })
             out["items"].append(sec_obj)
 
-        # 6) Write file
+        # 7) Write the file
         try:
             with open(fullpath, "w", encoding="utf-8") as f:
                 json.dump(out, f, ensure_ascii=False, indent=2)
@@ -418,7 +423,7 @@ def start(project_dir, json_path):
             )
             return
 
-        # 7) Success → close
+        # 8) All done → close
         root.destroy()
 
 

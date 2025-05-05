@@ -2,6 +2,13 @@ import tkinter as tk
 from tkinter import messagebox
 import psycopg2
 from main_admin import AdminApp
+import class_admin
+import column_settings
+import filter_panel
+import insert_admin
+import main_admin
+import pouzivatelia_admin
+import update_admin
 
 class LoginApp:
     def __init__(self, root):
