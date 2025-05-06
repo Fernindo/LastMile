@@ -1,5 +1,7 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
+from ui_config import create_main_window, apply_custom_styles
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
+from tkinter import messagebox
 import psycopg2
 import json
 import os
@@ -13,13 +15,11 @@ from filter_panel import FilterPanel
 USER_ID = "admin"
 SETTINGS_FILE = "user_column_settings.json"
 
-# Interné názvy zodpovedajúce databáze
 ALL_COLUMNS = [
     "produkt", "jednotky", "dodavatel", "odkaz",
     "koeficient", "nakup_materialu", "cena_prace", "class_id"
 ]
 
-# Zobrazenie názvov stĺpcov vo formáte pre užívateľa
 def format_column_name(name):
     display_names = {
         "produkt": "Produkt",
@@ -44,14 +44,14 @@ class AdminApp:
         self.sort_column = None
         self.sort_reverse = False
 
-        button_frame = tk.Frame(self.root)
-        button_frame.pack(fill=tk.X, pady=5)
+        button_frame = tb.Frame(self.root)
+        button_frame.pack(fill=X, pady=5)
 
-        tk.Button(button_frame, text="Správa používateľov", command=self.manage_users).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Pridať produkt", command=self.insert_product).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Update produktu", command=self.update_product).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Editovať tabuľku", command=self.create_table).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Refresh", command=self.load_products).pack(side=tk.LEFT, padx=5)
+        tb.Button(button_frame, text="Správa používateľov", bootstyle="info", command=self.manage_users).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Pridať produkt", bootstyle="success", command=self.insert_product).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Update produktu", bootstyle="warning", command=self.update_product).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Editovať tabuľku", bootstyle="secondary", command=self.create_table).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Refresh", bootstyle="primary", command=self.load_products).pack(side=LEFT, padx=5)
 
         self.filter_panel = FilterPanel(
             self.root,
@@ -61,11 +61,11 @@ class AdminApp:
             selected_columns=self.selected_columns
         )
 
-        self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
+        self.tree = tb.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings", bootstyle="primary")
         for col in self.tree["columns"]:
             self.tree.heading(col, text=format_column_name(col), command=lambda _col=col: self.sort_by_column(_col))
             self.tree.column(col, anchor="center")
-        self.tree.pack(fill=tk.BOTH, expand=True)
+        self.tree.pack(fill=tb.BOTH, expand=True)
 
         self.tree.bind("<ButtonRelease-1>", self.handle_delete_click)
         self.load_products()
@@ -99,11 +99,11 @@ class AdminApp:
     def refresh_tree(self):
         if hasattr(self, "tree") and self.tree.winfo_exists():
             self.tree.destroy()
-        self.tree = ttk.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings")
+        self.tree = tb.Treeview(self.root, columns=["delete"] + self.selected_columns, show="headings", bootstyle="primary")
         for col in self.tree["columns"]:
             self.tree.heading(col, text=format_column_name(col), command=lambda _col=col: self.sort_by_column(_col))
             self.tree.column(col, anchor="center")
-        self.tree.pack(fill=tk.BOTH, expand=True)
+        self.tree.pack(fill=tb.BOTH, expand=True)
         self.tree.bind("<ButtonRelease-1>", self.handle_delete_click)
         self.load_products()
 
@@ -139,7 +139,7 @@ class AdminApp:
         try:
             if not hasattr(self, "tree") or not self.tree.winfo_exists():
                 return
-        except tk.TclError:
+        except Exception:
             return
 
         for row in self.tree.get_children():
@@ -207,7 +207,7 @@ class AdminApp:
                 self.tree.insert("", "end", values=(" ", "(žiadne produkty)", *[""] * len(self.selected_columns)))
                 class_has_data = True
 
-        self.tree.tag_configure("header", font=("Arial", 10, "bold"))
+        self.tree.tag_configure("header", font=("Segoe UI", 10, "bold"))
 
     def handle_delete_click(self, event):
         region = self.tree.identify("region", event.x, event.y)
@@ -245,11 +245,12 @@ class AdminApp:
     def safe_reload(self):
         try:
             self.load_products()
-        except tk.TclError:
+        except Exception:
             print("Aplikácia bola zavretá – nemožno načítať produkty.")
 
 def main():
-    root = tk.Tk()
+    root = create_main_window()
+    apply_custom_styles(root)
     AdminApp(root)
     root.mainloop()
 
