@@ -3,6 +3,9 @@ from tkinter import ttk, messagebox
 import psycopg2
 import json
 import os
+from ui_config import create_main_window, apply_custom_styles
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
 
 from insert_admin import insert_product_form
 from update_admin import update_product_form
@@ -47,11 +50,11 @@ class AdminApp:
         button_frame = tk.Frame(self.root)
         button_frame.pack(fill=tk.X, pady=5)
 
-        tk.Button(button_frame, text="Správa používateľov", command=self.manage_users).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Pridať produkt", command=self.insert_product).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Update produktu", command=self.update_product).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Editovať tabuľku", command=self.create_table).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Refresh", command=self.load_products).pack(side=tk.LEFT, padx=5)
+        tb.Button(button_frame, text="Správa používateľov", bootstyle="warning", command=self.manage_users).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Pridať produkt", bootstyle="warning", command=self.insert_product).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Update produktu", bootstyle="warning", command=self.update_product).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Editovať tabuľku", bootstyle="warning", command=self.create_table).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Refresh", bootstyle="primary", command=self.load_products).pack(side=LEFT, padx=5)
 
         self.filter_panel = FilterPanel(
             self.root,
