@@ -3,8 +3,8 @@ from tkinter import ttk
 import psycopg2
 
 ALL_COLUMNS = [
-    "Produkt", "Jednotky", "Dodavatel", "Odkaz",
-    "Koeficient", "Nákup Materialu", "Cena Prace", "Class_id"
+    "produkt", "jednotky", "dodavatel", "odkaz",
+    "koeficient", "nakup_materialu", "cena_prace", "class_id"
 ]
 
 class FilterPanel:
