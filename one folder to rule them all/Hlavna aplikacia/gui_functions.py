@@ -47,15 +47,14 @@ def get_database_connection():
 sqlite3.register_adapter(decimal.Decimal, float)
 def sync_postgres_to_sqlite(pg_conn):
     """
-    Pull both produkty and class tables from Postgres into local_backup.db.
-    Converts any decimal.Decimal values into floats so sqlite3 can bind them.
+    Pull produkty, class, and produkt_class from Postgres into local_backup.db.
+    Ensures one product row per ID, and a separate junction table for class links.
     """
-    # open (or create) the local SQLite file
     sqlite_conn   = sqlite3.connect("local_backup.db")
     sqlite_cursor = sqlite_conn.cursor()
     pg_cursor     = pg_conn.cursor()
 
-    # ── Sync produkty ──────────────────────────────────────────────────────────
+    # ── 1) Sync produkty ────────────────────────────────────────────────────
     sqlite_cursor.execute("DROP TABLE IF EXISTS produkty")
     sqlite_cursor.execute("""
         CREATE TABLE produkty (
@@ -64,38 +63,33 @@ def sync_postgres_to_sqlite(pg_conn):
             jednotky TEXT,
             dodavatel TEXT,
             odkaz TEXT,
-            koeficient REAL,
+            koeficient_material REAL,
+            koeficient_prace REAL,
             nakup_materialu REAL,
-            cena_prace REAL,
-            class_id INTEGER,
-            class_name TEXT
+            cena_prace REAL
         )
     """)
-    # grab produkty and join in the class name
+
+    # Fetch distinct products
     pg_cursor.execute("""
         SELECT
-            p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
-            p.koeficient, p.nakup_materialu, p.cena_prace,
-            p.class_id, c.nazov_tabulky
-        FROM produkty p
-        LEFT JOIN public.class c ON p.class_id = c.id
+          id, produkt, jednotky, dodavatel, odkaz,
+          koeficient_material, koeficient_prace,
+          nakup_materialu, cena_prace
+        FROM produkty
     """)
-    rows = pg_cursor.fetchall()
-
-    # convert any Decimal → float (sqlite3.register_adapter also handles this,
-    # but we do it explicitly here as well for clarity)
+    prod_rows = pg_cursor.fetchall()
     cleaned = [
         tuple(float(col) if isinstance(col, decimal.Decimal) else col
               for col in row)
-        for row in rows
+        for row in prod_rows
     ]
-
     sqlite_cursor.executemany(
-        "INSERT INTO produkty VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO produkty VALUES (?,?,?,?,?,?,?,?,?)",
         cleaned
     )
 
-    # ── Sync class ────────────────────────────────────────────────────────────
+    # ── 2) Sync class ───────────────────────────────────────────────────────
     sqlite_cursor.execute("DROP TABLE IF EXISTS class")
     sqlite_cursor.execute("""
         CREATE TABLE class (
@@ -109,14 +103,33 @@ def sync_postgres_to_sqlite(pg_conn):
     )
     class_rows = pg_cursor.fetchall()
     sqlite_cursor.executemany(
-        "INSERT INTO class VALUES (?, ?, ?)",
+        "INSERT INTO class VALUES (?,?,?)",
         class_rows
+    )
+
+    # ── 3) Sync produkt_class (junction) ───────────────────────────────────
+    sqlite_cursor.execute("DROP TABLE IF EXISTS produkt_class")
+    sqlite_cursor.execute("""
+        CREATE TABLE produkt_class (
+            produkt_id INTEGER,
+            class_id   INTEGER
+        )
+    """)
+    # Pull the Postgres junction
+    pg_cursor.execute("SELECT produkt_id, class_id FROM produkt_class")
+    pc_rows = pg_cursor.fetchall()
+    sqlite_cursor.executemany(
+        "INSERT INTO produkt_class VALUES (?,?)",
+        pc_rows
     )
 
     # finalize
     sqlite_conn.commit()
     sqlite_conn.close()
-    print("✔ Synced PostgreSQL → SQLite (produkty + class)")
+    print("✔ Synced PostgreSQL → SQLite (produkty, class, produkt_class)")
+
+
+
 
 def save_basket(project_path, project_name, basket_items, user_name=""):
     """
@@ -197,15 +210,17 @@ def load_basket(project_path, project_name, file_path=None):
             pname = p.get("produkt")
             if not pname: continue
             prods[pname] = {
-                "jednotky":        p.get("jednotky",""),
-                "dodavatel":       p.get("dodavatel",""),
-                "odkaz":           p.get("odkaz",""),
-                "koeficient":      float(p.get("koeficient",0)),
-                "nakup_materialu": float(p.get("nakup_materialu",0)),
-                "cena_prace":      float(p.get("cena_prace",0)),
-                "pocet_prace":     int(p.get("pocet_prace",1)),
-                "pocet_materialu": int(p.get("pocet_materialu",1)),
+                "jednotky":            p.get("jednotky", ""),
+                "dodavatel":           p.get("dodavatel", ""),
+                "odkaz":               p.get("odkaz", ""),
+                "koeficient_material": float(p.get("koeficient_material", 0)),
+                "koeficient_prace":    float(p.get("koeficient_prace", 1)),
+                "nakup_materialu":     float(p.get("nakup_materialu", 0)),
+                "cena_prace":          float(p.get("cena_prace", 0)),
+                "pocet_prace":         int(p.get("pocet_prace", 1)),
+                "pocet_materialu":     int(p.get("pocet_materialu", 1)),
             }
+
         basket_items[section] = prods
 
     return basket_items, data.get("user_name","")
@@ -220,17 +235,32 @@ def remove_accents(s):
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     """
     Load products from 'produkty', filter by class_ids and search text.
-    Populate `tree` with grouped rows.
+    Populate `tree` with grouped rows, supporting many-to-many classes
+    and both material & labor coefficients.
     """
-    # build class filter
     sel_ids = [cid for cid, var in table_vars.items() if var.get()]
     name_f = remove_accents(name_entry.get().strip().lower())
 
-    query = "SELECT produkt, jednotky, dodavatel, odkaz, koeficient, nakup_materialu, cena_prace, class_id FROM produkty WHERE 1=1"
+    query = """
+    SELECT
+      p.produkt,
+      p.jednotky,
+      p.dodavatel,
+      p.odkaz,
+      p.koeficient_material,
+      p.nakup_materialu,
+      p.cena_prace,
+      p.koeficient_prace,
+      pc.class_id
+    FROM produkty p
+    LEFT JOIN produkt_class pc
+      ON p.id = pc.produkt_id
+    WHERE 1=1
+    """
     params = []
     if sel_ids:
         placeholder = ",".join("?" if db_type=="sqlite" else "%s" for _ in sel_ids)
-        query += f" AND class_id IN ({placeholder})"
+        query += f" AND pc.class_id IN ({placeholder})"
         params.extend(sel_ids)
 
     try:
@@ -248,7 +278,6 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
             cid = r[-1]
             grouped.setdefault(cid, []).append(r[:-1])
 
-    # lookup class names
     cnames = {}
     try:
         cursor.execute("SELECT id, nazov_tabulky FROM public.class")
@@ -261,54 +290,73 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         header = cnames.get(cid, "Uncategorized")
         tree.insert("", "end", values=("", f"-- {header} --"), tags=("header",))
         for row in grouped[cid]:
+            # row now has 8 elements:
+            # (produkt, jednotky, dodavatel, odkaz,
+            #  koeficient_material, nakup_materialu,
+            #  cena_prace, koeficient_prace)
             tree.insert("", "end", values=row + (header,))
-        # Make the section headers visually pop
     tree.tag_configure(
         "header",
         font=("Arial", 10, "bold"),
-        background="#e0f7fa",   
-        foreground="#006064"    
+        background="#e0f7fa",
+        foreground="#006064"
     )
+
+
 
 
 def update_basket_table(basket_tree, basket_items):
     basket_tree.delete(*basket_tree.get_children())
     for section, prods in basket_items.items():
-        basket_tree.insert("", "end", iid=section, text=section, open=True)
+        sec_id = basket_tree.insert("", "end", text=section, open=True)
         for pname, info in prods.items():
-            basket_tree.insert("", "end", values=(
-                pname,
-                info["jednotky"],
-                info["dodavatel"],
-                info["odkaz"],
-                info["koeficient"],
-                info["nakup_materialu"],
-                info["cena_prace"],
-                info["pocet_prace"],
-                info["pocet_materialu"],
-            ))
+            basket_tree.insert(
+                sec_id, "end", text="",
+                values=(
+                    pname,
+                    info.get("jednotky", ""),
+                    info.get("dodavatel", ""),
+                    info.get("odkaz", ""),
+                    # material → labor → rest
+                    float(info.get("koeficient_material", 0)),
+                    float(info.get("koeficient_prace",    1)),
+                    float(info.get("nakup_materialu",     0)),
+                    float(info.get("cena_prace",          0)),
+                    int(  info.get("pocet_materialu",     1)),
+                    int(  info.get("pocet_prace",         1))
+                )
+            )
+
 
 def add_to_basket(item, basket_items, update_basket_table, basket_tree):
-    prod, jednotky, dodavatel, odkaz, koef, nakup, cena, *rest = item
-    section = rest[-1] if rest else "Uncategorized"
+    # item = (produkt, jednotky, dodavatel, odkaz,
+    #         koeficient_material, nakup_materialu,
+    #         cena_prace, koeficient_prace, section)
+    produkt, jednotky, dodavatel, odkaz, \
+    koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
+    section = item[8] if len(item) > 8 else "Uncategorized"
+
     data = {
-        "jednotky": jednotky,
-        "dodavatel": dodavatel,
-        "odkaz":     odkaz,
-        "koeficient":koef,
-        "nakup_materialu": nakup,
-        "cena_prace":cena,
-        "pocet_prace":1,
-        "pocet_materialu":1
+        "jednotky":            jednotky,
+        "dodavatel":           dodavatel,
+        "odkaz":               odkaz,
+        "koeficient_material": float(koef_mat),
+        "koeficient_prace":    float(koef_prace),
+        "nakup_materialu":     float(nakup_mat),
+        "cena_prace":          float(cena_prace),
+        "pocet_materialu":     1,
+        "pocet_prace":         1
     }
     if section not in basket_items:
         basket_items[section] = OrderedDict()
-    if prod in basket_items[section]:
-        basket_items[section][prod]["pocet_prace"]    += 1
-        basket_items[section][prod]["pocet_materialu"]+= 1
+    if produkt in basket_items[section]:
+        basket_items[section][produkt]["pocet_materialu"] += 1
+        basket_items[section][produkt]["pocet_prace"]    += 1
     else:
-        basket_items[section][prod] = data
+        basket_items[section][produkt] = data
+
     update_basket_table(basket_tree, basket_items)
+
 
 def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
     region = basket_tree.identify("region", event.x, event.y)
@@ -356,10 +404,6 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
     update_basket_table(basket_tree, basket_items)
 
 def update_excel_from_basket(basket_items, project_name):
-    """
-    Exports the current basket to an Excel file on the Desktop.
-    Shows success only if update_excel() returns True.
-    """
     if not basket_items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
@@ -367,7 +411,6 @@ def update_excel_from_basket(basket_items, project_name):
     desktop = os.path.join(os.path.expanduser("~"), "Desktop")
     out_file = os.path.join(desktop, f"{project_name}.xlsx")
 
-    # Prepare the data rows
     excel_data = []
     for section, products in basket_items.items():
         for produkt, v in products.items():
@@ -377,25 +420,18 @@ def update_excel_from_basket(basket_items, project_name):
                 v["jednotky"],
                 v["dodavatel"],
                 v["odkaz"],
-                v["koeficient"],
-                v["nakup_materialu"],
-                v["cena_prace"],
-                v["pocet_prace"]
+                # material, labor, then rest
+                v.get("koeficient_material", 0),
+                v.get("koeficient_prace",    1),
+                v.get("nakup_materialu",     0),
+                v.get("cena_prace",          0),
+                v.get("pocet_prace",         1),
+                v.get("pocet_materialu",     1),
             ))
 
-    # Call the updated update_excel, which now returns True/False
     success = update_excel(excel_data, out_file)
     if success and os.path.exists(out_file):
         messagebox.showinfo(
             "Export hotový",
             f"✅ Súbor bol úspešne uložený na plochu ako:\n{out_file}"
         )
-    else:
-        """
-        messagebox.showerror(
-            "Export zlyhal",
-            "❌ Nepodarilo sa vytvoriť Excel súbor.\n"
-            "  • Skontrolujte, či máte šablónu 'Vzorova_CP3.xlsx' v rovnakej zložke.\n"
-            "  • Skontrolujte, či máte povolenia na zápis na plochu."
-        )
-        """

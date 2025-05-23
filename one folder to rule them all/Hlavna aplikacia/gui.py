@@ -69,37 +69,55 @@ def start(project_dir, json_path):
 
     # ─── Helpers for the database Treeview (responsive columns)
     db_column_proportions = {
-        "produkt":         0.22,  # a bit more room for long names
-        "jednotky":        0.15,
-        "dodavatel":       0.12,
-        "odkaz":           0.20,  # trimmed down from 30%
-        "koeficient":      0.10,  # up from .08
-        "nakup_materialu": 0.13,  # up from .12
-        "cena_prace":      0.08,  # down from .10
+    "produkt":             0.22,
+    "jednotky":            0.15,
+    "dodavatel":           0.12,
+    "odkaz":               0.20,
+    "koeficient_material": 0.10,
+    "nakup_materialu":     0.13,
+    "cena_prace":          0.08,
+    "koeficient_prace":    0.08,
     }
+
+    """
     def adjust_db_columns(event):
         total = event.width
         for col, pct in db_column_proportions.items():
-            tree.column(col, width=int(total * pct), stretch=True,background="#ffd1dc",   # a pale pink
-    foreground="#880000",   # a deep red
-    relief="flat")
+            # only set width & stretch here
+            tree.column(col, width=int(total * pct), stretch=True)
+
+    """
+    def adjust_db_columns(event):
+        total = event.width
+        for col, pct in db_column_proportions.items():
+            # only set width & stretch here
+            tree.column(col, width=int(total * pct), stretch=True)
+
 
     # ─── Basket Table Helpers (responsive columns)
     basket_columns = (
-        "produkt", "jednotky", "dodavatel", "odkaz",
-        "koeficient", "nakup_materialu", "pocet_materialu",
-        "cena_prace", "pocet_prace"
-    )
+    "produkt",
+    "jednotky",
+    "dodavatel",
+    "odkaz",
+    "koeficient_material",
+    "koeficient_prace",
+    "nakup_materialu",
+    "cena_prace",
+    "pocet_materialu",
+    "pocet_prace"
+)
     basket_column_proportions = {
-        "produkt":         0.12,
-        "jednotky":        0.07,
-        "dodavatel":       0.12,
-        "odkaz":           0.16,
-        "koeficient":      0.10,
-        "nakup_materialu": 0.12,
-        "pocet_materialu": 0.12,
-        "cena_prace":      0.07,
-        "pocet_prace":     0.071,
+        "produkt":             0.12,
+        "jednotky":            0.07,
+        "dodavatel":           0.12,
+        "odkaz":               0.16,
+        "koeficient_material": 0.10,
+        "koeficient_prace":    0.10,
+        "nakup_materialu":     0.12,
+        "cena_prace":          0.07,
+        "pocet_materialu":     0.12,
+        "pocet_prace":         0.071,
     }
     def adjust_basket_columns(event):
         total = event.width
@@ -116,19 +134,21 @@ def start(project_dir, json_path):
             sec_id = basket_tree.insert("", "end", text=section, open=True)
             for produkt, d in products.items():
                 basket_tree.insert(
-                    sec_id, "end", text="",  # first column blank
+                    sec_id, "end", text="",
                     values=(
                         produkt,
-                        d.get("jednotky",""),
-                        d.get("dodavatel",""),
-                        d.get("odkaz",""),
-                        float(d.get("koeficient",0)),
-                        float(d.get("nakup_materialu",0)),
-                        int(d.get("pocet_materialu",1)),
-                        float(d.get("cena_prace",0)),
-                        int(d.get("pocet_prace",1))
+                        d.get("jednotky", ""),
+                        d.get("dodavatel", ""),
+                        d.get("odkaz", ""),
+                        float(d.get("koeficient_material", 0)),
+                        float(d.get("koeficient_prace", 1)),
+                        float(d.get("nakup_materialu", 0)),
+                        float(d.get("cena_prace", 0)),
+                        int(d.get("pocet_materialu", 1)),
+                        int(d.get("pocet_prace", 1))
                     )
                 )
+
 
     def reorder_basket_data():
         new_basket = OrderedDict()
@@ -138,43 +158,51 @@ def start(project_dir, json_path):
             for child in basket_tree.get_children(sec):
                 vals = basket_tree.item(child, "values")
                 prods[vals[0]] = {
-                    "jednotky": vals[1],
-                    "dodavatel": vals[2],
-                    "odkaz": vals[3],
-                    "koeficient": float(vals[4]),
-                    "nakup_materialu": float(vals[5]),
-                    "pocet_materialu": int(vals[6]),
-                    "cena_prace": float(vals[7]),
-                    "pocet_prace": int(vals[8])
+                    "jednotky":            vals[1],
+                    "dodavatel":           vals[2],
+                    "odkaz":               vals[3],
+                    "koeficient_material": float(vals[4]),
+                    "koeficient_prace":    float(vals[5]),
+                    "nakup_materialu":     float(vals[6]),
+                    "cena_prace":          float(vals[7]),
+                    "pocet_materialu":     int(vals[8]),
+                    "pocet_prace":         int(vals[9])
                 }
             new_basket[sec_name] = prods
         basket_items.clear()
         basket_items.update(new_basket)
 
+
     # ─── Define add_to_basket *before* binding it on the DB tree
     def add_to_basket(item):
-        produkt, jednotky, dodavatel, odkaz, koef, nakup = item[:6]
+       
+        produkt, jednotky, dodavatel, odkaz, \
+        koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
+        section = item[8] if len(item) > 8 else "Uncategorized"
+
         data = {
-            'jednotky': jednotky,
-            'dodavatel': dodavatel,
-            'odkaz': odkaz,
-            'koeficient': float(koef),
-            'nakup_materialu': float(nakup),
-            'cena_prace': float(item[6]) if len(item)>6 else 0.0,
-            'pocet_materialu': 1,
-            'pocet_prace': 1,
+            "jednotky":            jednotky,
+            "dodavatel":           dodavatel,
+            "odkaz":               odkaz,
+            "koeficient_material": float(koef_mat),
+            "koeficient_prace":    float(koef_prace),
+            "nakup_materialu":     float(nakup_mat),
+            "cena_prace":          float(cena_prace),
+            "pocet_materialu":     1,
+            "pocet_prace":         1
         }
-        section = item[7] if len(item) > 7 else 'Uncategorized'
         if section not in basket_items:
             basket_items[section] = OrderedDict()
         if produkt in basket_items[section]:
-            basket_items[section][produkt]['pocet_materialu'] += 1
-            basket_items[section][produkt]['pocet_prace']    += 1
+            basket_items[section][produkt]["pocet_materialu"] += 1
+            basket_items[section][produkt]["pocet_prace"]    += 1
         else:
             basket_items[section][produkt] = data
             original_basket.setdefault(section, OrderedDict())[produkt] = copy.deepcopy(data)
+
         update_basket_table(basket_tree, basket_items)
         mark_modified()
+
 
     # ─── Edit basket cell on double-click
     def edit_basket_cell(event):
@@ -187,9 +215,12 @@ def start(project_dir, json_path):
             return
         old = basket_tree.set(row, col)
         names = [
-            "Produkt","Jednotky","Dodavatel","Odkaz","Koeficient",
-            "Nakup_materialu","Pocet_materialu","Cena_prace","Pocet_prace"
+            "Produkt", "Jednotky", "Dodavatel", "Odkaz",
+            "Koeficient materiál", "Koeficient práca",
+            "Nakup_materialu", "Cena_prace",
+            "Pocet_materialu", "Pocet_prace"
         ]
+
         prompt = f"Nová hodnota pre '{names[idx]}'"
         if idx in (6,8):
             new = simpledialog.askinteger("Upraviť bunku", prompt, initialvalue=int(old), parent=root)
@@ -200,8 +231,15 @@ def start(project_dir, json_path):
         basket_tree.set(row, col, new)
         sec = basket_tree.parent(row)
         prod = basket_tree.item(row)["values"][0]
-        key_map = {4:"koeficient",5:"nakup_materialu",6:"pocet_materialu",
-                   7:"cena_prace",8:"pocet_prace"}
+        key_map = {
+            4: "koeficient_material",
+            5: "koeficient_prace",
+            6: "nakup_materialu",
+            7: "cena_prace",
+            8: "pocet_materialu",
+            9: "pocet_prace"
+            }
+
         basket_items[sec][prod][key_map[idx]] = new
         mark_modified()
         update_basket_table(basket_tree, basket_items)
@@ -216,8 +254,9 @@ def start(project_dir, json_path):
         if not orig:
             messagebox.showinfo("Chýba originál","Pôvodné hodnoty nie sú k dispozícii.")
             return
-        for k in ("koeficient","nakup_materialu","pocet_materialu","cena_prace","pocet_prace"):
+        for k in ("koeficient_material", "koeficient_prace","nakup_materialu","cena_prace","pocet_materialu","pocet_prace"):
             basket_items[basket_tree.item(sec,'text')][prod][k] = copy.deepcopy(orig[k])
+
         update_basket_table(basket_tree, basket_items)
         mark_modified()
 
@@ -275,7 +314,17 @@ def start(project_dir, json_path):
     # Database tree
     tree_frame = tb.Frame(main_frame)
     tree_frame.pack(fill="both",expand=True,padx=10,pady=10)
-    db_columns = ("produkt","jednotky","dodavatel","odkaz","koeficient","nakup_materialu","cena_prace")
+    db_columns = (
+    "produkt",
+    "jednotky",
+    "dodavatel",
+    "odkaz",
+    "koeficient_material",
+    "nakup_materialu",
+    "cena_prace",
+    "koeficient_prace"
+    )
+
     tree = ttk.Treeview(tree_frame,columns=db_columns,show="headings")
     for c in db_columns:
         tree.heading(c,text=c.capitalize())
@@ -401,14 +450,16 @@ def start(project_dir, json_path):
             for pname, info in prods.items():
                 sec_obj["products"].append({
                     "produkt":         pname,
-                    "jednotky":        info.get("jednotky", ""),
-                    "dodavatel":       info.get("dodavatel", ""),
-                    "odkaz":           info.get("odkaz", ""),
-                    "koeficient":      info.get("koeficient", 0),
-                    "nakup_materialu": info.get("nakup_materialu", 0),
-                    "cena_prace":      info.get("cena_prace", 0),
-                    "pocet_prace":     info.get("pocet_prace", 1),
-                    "pocet_materialu": info.get("pocet_materialu", 1),
+                    "jednotky":            info.get("jednotky", ""),
+                    "dodavatel":           info.get("dodavatel", ""),
+                    "odkaz":               info.get("odkaz", ""),
+                    "koeficient_material": info.get("koeficient_material", 0),
+                    "koeficient_prace":    info.get("koeficient_prace", 1),
+                    "nakup_materialu":     info.get("nakup_materialu", 0),
+                    "cena_prace":          info.get("cena_prace", 0),
+                    "pocet_prace":         info.get("pocet_prace", 1),
+                    "pocet_materialu":     info.get("pocet_materialu", 1),
+
                 })
             out["items"].append(sec_obj)
 
