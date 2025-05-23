@@ -379,7 +379,7 @@ def start(project_dir, json_path):
             return  # user cancelled → stay open
 
         # 4) Append timestamp and build the full path
-        ts = datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
+        ts = datetime.now().strftime("_%Y-%m-%d")
         filename = f"{fname}{ts}.json"
         fullpath = os.path.join(json_dir, filename)
 
