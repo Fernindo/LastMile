@@ -13,7 +13,11 @@ def update_product_form(parent):
     right_frame = tk.Frame(window)
     right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-    labels = ["Produkt", "Jednotky", "Nákup materiálu", "Koeficient", "Cena práce", "Dodávateľ", "Odkaz"]
+    labels = [
+        "Produkt", "Jednotky", "Nákup materiálu",
+        "Koeficient materiál", "Koeficient práca",
+        "Cena práce", "Dodávateľ", "Odkaz"
+    ]
     entries = {}
 
     tk.Label(left_frame, text="Trieda").grid(row=0, column=0, padx=5, pady=5, sticky="e")
@@ -79,7 +83,9 @@ def update_product_form(parent):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("""
-            SELECT produkt, jednotky, nakup_materialu, koeficient, cena_prace, dodavatel, odkaz 
+            SELECT produkt, jednotky, nakup_materialu,
+                   koeficient_material, koeficient_prace,
+                   cena_prace, dodavatel, odkaz 
             FROM produkty WHERE produkt = %s
         """, (product_combo.get(),))
         result = cur.fetchone()
@@ -91,7 +97,7 @@ def update_product_form(parent):
                 entries[label].insert(0, result[i])
 
     def save_update():
-        data = [entries[label].get() for label in labels]
+        data = [entries[label].get().strip() for label in labels]
         product_name = product_combo.get()
         if not product_name or not all(data):
             messagebox.showerror("Chyba", "Vyplň všetky údaje")
@@ -100,7 +106,8 @@ def update_product_form(parent):
         cur = conn.cursor()
         cur.execute("""
             UPDATE produkty
-            SET produkt=%s, jednotky=%s, nakup_materialu=%s, koeficient=%s,
+            SET produkt=%s, jednotky=%s, nakup_materialu=%s,
+                koeficient_material=%s, koeficient_prace=%s,
                 cena_prace=%s, dodavatel=%s, odkaz=%s
             WHERE produkt=%s
         """, (*data, product_name))
@@ -116,7 +123,8 @@ def update_product_form(parent):
         cur = conn.cursor()
         cur.execute("""
             SELECT c.nazov_tabulky, p.produkt, p.jednotky, p.nakup_materialu, 
-                   p.koeficient, p.cena_prace, p.dodavatel, p.odkaz
+                   p.koeficient_material, p.koeficient_prace,
+                   p.cena_prace, p.dodavatel, p.odkaz
             FROM produkty p
             JOIN produkt_class pc ON p.id = pc.produkt_id
             JOIN class c ON c.id = pc.class_id
@@ -131,8 +139,8 @@ def update_product_form(parent):
             class_name = row[0]
             if class_name != current_class:
                 current_class = class_name
-                tree.insert("", "end", values=("", "", "", "", "", "", "", ""), tags=("header",))
-                tree.insert("", "end", values=(f"-- {class_name} --", "", "", "", "", "", "", ""), tags=("header",))
+                tree.insert("", "end", values=("", "", "", "", "", "", "", "", ""), tags=("header",))
+                tree.insert("", "end", values=(f"-- {class_name} --", "", "", "", "", "", "", "", ""), tags=("header",))
             tree.insert("", "end", values=row[1:])
 
         tree.tag_configure("header", font=("Arial", 10, "bold"))
@@ -143,7 +151,7 @@ def update_product_form(parent):
             return
         values = tree.item(item)["values"]
         if values[0].startswith("--"):
-            return  # Preskočiť hlavičky
+            return
         for i, label in enumerate(labels):
             entries[label].delete(0, tk.END)
             entries[label].insert(0, values[i])

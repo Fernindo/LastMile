@@ -5,9 +5,13 @@ import psycopg2
 def insert_product_form(parent):
     window = tk.Toplevel(parent)
     window.title("Pridať produkt")
-    window.geometry("500x500")
+    window.geometry("550x600")
 
-    labels = ["Produkt", "Jednotky", "Nákup materiálu", "Koeficient", "Cena práce", "Dodávateľ", "Odkaz"]
+    labels = [
+        "Produkt", "Jednotky", "Nákup materiálu",
+        "Koeficient materiál", "Koeficient práca",
+        "Cena práce", "Dodávateľ", "Odkaz"
+    ]
     entries = {}
 
     for i, label in enumerate(labels):
@@ -39,28 +43,36 @@ def insert_product_form(parent):
         conn.close()
 
     def save():
-        data = [entries[label].get() for label in labels]
-        class_id = class_combo.get().split(" - ")[0] if class_combo.get() else ""
-        if not all(data) or not class_id:
-            messagebox.showerror("Chyba", "Vyplň všetky polia")
-            return
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO produkty (produkt, jednotky, nakup_materialu, koeficient, cena_prace, dodavatel, odkaz)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """, data)
-        produkt_id = cur.fetchone()[0]
-        cur.execute("""
-            INSERT INTO produkt_class (produkt_id, class_id)
-            VALUES (%s, %s)
-        """, (produkt_id, class_id))
-        conn.commit()
-        cur.close()
-        conn.close()
-        messagebox.showinfo("OK", "Produkt bol pridaný")
-        window.destroy()
+        try:
+            data = [entries[label].get().strip() for label in labels]
+            class_id = class_combo.get().split(" - ")[0] if class_combo.get() else ""
+            if not all(data) or not class_id:
+                messagebox.showerror("Chyba", "Vyplň všetky polia")
+                return
+
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO produkty (
+                    produkt, jednotky, nakup_materialu,
+                    koeficient_material, koeficient_prace,
+                    cena_prace, dodavatel, odkaz
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, data)
+            produkt_id = cur.fetchone()[0]
+            cur.execute("""
+                INSERT INTO produkt_class (produkt_id, class_id)
+                VALUES (%s, %s)
+            """, (produkt_id, class_id))
+            conn.commit()
+            cur.close()
+            conn.close()
+            messagebox.showinfo("OK", "Produkt bol pridaný")
+            window.destroy()
+        except Exception as e:
+            messagebox.showerror("Chyba", str(e))
 
     tk.Button(window, text="Pridať produkt", command=save).grid(row=len(labels)+1, columnspan=2, pady=20)
     load_classes()
