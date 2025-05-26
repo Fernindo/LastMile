@@ -17,7 +17,7 @@ SETTINGS_FILE = "user_column_settings.json"
 
 ALL_COLUMNS = [
     "produkt", "jednotky", "dodavatel", "odkaz",
-    "koeficient", "nakup_materialu", "cena_prace", "class_id"
+    "koeficient_material", "koeficient_prace", "nakup_materialu", "cena_prace", "class_id"
 ]
 
 def format_column_name(name):
@@ -26,10 +26,11 @@ def format_column_name(name):
         "jednotky": "Jednotky",
         "dodavatel": "Dodávateľ",
         "odkaz": "Odkaz",
-        "koeficient": "Koeficient",
+        "koeficient_material": "Koef. materiál",
+        "koeficient_prace": "Koef. práca",
         "nakup_materialu": "Nákup materiálu",
         "cena_prace": "Cena práce",
-        "class_id": "Class_id"
+        "class_id": "Class ID"
     }
     return display_names.get(name, name.capitalize())
 
@@ -47,10 +48,10 @@ class AdminApp:
         button_frame = tb.Frame(self.root)
         button_frame.pack(fill=X, pady=5)
 
-        tb.Button(button_frame, text="Správa používateľov", bootstyle="info", command=self.manage_users).pack(side=LEFT, padx=5)
-        tb.Button(button_frame, text="Pridať produkt", bootstyle="success", command=self.insert_product).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Správa používateľov", bootstyle="warning", command=self.manage_users).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Pridať produkt", bootstyle="warning", command=self.insert_product).pack(side=LEFT, padx=5)
         tb.Button(button_frame, text="Update produktu", bootstyle="warning", command=self.update_product).pack(side=LEFT, padx=5)
-        tb.Button(button_frame, text="Editovať tabuľku", bootstyle="secondary", command=self.create_table).pack(side=LEFT, padx=5)
+        tb.Button(button_frame, text="Editovať tabuľku", bootstyle="warning", command=self.create_table).pack(side=LEFT, padx=5)
         tb.Button(button_frame, text="Refresh", bootstyle="primary", command=self.load_products).pack(side=LEFT, padx=5)
 
         self.filter_panel = FilterPanel(
@@ -136,12 +137,6 @@ class AdminApp:
         )
 
     def load_products(self):
-        try:
-            if not hasattr(self, "tree") or not self.tree.winfo_exists():
-                return
-        except Exception:
-            return
-
         for row in self.tree.get_children():
             self.tree.delete(row)
 
@@ -150,9 +145,10 @@ class AdminApp:
 
         query = """
             SELECT c.nazov_tabulky, p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
-                   p.koeficient, p.nakup_materialu, p.cena_prace, p.class_id
-            FROM class c
-            LEFT JOIN produkty p ON p.class_id = c.id
+                   p.koeficient_material, p.koeficient_prace, p.nakup_materialu, p.cena_prace, pc.class_id
+            FROM produkty p
+            JOIN produkt_class pc ON p.id = pc.produkt_id
+            JOIN class c ON c.id = pc.class_id
         """
         filters = []
         params = []
@@ -222,6 +218,7 @@ class AdminApp:
                 if messagebox.askyesno("Vymazať", f"Naozaj chceš vymazať produkt '{prod_name}'?"):
                     conn = self.get_connection()
                     cur = conn.cursor()
+                    cur.execute("DELETE FROM produkt_class WHERE produkt_id = (SELECT id FROM produkty WHERE produkt = %s)", (prod_name,))
                     cur.execute("DELETE FROM produkty WHERE produkt = %s", (prod_name,))
                     conn.commit()
                     cur.close()

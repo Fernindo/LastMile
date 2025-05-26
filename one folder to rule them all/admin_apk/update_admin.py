@@ -63,7 +63,11 @@ def update_product_form(parent):
         class_id = class_combo.get().split(" - ")[0]
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT produkt FROM produkty WHERE class_id = %s", (class_id,))
+        cur.execute("""
+            SELECT p.produkt FROM produkty p
+            JOIN produkt_class pc ON p.id = pc.produkt_id
+            WHERE pc.class_id = %s
+        """, (class_id,))
         products = [r[0] for r in cur.fetchall()]
         product_combo['values'] = products
         cur.close()
@@ -114,7 +118,8 @@ def update_product_form(parent):
             SELECT c.nazov_tabulky, p.produkt, p.jednotky, p.nakup_materialu, 
                    p.koeficient, p.cena_prace, p.dodavatel, p.odkaz
             FROM produkty p
-            JOIN class c ON p.class_id = c.id
+            JOIN produkt_class pc ON p.id = pc.produkt_id
+            JOIN class c ON c.id = pc.class_id
             ORDER BY c.nazov_tabulky, p.id
         """)
         rows = cur.fetchall()
@@ -138,7 +143,7 @@ def update_product_form(parent):
             return
         values = tree.item(item)["values"]
         if values[0].startswith("--"):
-            return  # Skip header rows
+            return  # Preskočiť hlavičky
         for i, label in enumerate(labels):
             entries[label].delete(0, tk.END)
             entries[label].insert(0, values[i])

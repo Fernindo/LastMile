@@ -1,7 +1,7 @@
 import ttkbootstrap as tb
 
 def create_main_window():
-    return tb.Window(themename="flatly")  # alebo 'darkly', 'minty', 'solar', 'journal', 'flatly'
+    return tb.Window(themename="flatly")  # môžeš zmeniť na 'darkly', 'minty', 'solar', atď.
 
 def apply_custom_styles(window):
     style = window.style

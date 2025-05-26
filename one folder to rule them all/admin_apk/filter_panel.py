@@ -1,11 +1,25 @@
 import tkinter as tk
 from tkinter import ttk
-import psycopg2
 
 ALL_COLUMNS = [
-    "Produkt", "Jednotky", "Dodavatel", "Odkaz",
-    "Koeficient", "Nákup Materialu", "Cena Prace", "Class_id"
+    "produkt", "jednotky", "dodavatel", "odkaz",
+    "koeficient_material", "koeficient_prace",
+    "nakup_materialu", "cena_prace", "class_id"
 ]
+
+def format_column_name(col):
+    mapping = {
+        "produkt": "Produkt",
+        "jednotky": "Jednotky",
+        "dodavatel": "Dodávateľ",
+        "odkaz": "Odkaz",
+        "koeficient_material": "Koef. materiál",
+        "koeficient_prace": "Koef. práca",
+        "nakup_materialu": "Nákup materiálu",
+        "cena_prace": "Cena práce",
+        "class_id": "Class ID"
+    }
+    return mapping.get(col, col)
 
 class FilterPanel:
     def __init__(self, parent, get_connection_func, on_filter_apply, on_columns_change, selected_columns):
@@ -13,7 +27,7 @@ class FilterPanel:
         self.get_connection = get_connection_func
         self.on_filter_apply = on_filter_apply
         self.on_columns_change = on_columns_change
-        self.selected_columns = ALL_COLUMNS[:]  # všetky zaškrtnuté predvolene
+        self.selected_columns = ALL_COLUMNS[:]
         self.visible = False
 
         self.container = tk.Frame(self.parent)
@@ -43,8 +57,8 @@ class FilterPanel:
         # Checkboxy (stĺpce)
         self.check_vars = {}
         for i, col in enumerate(ALL_COLUMNS):
-            var = tk.BooleanVar(value=True)  # predvolene všetko zaškrtnuté
-            cb = tk.Checkbutton(self.frame, text=col, variable=var, command=self.columns_changed)
+            var = tk.BooleanVar(value=True)
+            cb = tk.Checkbutton(self.frame, text=format_column_name(col), variable=var, command=self.columns_changed)
             cb.grid(row=1, column=i, sticky="w", padx=5)
             self.check_vars[col] = var
 
@@ -53,7 +67,6 @@ class FilterPanel:
         self.empty_cb = tk.Checkbutton(self.frame, text="Zobraziť prázdne kategórie", variable=self.show_empty_var)
         self.empty_cb.grid(row=2, column=0, columnspan=2, sticky="w", padx=5, pady=(5, 10))
 
-        # Načítanie hlavných kategórií z databázy
         self.load_main_categories()
 
     def toggle(self):
@@ -73,7 +86,7 @@ class FilterPanel:
         cur.close()
         conn.close()
 
-        kategorie.insert(0, "---")  # možnosť pre zobrazenie všetkého
+        kategorie.insert(0, "---")
         self.kat_combo["values"] = kategorie
         self.kat_combo.current(0)
         self.update_table_options()

@@ -4,7 +4,8 @@
     "jednotky",
     "dodavatel",
     "odkaz",
-    "koeficient",
+    "koeficient_material",
+    "koeficient_prace",
     "nakup_materialu",
     "cena_prace",
     "class_id"

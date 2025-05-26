@@ -137,7 +137,7 @@ def create_table_form(parent, refresh_callback=None):
 
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("DELETE FROM produkty WHERE class_id = %s", (table_id,))
+        cur.execute("DELETE FROM produkt_class WHERE class_id = %s", (table_id,))
         cur.execute("DELETE FROM class WHERE id = %s", (table_id,))
         conn.commit()
         cur.close()

@@ -1,4 +1,3 @@
-
 import tkinter as tk
 from tkinter import messagebox, ttk
 import psycopg2
@@ -48,9 +47,15 @@ def insert_product_form(parent):
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO produkty (produkt, jednotky, nakup_materialu, koeficient, cena_prace, dodavatel, odkaz, class_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (*data, class_id))
+            INSERT INTO produkty (produkt, jednotky, nakup_materialu, koeficient, cena_prace, dodavatel, odkaz)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, data)
+        produkt_id = cur.fetchone()[0]
+        cur.execute("""
+            INSERT INTO produkt_class (produkt_id, class_id)
+            VALUES (%s, %s)
+        """, (produkt_id, class_id))
         conn.commit()
         cur.close()
         conn.close()
