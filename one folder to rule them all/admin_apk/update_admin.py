@@ -34,10 +34,12 @@ def update_product_form(parent):
         entry.grid(row=i+2, column=1, padx=5, pady=5)
         entries[label] = entry
 
-    tree = ttk.Treeview(right_frame, columns=labels, show="headings")
+    tree = ttk.Treeview(right_frame, columns=labels + ["class_id"], show="headings")
     for label in labels:
         tree.heading(label, text=label)
         tree.column(label, anchor="center")
+    tree.heading("class_id", text="class_id")
+    tree.column("class_id", width=0, stretch=False)  # Skryjeme stĺpec class_id
     tree.pack(fill=tk.BOTH, expand=True)
 
     def get_connection():
@@ -124,7 +126,7 @@ def update_product_form(parent):
         cur.execute("""
             SELECT c.nazov_tabulky, p.produkt, p.jednotky, p.nakup_materialu, 
                    p.koeficient_material, p.koeficient_prace,
-                   p.cena_prace, p.dodavatel, p.odkaz
+                   p.cena_prace, p.dodavatel, p.odkaz, c.id
             FROM produkty p
             JOIN produkt_class pc ON p.id = pc.produkt_id
             JOIN class c ON c.id = pc.class_id
@@ -139,8 +141,8 @@ def update_product_form(parent):
             class_name = row[0]
             if class_name != current_class:
                 current_class = class_name
-                tree.insert("", "end", values=("", "", "", "", "", "", "", "", ""), tags=("header",))
-                tree.insert("", "end", values=(f"-- {class_name} --", "", "", "", "", "", "", "", ""), tags=("header",))
+                tree.insert("", "end", values=("", *[""]*len(labels), ""), tags=("header",))
+                tree.insert("", "end", values=(f"-- {class_name} --", *[""]*(len(labels)-1), ""), tags=("header",))
             tree.insert("", "end", values=row[1:])
 
         tree.tag_configure("header", font=("Arial", 10, "bold"))
@@ -150,12 +152,17 @@ def update_product_form(parent):
         if not item:
             return
         values = tree.item(item)["values"]
-        if values[0].startswith("--"):
+        if not values or str(values[0]).startswith("--"):
             return
         for i, label in enumerate(labels):
             entries[label].delete(0, tk.END)
             entries[label].insert(0, values[i])
         product_combo.set(values[0])
+        class_id = values[-1]
+        for val in class_combo['values']:
+            if val.startswith(f"{class_id} -"):
+                class_combo.set(val)
+                break
 
     class_combo.bind("<<ComboboxSelected>>", load_products)
     product_combo.bind("<<ComboboxSelected>>", fill_data)
