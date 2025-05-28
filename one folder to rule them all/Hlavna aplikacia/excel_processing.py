@@ -2,118 +2,156 @@ import xlwings as xw
 import os
 import shutil
 import sys
+import tkinter as tk
+from tkinter import messagebox
+
+# Create and hide the Tkinter root for messageboxes
+root = tk.Tk()
+root.withdraw()
 
 def update_excel(selected_items, new_file, notes_text=""):
+    # 1) Early sanity checks
     if not selected_items:
-        print("⚠ No items selected for Excel.")
-        return
-
+        messagebox.showwarning("Export neúspešný", "⚠ Žiadne položky na export.")
+        return False
     if not new_file:
-        print("❌ No export path provided.")
-        return
+        messagebox.showerror("Export neúspešný", "❌ Nie je zadaná cesta pre export.")
+        return False
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    # 2) Locate & copy the template
     if getattr(sys, 'frozen', False):
         base_dir = sys._MEIPASS
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
-
     template_file = os.path.join(base_dir, "Vzorova_CP3.xlsx")
-
-    # Check if the Excel template file exists
     if not os.path.exists(template_file):
-        print(f"❌ Template file not found at: {template_file}")
-        print("Make sure that 'Vzorova_CP3.xlsx' is in the same folder as your scripts.")
-        return
-
+        messagebox.showerror("Export neúspešný", f"❌ Šablóna nenájdená: {template_file}")
+        return False
     try:
         shutil.copy(template_file, new_file)
     except Exception as e:
-        print("❌ Failed to copy template.")
-        print(f"🔍 Error: {e}")
-        return
+        messagebox.showerror("Export neúspešný", f"❌ Chyba pri kopírovaní šablóny: {e}")
+        return False
 
+    # 3) Begin Excel operations
     try:
-        # Start an instance of Excel via xlwings
-        app = xw.App(visible=False)
-        # Optionally, you can turn off screen updating: app.screen_updating = False
+        app   = xw.App(visible=False)
+        wb    = xw.Book(new_file)
+        sheet = wb.sheets[0]
 
-        wb = xw.Book(new_file)
-        sheet = wb.sheets[0]  # get the first sheet
-
-        TEMPLATE_ROW = 18
+        TEMPLATE_ROW    = 18
         insert_position = TEMPLATE_ROW
-        counter = 1
+        counter         = 1
+        prev_section    = None
+        section_start   = None
+
+        def draw_full_border(xl_rng):
+            for edge in (7, 8, 9, 10, 12, 13):
+                b = xl_rng.api.Borders(edge)
+                b.LineStyle = 1
+                b.Weight    = 2
 
         for item in selected_items:
-            # Unpack the item values according to their positions
-            produkt = item[1]
-            jednotky = item[2]
-            dodavatel = item[3]
-            odkaz = item[4]
-            koeficient = float(item[5])
-            nakup_materialu = float(item[6])
-            cena_prace = float(item[7])
-            pocet = int(item[8])
-
-            # Insert new row at the desired position.
-            # Using the range() method with the complete row reference
+            section = item[0]
+            # Close out previous section totals...
+            if section != prev_section:
+                if prev_section is not None:
+                    # SPOLU row
+                    sheet.range(f"{insert_position}:{insert_position}").insert('down')
+                    r = insert_position
+                    lbl_rng = sheet.range(sheet.cells(r,2), sheet.cells(r,5))
+                    lbl_rng.api.Merge()
+                    lbl = sheet.cells(r,2)
+                    lbl.value = f"{prev_section} SPOLU:"
+                    lbl.api.Font.Bold = True
+                    lbl.api.HorizontalAlignment = -4131
+                    mat = sheet.cells(r,6)
+                    mat.value = "Materiál:"
+                    mat.api.Interior.Color = 0xD9E1F2
+                    sheet.cells(r,7).value = f"=SUM(G{section_start}:G{r-1})"
+                    pr = sheet.cells(r,9)
+                    pr.value = "Práca:"
+                    pr.api.Interior.Color = 0xD9E1F2
+                    sheet.cells(r,10).value = f"=SUM(J{section_start}:J{r-1})"
+                    sheet.cells(r,11).value = f"=ROUNDUP(SUM(K{section_start}:K{r-1}),0)"
+                    rng_sp = sheet.range(sheet.cells(r,2), sheet.cells(r,11))
+                    draw_full_border(rng_sp)
+                    insert_position += 1
+                # Section header row
+                sheet.range(f"{insert_position}:{insert_position}").insert('down')
+                hdr = sheet.range(sheet.cells(insert_position,2), sheet.cells(insert_position,11))
+                hdr.api.Merge()
+                cell_hdr = sheet.cells(insert_position,2)
+                cell_hdr.value = section
+                cell_hdr.api.Font.Bold = True
+                cell_hdr.api.Font.Size = 14
+                cell_hdr.api.HorizontalAlignment = -4131
+                draw_full_border(hdr)
+                section_start = insert_position + 1
+                prev_section = section
+                insert_position += 1
+            # Item row
+            _, produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, pocet = item[:9]
             sheet.range(f"{insert_position}:{insert_position}").insert('down')
-
-            # Copy formatting from the template row (TEMPLATE_ROW + 1)
-            source_range = sheet.range(f"{TEMPLATE_ROW + 1}:{TEMPLATE_ROW + 1}")
-            dest_range = sheet.range(f"{insert_position}:{insert_position}")
-            # The underlying API is used here for paste special formatting.
-            source_range.api.Copy()
-            dest_range.api.PasteSpecial(Paste=-4163)  # -4163 corresponds to xlPasteFormats
-
-            # Fill in the cell values and formulas.
-            sheet.cells(insert_position, 2).value = counter
-            sheet.cells(insert_position, 3).value = produkt
-            sheet.cells(insert_position, 4).value = jednotky
-            sheet.cells(insert_position, 5).value = pocet
-            # Assign formulas as strings (they will appear in Excel as formulas)
-            sheet.cells(insert_position, 6).value = f"=N{insert_position}*M{insert_position}"
-            sheet.cells(insert_position, 7).value = f"=F{insert_position}*E{insert_position}"
-            sheet.cells(insert_position, 8).value = f"=E{insert_position}"
-            sheet.cells(insert_position, 9).value = cena_prace
-            sheet.cells(insert_position, 10).value = f"=I{insert_position}*H{insert_position}"
-            sheet.cells(insert_position, 11).value = f"=G{insert_position}+J{insert_position}"
-            sheet.cells(insert_position, 13).value = koeficient
-            sheet.cells(insert_position, 14).value = nakup_materialu
-            sheet.cells(insert_position, 15).value = f"=N{insert_position}*E{insert_position}"
-            sheet.cells(insert_position, 16).value = f"=G{insert_position}-O{insert_position}"
-            sheet.cells(insert_position, 17).value = f"=P{insert_position}/G{insert_position}"
-
-            # Add a hyperlink to the cell in column 19 if provided.
+            src = sheet.range(f"{TEMPLATE_ROW+1}:{TEMPLATE_ROW+1}")
+            dst = sheet.range(f"{insert_position}:{insert_position}")
+            src.api.Copy(); dst.api.PasteSpecial(Paste=-4163)
+            rng_item = sheet.range(sheet.cells(insert_position,2), sheet.cells(insert_position,11))
+            rng_item.api.Font.Bold = False
+            sheet.cells(insert_position,2).value  = counter
+            sheet.cells(insert_position,3).value  = produkt
+            sheet.cells(insert_position,4).value  = jednotky
+            sheet.cells(insert_position,5).value  = int(pocet)
+            sheet.cells(insert_position,6).value  = f"=N{insert_position}*M{insert_position}"  # JC materiál
+            sheet.cells(insert_position,7).value  = f"=F{insert_position}*E{insert_position}"  # Spolu materiál
+            sheet.cells(insert_position,8).value  = f"=E{insert_position}"
+            sheet.cells(insert_position,9).value  = cena_prace
+            sheet.cells(insert_position,10).value = f"=I{insert_position}*H{insert_position}"  # Spolu práca
+            sheet.cells(insert_position,11).value = f"=G{insert_position}+J{insert_position}"  # Spolu celkom
+            draw_full_border(rng_item)
             if odkaz and dodavatel:
                 try:
-                    cell = sheet.cells(insert_position, 19)
-                    cell.value = dodavatel  # Set the displayed text
-                    # Use the API to add a hyperlink.
-                    cell.api.Hyperlinks.Add(Anchor=cell.api, Address=str(odkaz), TextToDisplay=str(dodavatel))
-                except Exception as link_error:
-                    print(f"⚠ Could not add hyperlink at row {insert_position}: {link_error}")
-
-            insert_position += 1
+                    link = sheet.cells(insert_position,19)
+                    link.value = dodavatel
+                    link.api.Hyperlinks.Add(Anchor=link.api, Address=str(odkaz), TextToDisplay=str(dodavatel))
+                except:
+                    pass
             counter += 1
-
-        # Add a separate sheet for notes if any notes are provided.
+            insert_position += 1
+        # Final SPOLU of last section
+        if prev_section is not None:
+            sheet.range(f"{insert_position}:{insert_position}").insert('down')
+            r = insert_position
+            lbl_rng = sheet.range(sheet.cells(r,2), sheet.cells(r,5))
+            lbl_rng.api.Merge()
+            lbl = sheet.cells(r,2)
+            lbl.value = f"{prev_section} SPOLU:"
+            lbl.api.Font.Bold = True
+            lbl.api.HorizontalAlignment = -4131
+            mat = sheet.cells(r,6)
+            mat.value = "Materiál:"
+            mat.api.Interior.Color = 0xD9E1F2
+            sheet.cells(r,7).value  = f"=SUM(G{section_start}:G{r-1})"
+            pr  = sheet.cells(r,9)
+            pr.value = "Práca:"
+            pr.api.Interior.Color = 0xD9E1F2
+            sheet.cells(r,10).value = f"=SUM(J{section_start}:J{r-1})"
+            sheet.cells(r,11).value = f"=ROUNDUP(SUM(K{section_start}:K{r-1}),0)"
+            sp_rng = sheet.range(sheet.cells(r,2), sheet.cells(r,11))
+            draw_full_border(sp_rng)
+        # Optional notes sheet
         if notes_text.strip():
-            try:
-                notes_sheet = wb.sheets.add(after=wb.sheets[-1])
-                notes_sheet.name = "Poznámky"
-                for i, line in enumerate(notes_text.splitlines(), start=1):
-                    notes_sheet.cells(i, 1).value = line
-            except Exception as e:
-                print("⚠ Failed to add notes sheet:", e)
-
-        # Save and clean up
+            notes = wb.sheets.add(after=wb.sheets[-1])
+            notes.name = "Poznámky"
+            for i, line in enumerate(notes_text.splitlines(), start=1):
+                notes.cells(i,1).value = line
+        # Save & cleanup
         wb.save()
         wb.close()
         app.quit()
-        print(f"✅ Successfully exported to: {new_file}")
-
+        # Notify user on success
+        messagebox.showinfo("Export hotový", f"✅ Súbor bol uložený: {new_file}")
+        return True
     except Exception as e:
-        print("❌ Failed during Excel export.")
-        print(f"🔍 Error: {e}")
+        messagebox.showerror("Export zlyhal", f"❌ Chyba: {e}")
+        return False
