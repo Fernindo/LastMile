@@ -46,18 +46,19 @@ def update_excel(selected_items, new_file, notes_text=""):
         # ← NEW: track last section to know when to insert a header
         prev_section = None
 
-        for item in selected_items:
+        for idx, item in enumerate(selected_items):
             # ← NEW: extract section name from item[0]
             section = item[0]
             if section != prev_section:
-                # 1) Insert an empty row
+                # — if we're finishing a section (i.e. not the very first), add one blank row
+                if prev_section is not None:
+                    sheet.range(f"{insert_position}:{insert_position}").insert('down')
+                    insert_position += 1
+
+                # — now insert the header row for the new section
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                # 2) Write the section name in column C (3)
-                header_cell = sheet.cells(insert_position, 3)
-                header_cell.value = section
-                # 3) Bold the entire row
+                sheet.cells(insert_position, 3).value = section
                 sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = True
-                # Advance past the header row
                 insert_position += 1
                 prev_section = section
 
@@ -110,6 +111,28 @@ def update_excel(selected_items, new_file, notes_text=""):
 
             counter += 1
             insert_position += 1
+
+            next_section = selected_items[idx+1][0] if idx+1 < len(selected_items) else None
+            if next_section != item[0]:
+                # 1) plain blank spacer
+                sheet.range(f"{insert_position}:{insert_position}").insert('down')
+                sheet.cells(insert_position, 6).value = "Material"
+                insert_position += 1
+
+                # 2) formatted info row (you can type into this)
+                sheet.range(f"{insert_position}:{insert_position}").insert('down')
+                # copy formatting from your template row
+                src = sheet.range(f"{TEMPLATE_ROW+1}:{TEMPLATE_ROW+1}")
+                dst = sheet.range(f"{insert_position}:{insert_position}")
+                src.api.Copy()
+                dst.api.PasteSpecial(Paste=-4122)  # xlPasteFormats
+                insert_position += 1
+            """
+            sheet.range(f"{insert_position}:{insert_position}").insert('down')
+            insert_position += 1
+            """
+            
+           
 
         # ─── Append notes sheet if requested ─────────────────────────────
         if notes_text:
