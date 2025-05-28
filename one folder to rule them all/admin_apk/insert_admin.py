@@ -46,13 +46,30 @@ def insert_product_form(parent):
         conn.close()
         return [f"{row[0]} - {row[1]}" for row in rows]
 
+    def remove_combobox(frame, combo):
+        if len(category_combos) > 1:
+            frame.destroy()
+            category_combos.remove(combo)
+        else:
+            messagebox.showwarning("Upozornenie", "Musí byť aspoň jedna kategória.")
+
     def add_category_combobox(event=None):
         all_classes = load_all_classes()
-        combo = ttk.Combobox(category_frame, width=35, state="readonly")
+
+        row_frame = tk.Frame(category_frame)
+        row_frame.pack(anchor="w", pady=2)
+
+        combo = ttk.Combobox(row_frame, width=35, state="readonly")
         combo["values"] = all_classes
-        combo.grid(row=len(category_combos), column=0, pady=2, sticky="w")
+        combo.pack(side="left")
         combo.bind("<<ComboboxSelected>>", add_category_combobox)
         category_combos.append(combo)
+
+        # Pridať X len ak už existuje aspoň jeden combobox
+        if len(category_combos) > 1:
+            remove_button = tk.Button(row_frame, text="X", fg="red", width=2,
+                                      command=lambda: remove_combobox(row_frame, combo))
+            remove_button.pack(side="left", padx=5)
 
     def save():
         try:
@@ -61,7 +78,6 @@ def insert_product_form(parent):
                 messagebox.showerror("Chyba", "Vyplň všetky polia produktu")
                 return
 
-            # Získaj vybrané kategórie
             class_ids = []
             for combo in category_combos:
                 value = combo.get()
@@ -74,7 +90,6 @@ def insert_product_form(parent):
                 messagebox.showerror("Chyba", "Vyber aspoň jednu kategóriu")
                 return
 
-            # INSERT produkt
             conn = get_connection()
             cur = conn.cursor()
             cur.execute("""
@@ -88,7 +103,6 @@ def insert_product_form(parent):
             """, data)
             produkt_id = cur.fetchone()[0]
 
-            # INSERT do produkt_class
             for class_id in class_ids:
                 cur.execute("INSERT INTO produkt_class (produkt_id, class_id) VALUES (%s, %s)", (produkt_id, class_id))
 
@@ -102,10 +116,8 @@ def insert_product_form(parent):
         except Exception as e:
             messagebox.showerror("Chyba", str(e))
 
-    # Prvé zobrazenie jedného comboboxu
     add_category_combobox()
 
-    # Tlačidlo uloženia
     tk.Button(window, text="Pridať produkt", command=save).grid(row=len(labels)+2, columnspan=2, pady=20)
 
     window.mainloop()
