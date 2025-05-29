@@ -211,7 +211,7 @@ def start(project_dir, json_path):
         if not row or basket_tree.parent(row) == "":
             return
         idx = int(col.replace("#","")) - 1
-        if idx < 4 or idx > 8:
+        if idx < 4 or idx > 9:
             return
         old = basket_tree.set(row, col)
         names = [
@@ -222,7 +222,7 @@ def start(project_dir, json_path):
         ]
 
         prompt = f"Nová hodnota pre '{names[idx]}'"
-        if idx in (6,8):
+        if idx in (6,9):
             new = simpledialog.askinteger("Upraviť bunku", prompt, initialvalue=int(old), parent=root)
         else:
             new = simpledialog.askfloat("Upraviť bunku", prompt, initialvalue=float(old), parent=root)
