@@ -18,7 +18,7 @@ DEFAULT_TEMPLATE = {"data": "Default session content."}
 
 # ─── Files to copy into each new project ──────────────────────────────────
 SCRIPT_FILES = [
-    
+
 ]
 
 # ─── Browse for a destination directory ────────────────────────────────────
@@ -47,19 +47,16 @@ def create_project():
         return
 
     try:
-        # 1) Create the project folders
         os.makedirs(project_dir)
         json_dir = os.path.join(project_dir, "projects")
         os.makedirs(json_dir)
 
-        # 2) Save the initial JSON (not encrypted)
         json_data = json.dumps(DEFAULT_TEMPLATE, ensure_ascii=False, indent=2)
         json_name = f"{name}.json"
         json_path = os.path.join(json_dir, json_name)
         with open(json_path, "w", encoding="utf-8") as f:
             f.write(json_data)
 
-        # 3) Copy all the helper .py files
         if getattr(sys, "frozen", False):
             base_dir = sys._MEIPASS
         else:
@@ -71,7 +68,6 @@ def create_project():
             if os.path.exists(src):
                 shutil.copy(src, dst)
 
-        # 4) Copy the launcher.exe (renaming to <project>.exe)
         prebuilt = os.path.join(base_dir, "launcher.exe")
         exe_name = name + (".exe" if os.name == "nt" else "")
         target = os.path.join(project_dir, exe_name)
@@ -81,7 +77,6 @@ def create_project():
             return
         shutil.copy(prebuilt, target)
 
-        # 5) Success!
         messagebox.showinfo("Success",
             f"Project '{name}' created at:\n\n{project_dir}\n\n"
             f"• JSON file: projects/{json_name}\n"
@@ -92,12 +87,31 @@ def create_project():
         messagebox.showerror("Error", str(e))
 
 
+# ─── Open existing project ────────────────────────────────────────────────
+def open_project():
+    file_path = filedialog.askopenfilename(
+        title="Open Project File",
+        filetypes=[("JSON Files", "*.json")],
+        initialdir=os.path.expanduser("~")
+    )
+    if file_path and file_path.endswith(".json"):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            messagebox.showinfo("Project Opened",
+                f"Loaded project:\n{os.path.basename(file_path)}\n\nContent:\n{json.dumps(data, indent=2, ensure_ascii=False)}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open project file:\n{str(e)}")
+    else:
+        messagebox.showwarning("Warning", "No project file selected.")
+
+
 # ─── GUI Layout ─────────────────────────────────────────────────────────────
 style = Style(theme="litera")
 root  = style.master
-root.title("Create New Project")
+root.title("Create or Open Project")
 root.resizable(False, False)
-root.geometry("520x200")
+root.geometry("520x250")
 
 frm = tb.Frame(root, padding=20)
 frm.pack(fill="both", expand=True)
@@ -121,6 +135,11 @@ tb.Entry(frm, textvariable=name_var, width=35)\
 # create button
 tb.Button(frm, text="Create Project", bootstyle="success", width=20,
           command=create_project)\
-  .grid(row=2, column=0, columnspan=3, pady=15)
+  .grid(row=2, column=0, columnspan=3, pady=10)
+
+# open button
+tb.Button(frm, text="Open Project", bootstyle="info", width=20,
+          command=open_project)\
+  .grid(row=3, column=0, columnspan=3, pady=5)
 
 root.mainloop()
