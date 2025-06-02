@@ -1,0 +1,114 @@
+import tkinter as tk
+from tkinter import messagebox
+from ttkbootstrap import Button
+
+def show_praca_window(cursor):
+    cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly")
+    roles = cursor.fetchall()
+
+    if not roles:
+        messagebox.showwarning("Upozornenie", "Žiadne roly v databáze.")
+        return
+
+    praca_window = tk.Toplevel()
+    praca_window.title("Odhad pracovnej činnosti")
+    praca_window.geometry("900x500")
+
+    entries = []
+
+    def recalculate():
+        for row in entries:
+            try:
+                osoby = int(row["osoby_var"].get())
+                hodiny = int(row["hodiny_var"].get())
+                plat = float(row["plat"].cget("text"))
+                koef = float(row["koef_var"].get())
+                spolu = osoby * hodiny * plat
+                predaj = spolu * koef
+                row["spolu"].config(text=f"{spolu:.2f}")
+                row["predaj"].config(text=f"{predaj:.2f}")
+            except:
+                continue
+
+    def add_row(role_id=None, rola="", plat=0.0):
+        row = {}
+        idx = len(entries)
+        row["frame"] = tk.Frame(table_frame)
+        row["frame"].grid(row=idx + 1, column=0, columnspan=13, sticky="nsew", pady=2)
+
+        tk.Label(row["frame"], text=rola, width=15).grid(row=0, column=0)
+
+        row["osoby_var"] = tk.StringVar(value="1")
+        tk.Button(row["frame"], text="-", width=2, command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=0, column=1)
+        tk.Entry(row["frame"], textvariable=row["osoby_var"], width=5, justify="center").grid(row=0, column=2)
+        tk.Button(row["frame"], text="+", width=2, command=lambda: change_int(row["osoby_var"], 1)).grid(row=0, column=3)
+
+        row["hodiny_var"] = tk.StringVar(value="8")
+        tk.Button(row["frame"], text="-", width=2, command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=0, column=4)
+        tk.Entry(row["frame"], textvariable=row["hodiny_var"], width=5, justify="center").grid(row=0, column=5)
+        tk.Button(row["frame"], text="+", width=2, command=lambda: change_int(row["hodiny_var"], 2)).grid(row=0, column=6)
+
+        row["plat"] = tk.Label(row["frame"], text=f"{plat:.2f}", width=8)
+        row["plat"].grid(row=0, column=7)
+
+        row["spolu"] = tk.Label(row["frame"], text="0.00", width=8)
+        row["spolu"].grid(row=0, column=8)
+
+        row["koef_var"] = tk.StringVar(value="1.0")
+        tk.Button(row["frame"], text="-", width=2, command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=0, column=9)
+        tk.Entry(row["frame"], textvariable=row["koef_var"], width=5, justify="center").grid(row=0, column=10)
+        tk.Button(row["frame"], text="+", width=2, command=lambda: change_float(row["koef_var"], 0.1)).grid(row=0, column=11)
+
+        row["predaj"] = tk.Label(row["frame"], text="0.00", width=8)
+        row["predaj"].grid(row=0, column=12)
+
+        entries.append(row)
+        recalculate()
+
+        row["osoby_var"].trace_add("write", lambda *args: recalculate())
+        row["hodiny_var"].trace_add("write", lambda *args: recalculate())
+        row["koef_var"].trace_add("write", lambda *args: recalculate())
+
+    def change_int(var, delta, minimum=1):
+        try:
+            val = int(var.get()) + delta
+            if val < minimum:
+                val = minimum
+            var.set(str(val))
+        except:
+            var.set(str(minimum))
+
+    def change_float(var, delta, minimum=0.1):
+        try:
+            val = float(var.get()) + delta
+            if val < minimum:
+                val = minimum
+            var.set(f"{val:.1f}")
+        except:
+            var.set(f"{minimum:.1f}")
+
+    def remove_row():
+        if len(entries) <= 1:
+            messagebox.showwarning("Upozornenie", "Musí zostať aspoň jedna rola.")
+            return
+        row = entries.pop()
+        row["frame"].destroy()
+        recalculate()
+
+    top_frame = tk.Frame(praca_window)
+    top_frame.pack(fill="x", padx=10, pady=10)
+    Button(top_frame, text="➕ Pridať", bootstyle="success", command=lambda: add_row(rola="Nová rola", plat=0)).pack(side="left", padx=5)
+    Button(top_frame, text="❌ Odstrániť", bootstyle="danger", command=remove_row).pack(side="left", padx=5)
+
+    table_frame = tk.Frame(praca_window)
+    table_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+    headers = ["Rola", "", "Osoby", "", "", "Hodiny", "", "Plat €/h", "Spolu", "", "Koef.", "", "Predaj"]
+    for i, col in enumerate(headers):
+        tk.Label(table_frame, text=col, font=("Segoe UI", 10, "bold")).grid(row=0, column=i, padx=3, pady=3)
+
+    for role in roles:
+        _, rola, plat = role
+        add_row(role_id=role[0], rola=rola, plat=plat)
+
+    praca_window.grab_set()
