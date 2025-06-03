@@ -3,8 +3,8 @@ from tkinter import ttk
 
 def create_filter_panel(parent, on_mousewheel_callback,
                         width_fraction=0.2,
-                        min_width=150,
-                        max_width=350):
+                        min_width=250,
+                        max_width=450):
     """
     Creates a horizontally scrollable filter panel that automatically
     resizes based on the parent window's width.

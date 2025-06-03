@@ -1,3 +1,5 @@
+# gui_functions.py
+
 import socket
 import json
 import os
@@ -5,13 +7,24 @@ import sqlite3
 import psycopg2
 import decimal
 import tkinter as tk
-from tkinter import messagebox, filedialog
-from excel_processing import update_excel
-from collections import OrderedDict
+from tkinter import messagebox, filedialog, simpledialog
 import unicodedata
 from datetime import datetime
 import glob
-from tkinter import filedialog, messagebox
+from collections import OrderedDict
+import copy
+import subprocess
+import sys
+
+# Third-party imports that own specialized logic (no UI geometry happens here)
+import ttkbootstrap as tb
+from ttkbootstrap import Style
+
+from excel_processing import update_excel
+from filter_panel import create_filter_panel
+from notes_panel import create_notes_panel
+
+# ─── Network / Database Helpers ─────────────────────────────────────────────
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
     """Check if we are online by trying to connect to Google DNS."""
@@ -25,6 +38,7 @@ def is_online(host="8.8.8.8", port=53, timeout=3):
 def get_database_connection():
     """
     Try connecting to PostgreSQL; if that fails, fall back to SQLite.
+    Returns (conn, db_type), where db_type is 'postgres' or 'sqlite'.
     """
     if is_online():
         try:
@@ -40,15 +54,17 @@ def get_database_connection():
             return conn, 'postgres'
         except Exception as e:
             print("PostgreSQL connection failed:", e)
-    # fallback
+    # fallback to local SQLite
     conn = sqlite3.connect("local_backup.db")
     print("🕠 Using local SQLite database (offline mode)")
     return conn, 'sqlite'
+
 sqlite3.register_adapter(decimal.Decimal, float)
+
 def sync_postgres_to_sqlite(pg_conn):
     """
     Pull produkty, class, and produkt_class from Postgres into local_backup.db.
-    Ensures one product row per ID, and a separate junction table for class links.
+    Ensures local SQLite mirror for offline use.
     """
     sqlite_conn   = sqlite3.connect("local_backup.db")
     sqlite_cursor = sqlite_conn.cursor()
@@ -69,8 +85,6 @@ def sync_postgres_to_sqlite(pg_conn):
             cena_prace REAL
         )
     """)
-
-    # Fetch distinct products
     pg_cursor.execute("""
         SELECT
           id, produkt, jednotky, dodavatel, odkaz,
@@ -115,7 +129,6 @@ def sync_postgres_to_sqlite(pg_conn):
             class_id   INTEGER
         )
     """)
-    # Pull the Postgres junction
     pg_cursor.execute("SELECT produkt_id, class_id FROM produkt_class")
     pc_rows = pg_cursor.fetchall()
     sqlite_cursor.executemany(
@@ -123,25 +136,20 @@ def sync_postgres_to_sqlite(pg_conn):
         pc_rows
     )
 
-    # finalize
     sqlite_conn.commit()
     sqlite_conn.close()
     print("✔ Synced PostgreSQL → SQLite (produkty, class, produkt_class)")
 
-
-
+# ─── Basket Persistence / I/O ────────────────────────────────────────────────
 
 def save_basket(project_path, project_name, basket_items, user_name=""):
     """
     Ask the user for a filename and save the basket JSON there.
+    Returns True on success, False if canceled or error.
     """
-    # ensure folder exists
     os.makedirs(project_path, exist_ok=True)
-
-    # build a sane default name
     default_name = f"basket_{datetime.now():%Y-%m-%d_%H-%M-%S}.json"
 
-    # show Save As dialog
     file_path = filedialog.asksaveasfilename(
         title="Uložiť košík ako…",
         initialdir=project_path,
@@ -150,10 +158,8 @@ def save_basket(project_path, project_name, basket_items, user_name=""):
         filetypes=[("JSON súbory", "*.json")],
     )
     if not file_path:
-        # user cancelled
-        return False
+        return False  # user canceled dialog
 
-    # assemble the payload
     out = {
         "user_name": user_name,
         "items": []
@@ -166,7 +172,7 @@ def save_basket(project_path, project_name, basket_items, user_name=""):
                 "jednotky":        info.get("jednotky", ""),
                 "dodavatel":       info.get("dodavatel", ""),
                 "odkaz":           info.get("odkaz", ""),
-                "koeficient":      info.get("koeficient", 0),
+                "koeficient":      info.get("koeficient_material", 0),
                 "nakup_materialu": info.get("nakup_materialu", 0),
                 "cena_prace":      info.get("cena_prace", 0),
                 "pocet_prace":     info.get("pocet_prace", 1),
@@ -174,7 +180,6 @@ def save_basket(project_path, project_name, basket_items, user_name=""):
             })
         out["items"].append(sec_obj)
 
-    # write it out
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(out, f, ensure_ascii=False, indent=2)
@@ -185,8 +190,7 @@ def save_basket(project_path, project_name, basket_items, user_name=""):
 
 def load_basket(project_path, project_name, file_path=None):
     """
-    Load the most recent basket JSON (or a specified path).
-    Returns (OrderedDict of items, saved_user_name).
+    Load the most recent basket JSON (or a specified file). Returns (OrderedDict, saved_user_name).
     """
     if file_path and os.path.isfile(file_path):
         path = file_path
@@ -220,23 +224,24 @@ def load_basket(project_path, project_name, file_path=None):
                 "pocet_prace":         int(p.get("pocet_prace", 1)),
                 "pocet_materialu":     int(p.get("pocet_materialu", 1)),
             }
-
         basket_items[section] = prods
 
     return basket_items, data.get("user_name","")
 
 def show_error(msg):
+    """Utility to pop up an error and return an empty list so callers can bail."""
     messagebox.showerror("Chyba", msg)
     return []
+
+# ─── Filtering / Tree Population ────────────────────────────────────────────
 
 def remove_accents(s):
     return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     """
-    Load products from 'produkty', filter by class_ids and search text.
-    Populate `tree` with grouped rows, supporting many-to-many classes
-    and both material & labor coefficients.
+    Load products from 'produkty', filter by selected class_ids and search text.
+    Populate `tree` (a ttk.Treeview) with grouped rows.
     """
     sel_ids = [cid for cid, var in table_vars.items() if var.get()]
     name_f = remove_accents(name_entry.get().strip().lower())
@@ -290,10 +295,7 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         header = cnames.get(cid, "Uncategorized")
         tree.insert("", "end", values=("", f"-- {header} --"), tags=("header",))
         for row in grouped[cid]:
-            # row now has 8 elements:
-            # (produkt, jednotky, dodavatel, odkaz,
-            #  koeficient_material, nakup_materialu,
-            #  cena_prace, koeficient_prace)
+            # row has 8 columns: (produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, koef_prace)
             tree.insert("", "end", values=row + (header,))
     tree.tag_configure(
         "header",
@@ -302,47 +304,84 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         foreground="#006064"
     )
 
+# ─── Basket Table Updaters ─────────────────────────────────────────────────
 
+def remove_from_basket(basket_tree, basket_items, update_basket_table):
+    """
+    Remove the selected rows (or entire sections) from the basket Treeview
+    and from the underlying basket_items dict, then refresh the table.
+    """
+    for iid in basket_tree.selection():
+        # If the selected item has no parent, it’s a “section header” → remove the whole section
+        parent = basket_tree.parent(iid)
+        if parent == "":
+            section_name = basket_tree.item(iid, "text")
+            basket_items.pop(section_name, None)
+        else:
+            # Otherwise, it’s a product row → remove just that product
+            prod_name = basket_tree.item(iid, "values")[0]
+            section_name = basket_tree.item(parent, "text")
+            if section_name in basket_items:
+                basket_items[section_name].pop(prod_name, None)
 
+    # After modifying basket_items, redraw the Treeview:
+    update_basket_table(basket_tree, basket_items)
 
 def update_basket_table(basket_tree, basket_items):
+    """
+    Clear and repopulate the basket Treeview from basket_items.
+    Compute derived fields on the fly.
+    """
     basket_tree.delete(*basket_tree.get_children())
-    for section, prods in basket_items.items():
+    for section, products in basket_items.items():
         sec_id = basket_tree.insert("", "end", text=section, open=True)
-        for pname, info in prods.items():
+        for produkt, d in products.items():
+            # Compute derived columns
+            koef_mat = float(d.get("koeficient_material", 0))
+            nakup_mat = float(d.get("nakup_materialu", 0))
+            predaj_mat = nakup_mat * koef_mat
+
+            koef_pr = float(d.get("koeficient_prace", 1))
+            cena_pr = float(d.get("cena_prace", 0))
+            predaj_pr = cena_pr * koef_pr
+
             basket_tree.insert(
                 sec_id, "end", text="",
                 values=(
-                    pname,
-                    info.get("jednotky", ""),
-                    info.get("dodavatel", ""),
-                    info.get("odkaz", ""),
-                    # material → labor → rest
-                    float(info.get("koeficient_material", 0)),
-                    float(info.get("koeficient_prace",    1)),
-                    float(info.get("nakup_materialu",     0)),
-                    float(info.get("cena_prace",          0)),
-                    int(  info.get("pocet_materialu",     1)),
-                    int(  info.get("pocet_prace",         1))
+                    produkt,
+                    d.get("jednotky", ""),
+                    d.get("dodavatel", ""),
+                    d.get("odkaz", ""),
+                    koef_mat,
+                    nakup_mat,
+                    predaj_mat,
+                    koef_pr,
+                    cena_pr,
+                    predaj_pr,
+                    int(d.get("pocet_materialu", 1)),
+                    int(d.get("pocet_prace", 1))
                 )
             )
 
-
-def add_to_basket(item, basket_items, update_basket_table, basket_tree):
-    # item = (produkt, jednotky, dodavatel, odkaz,
-    #         koeficient_material, nakup_materialu,
-    #         cena_prace, koeficient_prace, section)
+def add_to_basket_full(item, basket_items, original_basket,
+                       conn, cursor, db_type,
+                       basket_tree, mark_modified):
+    """
+    Add a product row (8 columns + optional section) into `basket_items`.
+    Also update co-occurrence and recommendations in the database.
+    Then refresh the basket_tree and mark the basket as “modified”.
+    """
     produkt, jednotky, dodavatel, odkaz, \
     koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
-    section = item[8] if len(item) > 8 else "Uncategorized"
+    section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
 
     data = {
         "jednotky":            jednotky,
         "dodavatel":           dodavatel,
         "odkaz":               odkaz,
         "koeficient_material": float(koef_mat),
-        "koeficient_prace":    float(koef_prace),
         "nakup_materialu":     float(nakup_mat),
+        "koeficient_prace":    float(koef_prace),
         "cena_prace":          float(cena_prace),
         "pocet_materialu":     1,
         "pocet_prace":         1
@@ -354,56 +393,295 @@ def add_to_basket(item, basket_items, update_basket_table, basket_tree):
         basket_items[section][produkt]["pocet_prace"]    += 1
     else:
         basket_items[section][produkt] = data
+        original_basket.setdefault(section, OrderedDict())[produkt] = copy.deepcopy(data)
 
     update_basket_table(basket_tree, basket_items)
+    mark_modified()
 
-
-def edit_pocet_cell(event, basket_tree, basket_items, update_basket_table):
-    region = basket_tree.identify("region", event.x, event.y)
-    if region != "cell":
-        return
-    sel = basket_tree.focus()
-    if not sel or basket_tree.get_children(sel):
-        return
-    vals = basket_tree.item(sel)["values"]
-    col = basket_tree.identify_column(event.x)
-    idx = int(col.replace("#","")) - 1
-    if idx not in [4,5,6,7]:
-        return
-    x,y,w,h = basket_tree.bbox(sel, col)
-    entry = tk.Entry(basket_tree)
-    entry.place(x=x, y=y, width=w, height=h)
-    entry.insert(0, vals[idx])
-    entry.focus()
-
-    def save(e=None):
-        try:
-            newv = float(entry.get()) if idx!=7 else int(entry.get())
-        except:
-            entry.destroy()
-            return
-        section = basket_tree.parent(sel)
-        prod    = vals[0]
-        keymap = {4:"koeficient",5:"nakup_materialu",6:"cena_prace",7:"pocet_prace"}
-        basket_items[section][prod][keymap[idx]] = newv
-        update_basket_table(basket_tree, basket_items)
-        entry.destroy()
-
-    entry.bind("<Return>", save)
-    entry.bind("<FocusOut>", save)
-
-def remove_from_basket(basket_tree, basket_items, update_basket_table):
-    for iid in basket_tree.selection():
-        parent = basket_tree.parent(iid)
-        if not parent:
-            basket_items.pop(basket_tree.item(iid)["text"], None)
+    # ─── Retrieve this product’s ID from the `produkty` table ─────────
+    try:
+        if db_type == "postgres":
+            cursor.execute(
+                "SELECT id FROM produkty WHERE produkt = %s",
+                (produkt,)
+            )
         else:
-            prod = basket_tree.item(iid)["values"][0]
-            section = basket_tree.item(parent)["text"]
-            basket_items[section].pop(prod, None)
-    update_basket_table(basket_tree, basket_items)
+            cursor.execute(
+                "SELECT id FROM produkty WHERE produkt = ?",
+                (produkt,)
+            )
+        base_id_row = cursor.fetchone()
+    except Exception:
+        base_id_row = None
+
+    if not base_id_row:
+        return  # product not found → skip co-occurrence
+
+    base_id = base_id_row[0]
+
+    # ─── Co-occurrence updates ───────────────────────────────────────
+    other_product_names = [
+        p_name
+        for sec_name, prod_dict in basket_items.items()
+        for p_name in prod_dict.keys()
+        if p_name != produkt
+    ]
+    other_product_names = list(set(other_product_names))
+
+    for other_name in other_product_names:
+        try:
+            if db_type == "postgres":
+                cursor.execute(
+                    "SELECT id FROM produkty WHERE produkt = %s",
+                    (other_name,)
+                )
+            else:
+                cursor.execute(
+                    "SELECT id FROM produkty WHERE produkt = ?",
+                    (other_name,)
+                )
+            other_id_row = cursor.fetchone()
+        except Exception:
+            other_id_row = None
+
+        if not other_id_row:
+            continue
+        other_id = other_id_row[0]
+
+        # Upsert (base_id, other_id)
+        if db_type == "postgres":
+            cursor.execute(
+                """
+                INSERT INTO co_occurrence (base_product_id, co_product_id, count)
+                VALUES (%s, %s, 1)
+                ON CONFLICT (base_product_id, co_product_id)
+                DO UPDATE SET count = co_occurrence.count + 1
+                """,
+                (base_id, other_id)
+            )
+            cursor.execute(
+                """
+                INSERT INTO co_occurrence (base_product_id, co_product_id, count)
+                VALUES (%s, %s, 1)
+                ON CONFLICT (base_product_id, co_product_id)
+                DO UPDATE SET count = co_occurrence.count + 1
+                """,
+                (other_id, base_id)
+            )
+        else:
+            cursor.execute(
+                """
+                INSERT INTO co_occurrence (base_product_id, co_product_id, count)
+                VALUES (?, ?, 1)
+                ON CONFLICT(base_product_id, co_product_id)
+                DO UPDATE SET count = count + 1
+                """,
+                (base_id, other_id)
+            )
+            cursor.execute(
+                """
+                INSERT INTO co_occurrence (base_product_id, co_product_id, count)
+                VALUES (?, ?, 1)
+                ON CONFLICT(base_product_id, co_product_id)
+                DO UPDATE SET count = count + 1
+                """,
+                (other_id, base_id)
+            )
+
+    try:
+        conn.commit()
+    except Exception:
+        pass
+
+    # ─── Rebuild recommendations for this base_id ───────────────────────
+    try:
+        if db_type == "postgres":
+            cursor.execute(
+                "DELETE FROM recommendations WHERE base_product_id = %s",
+                (base_id,)
+            )
+        else:
+            cursor.execute(
+                "DELETE FROM recommendations WHERE base_product_id = ?",
+                (base_id,)
+            )
+    except Exception:
+        pass
+
+    K = 3
+    try:
+        if db_type == "postgres":
+            cursor.execute(
+                """
+                SELECT co_product_id, count
+                FROM co_occurrence
+                WHERE base_product_id = %s
+                ORDER BY count DESC
+                LIMIT %s
+                """,
+                (base_id, K)
+            )
+        else:
+            cursor.execute(
+                f"""
+                SELECT co_product_id, count
+                FROM co_occurrence
+                WHERE base_product_id = ?
+                ORDER BY count DESC
+                LIMIT {K}
+                """,
+                (base_id,)
+            )
+        top_co = cursor.fetchall()
+    except Exception:
+        top_co = []
+
+    for rec_id, cnt in top_co:
+        try:
+            if db_type == "postgres":
+                cursor.execute(
+                    """
+                    INSERT INTO recommendations (
+                        base_product_id,
+                        recommended_product_id,
+                        priority
+                    ) VALUES (%s, %s, %s)
+                    """,
+                    (base_id, rec_id, cnt)
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO recommendations (
+                        base_product_id,
+                        recommended_product_id,
+                        priority
+                    ) VALUES (?, ?, ?)
+                    """,
+                    (base_id, rec_id, cnt)
+                )
+        except Exception:
+            pass
+    try:
+        conn.commit()
+    except Exception:
+        pass
+
+    # ─── Prompt the user for each recommended item ─────────────────────
+    for rec_id, cnt in top_co:
+        try:
+            if db_type == "postgres":
+                cursor.execute(
+                    "SELECT produkt FROM produkty WHERE id = %s",
+                    (rec_id,)
+                )
+            else:
+                cursor.execute(
+                    "SELECT produkt FROM produkty WHERE id = ?",
+                    (rec_id,)
+                )
+            rec_name_row = cursor.fetchone()
+        except Exception:
+            rec_name_row = None
+
+        if not rec_name_row:
+            continue
+
+        suggested_name = rec_name_row[0]
+        ans = messagebox.askyesno(
+            "Doplnkové položky",
+            f"Chceli by ste k '{produkt}' pridať aj '{suggested_name}'?"
+        )
+        if not ans:
+            continue
+
+        try:
+            if db_type == "postgres":
+                cursor.execute(
+                    """
+                    SELECT produkt,
+                        jednotky,
+                        dodavatel,
+                        odkaz,
+                        koeficient_material,
+                        nakup_materialu,
+                        cena_prace,
+                        koeficient_prace,
+                        NULL
+                    FROM produkty
+                    WHERE id = %s
+                    """,
+                    (rec_id,)
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT produkt,
+                        jednotky,
+                        dodavatel,
+                        odkaz,
+                        koeficient_material,
+                        nakup_materialu,
+                        cena_prace,
+                        koeficient_prace,
+                        NULL
+                    FROM produkty
+                    WHERE id = ?
+                    """,
+                    (rec_id,)
+                )
+            rec_item = cursor.fetchone()
+        except Exception:
+            rec_item = None
+
+        if rec_item:
+            # Recursively call add_to_basket_full for the suggested product
+            add_to_basket_full(
+                rec_item,
+                basket_items,
+                original_basket,
+                conn, cursor, db_type,
+                basket_tree,
+                mark_modified
+            )
+        else:
+            messagebox.showwarning(
+                "Chyba",
+                f"Produkt s ID={rec_id} nebol nájdený."
+            )
+
+def reorder_basket_data(basket_tree, basket_items):
+    """
+    After edits in the Treeview, pull everything back into basket_items.
+    Only user-editable fields are saved; derived fields are recalculated later.
+    """
+    new_basket = OrderedDict()
+    for sec in basket_tree.get_children(""):
+        sec_name = basket_tree.item(sec, "text")
+        prods = OrderedDict()
+        for child in basket_tree.get_children(sec):
+            vals = basket_tree.item(child, "values")
+            # Indices correspond to basket_columns in gui.py
+            prods[vals[0]] = {
+                "jednotky":            vals[1],
+                "dodavatel":           vals[2],
+                "odkaz":               vals[3],
+                "koeficient_material": float(vals[4]),
+                "nakup_materialu":     float(vals[5]),
+                "koeficient_prace":    float(vals[7]),
+                "cena_prace":          float(vals[8]),
+                "pocet_materialu":     int(vals[10]),
+                "pocet_prace":         int(vals[11])
+            }
+        new_basket[sec_name] = prods
+
+    basket_items.clear()
+    basket_items.update(new_basket)
 
 def update_excel_from_basket(basket_items, project_name):
+    """
+    Build an Excel file (on Desktop) summarizing all basket rows.
+    """
     if not basket_items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
@@ -420,7 +698,6 @@ def update_excel_from_basket(basket_items, project_name):
                 v["jednotky"],
                 v["dodavatel"],
                 v["odkaz"],
-                # material, labor, then rest
                 v.get("koeficient_material", 0),
                 v.get("koeficient_prace",    1),
                 v.get("nakup_materialu",     0),
@@ -435,3 +712,255 @@ def update_excel_from_basket(basket_items, project_name):
             "Export hotový",
             f"✅ Súbor bol úspešne uložený na plochu ako:\n{out_file}"
         )
+
+def recompute_total_spolu(basket_items, total_spolu_var):
+    """
+    Walk through basket_items and sum (predaj_material + predaj_praca) for each product.
+    Update total_spolu_var accordingly.
+    """
+    total = 0.0
+    for section, products in basket_items.items():
+        for pname, info in products.items():
+            koef_mat = float(info.get("koeficient_material", 0))
+            nakup_mat = float(info.get("nakup_materialu", 0))
+            predaj_mat = nakup_mat * koef_mat
+
+            koef_pr = float(info.get("koeficient_prace", 1))
+            cena_pr = float(info.get("cena_prace", 0))
+            predaj_pr = cena_pr * koef_pr
+
+            total += (predaj_mat + predaj_pr)
+    total_spolu_var.set(f"Spolu: {total:.2f}")
+
+def apply_global_coefficient(basket_items, basket_tree, base_coeffs, total_spolu_var, mark_modified):
+    """
+    Prompt for a new coefficient value, then override every item's
+    koeficient_material and koeficient_prace to exactly that value.
+    Store originals in base_coeffs on first use to allow revert.
+    """
+    if not basket_items:
+        messagebox.showinfo("Info", "Košík je prázdny.")
+        return
+
+    factor = simpledialog.askfloat(
+        "Nastaviť koeficient",
+        "Zadaj novú hodnotu koeficientu (napr. 1.25):",
+        minvalue=0.0
+    )
+    if factor is None:
+        return  # user cancelled
+
+    if not base_coeffs:
+        for section, products in basket_items.items():
+            for pname, info in products.items():
+                base_coeffs[(section, pname)] = (
+                    float(info.get("koeficient_material", 1.0)),
+                    float(info.get("koeficient_prace", 1.0))
+                )
+
+    for section, products in basket_items.items():
+        for pname, info in products.items():
+            info["koeficient_material"] = factor
+            info["koeficient_prace"]    = factor
+
+    update_basket_table(basket_tree, basket_items)
+    recompute_total_spolu(basket_items, total_spolu_var)
+    mark_modified()
+
+def revert_coefficient(basket_items, basket_tree, base_coeffs, total_spolu_var, mark_modified):
+    """
+    Revert all coefficients to their originals from base_coeffs, then clear base_coeffs.
+    """
+    if not base_coeffs:
+        messagebox.showinfo("Info", "Žiadne pôvodné koeficienty nie sú uložené.")
+        return
+
+    for (section, pname), (orig_mat, orig_pr) in base_coeffs.items():
+        if section in basket_items and pname in basket_items[section]:
+            basket_items[section][pname]["koeficient_material"] = orig_mat
+            basket_items[section][pname]["koeficient_prace"]    = orig_pr
+
+    base_coeffs.clear()
+    update_basket_table(basket_tree, basket_items)
+    recompute_total_spolu(basket_items, total_spolu_var)
+    mark_modified()
+
+def reset_item(iid, basket_tree, basket_items, original_basket, total_spolu_var, mark_modified):
+    """
+    Reset a single item’s numeric fields back to their original values.
+    """
+    sec = basket_tree.parent(iid)
+    if not sec:
+        return
+    prod = basket_tree.item(iid)["values"][0]
+    orig = original_basket.get(basket_tree.item(sec,'text'), {}).get(prod)
+    if not orig:
+        messagebox.showinfo("Chýba originál", "Pôvodné hodnoty nie sú k dispozícii.")
+        return
+    for k in ("koeficient_material", "nakup_materialu", "koeficient_prace", "cena_prace", "pocet_materialu", "pocet_prace"):
+        basket_items[basket_tree.item(sec,'text')][prod][k] = copy.deepcopy(orig[k])
+
+    update_basket_table(basket_tree, basket_items)
+    recompute_total_spolu(basket_items, total_spolu_var)
+    mark_modified()
+
+def add_custom_item(basket_tree, basket_items, original_basket,
+                    total_spolu_var, mark_modified):
+    """
+    Open a popup window to fill in a new item’s details, then add it into the basket.
+    """
+    sel = basket_tree.focus()
+    if not sel:
+        section = "Uncategorized"
+    else:
+        parent = basket_tree.parent(sel)
+        if parent == "":
+            section = basket_tree.item(sel, "text")
+        else:
+            section = basket_tree.item(parent, "text")
+
+    if section not in basket_items:
+        basket_items[section] = OrderedDict()
+
+    popup = tk.Toplevel()
+    popup.title("Nová položka")
+    popup.transient()
+    popup.grab_set()
+
+    labels = [
+        "Produkt",
+        "Jednotky",
+        "Dodavatel",
+        "Odkaz",
+        "Koeficient materiál",
+        "Nákup mater.",
+        "Koeficient práca",
+        "Cena práca",
+        "Pocet materiálu",
+        "Pocet práce"
+    ]
+    entries = {}
+    for i, lbl in enumerate(labels):
+        tk.Label(popup, text=lbl).grid(row=i, column=0, sticky="e", padx=5, pady=2)
+        ent = tk.Entry(popup, width=30)
+        ent.grid(row=i, column=1, sticky="w", padx=5, pady=2)
+        entries[lbl] = ent
+
+    entries["Koeficient materiál"].insert(0, "1.0")
+    entries["Nákup mater."].insert(0, "0.0")
+    entries["Koeficient práca"].insert(0, "1.0")
+    entries["Cena práca"].insert(0, "0.0")
+    entries["Pocet materiálu"].insert(0, "1")
+    entries["Pocet práce"].insert(0, "1")
+
+    def on_ok():
+        prod_name = entries["Produkt"].get().strip()
+        if not prod_name:
+            messagebox.showerror("Chyba", "Produkt nemôže byť prázdny.", parent=popup)
+            return
+        try:
+            jednotky = entries["Jednotky"].get().strip()
+            dodavatel = entries["Dodavatel"].get().strip()
+            odkaz = entries["Odkaz"].get().strip()
+            koef_mat = float(entries["Koeficient materiál"].get())
+            nakup_mat = float(entries["Nákup mater."].get())
+            koef_pr = float(entries["Koeficient práca"].get())
+            cena_pr = float(entries["Cena práca"].get())
+            poc_mat = int(entries["Pocet materiálu"].get())
+            poc_pr = int(entries["Pocet práce"].get())
+        except ValueError:
+            messagebox.showerror("Chyba", "Skontroluj číselné hodnoty.", parent=popup)
+            return
+
+        name = prod_name
+        counter = 1
+        while name in basket_items[section]:
+            counter += 1
+            name = f"{prod_name} ({counter})"
+
+        data = {
+            "jednotky":            jednotky,
+            "dodavatel":           dodavatel,
+            "odkaz":               odkaz,
+            "koeficient_material": koef_mat,
+            "nakup_materialu":     nakup_mat,
+            "koeficient_prace":    koef_pr,
+            "cena_prace":          cena_pr,
+            "pocet_materialu":     poc_mat,
+            "pocet_prace":         poc_pr
+        }
+        basket_items[section][name] = data
+        original_basket.setdefault(section, OrderedDict())[name] = copy.deepcopy(data)
+
+        update_basket_table(basket_tree, basket_items)
+        recompute_total_spolu(basket_items, total_spolu_var)
+        mark_modified()
+        popup.destroy()
+
+    def on_cancel():
+        popup.destroy()
+
+    btn_frame = tk.Frame(popup)
+    btn_frame.grid(row=len(labels), column=0, columnspan=2, pady=10)
+    tk.Button(btn_frame, text="OK", width=10, command=on_ok).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="Zrušiť", width=10, command=on_cancel).pack(side="left", padx=5)
+
+    popup.wait_window()
+
+def show_notes_popup(project_name, json_dir):
+    """
+    Create (and place) a notes popup. Loading/saving from notes_<project>.txt.
+    """
+    notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
+    notes_window = tk.Toplevel()
+    notes_window.title("Poznámky")
+    notes_window.geometry("400x300")
+    notes_text = tk.Text(notes_window, wrap="word")
+    notes_text.pack(fill="both", expand=True)
+
+    if os.path.exists(notes_path):
+        try:
+            with open(notes_path, "r", encoding="utf-8") as f:
+                notes_text.insert("1.0", f.read())
+        except Exception as e:
+            messagebox.showerror("Chyba pri načítaní", f"Nepodarilo sa načítať poznámky:{e}")
+
+    def save_notes():
+        try:
+            with open(notes_path, "w", encoding="utf-8") as f:
+                f.write(notes_text.get("1.0", "end-1c"))
+        except Exception as e:
+            messagebox.showerror("Chyba pri ukladaní", f"Nepodarilo sa uložiť poznámky:{e}")
+        notes_window.destroy()
+
+    notes_window.protocol("WM_DELETE_WINDOW", save_notes)
+    notes_window.transient()
+    notes_window.grab_set()
+    notes_window.wait_window()
+
+def return_home(
+    project_dir,
+    basket_modified,
+    basket_items,
+    json_dir,
+    project_name,
+    conn,
+    root,
+    basket_tree,            # ← new parameter
+    reorder_basket_data_fn  # ← optionally, also pass the function itself
+):
+    """
+    Called when “Home” button is pressed.
+    If basket_modified is True, save basket; then close DB and launch launcher.exe.
+    """
+    if basket_modified[0]:  # pass a mutable so we can set it
+        # Re‐use the reorder_basket_data function we imported
+        reorder_basket_data_fn(basket_tree, basket_items)
+        save_basket(json_dir, project_name, basket_items)
+
+    conn.close()
+    root.destroy()
+    subprocess.Popen(
+        [sys.executable, os.path.join(project_dir, "launcher.exe")],
+        cwd=project_dir
+    )
