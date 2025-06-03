@@ -11,6 +11,7 @@ import datetime
 import tkinter.simpledialog
 from ttkbootstrap import Style
 from collections import OrderedDict
+from praca import show_praca_window
 
 from gui_functions import (
     is_online,
@@ -117,6 +118,10 @@ def start(project_dir, json_path):
                             root
                         ))
     home_btn.pack(side="left")
+
+    praca_btn = tb.Button(top, text="🛠️ Práca", bootstyle="light",
+                          command=lambda: show_praca_window(cursor))
+    praca_btn.pack(side="left", padx=(10, 0))
 
     tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20,5))
     name_entry = tk.Entry(top, width=30)
