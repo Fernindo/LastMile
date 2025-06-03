@@ -323,8 +323,9 @@ def start(project_dir, json_path):
     def add_to_basket(item):
         produkt, jednotky, dodavatel, odkaz, \
         koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
-        section = item[8] if len(item) > 8 else "Uncategorized"
+        section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
 
+        # ─── (A) Add or increment in the in-memory basket ─────────────────────────
         data = {
             "jednotky":            jednotky,
             "dodavatel":           dodavatel,
@@ -347,6 +348,266 @@ def start(project_dir, json_path):
 
         update_basket_table(basket_tree, basket_items)
         mark_modified()
+        # ──────────────────────────────────────────────────────────────────────────
+
+        # ─── (B) Lookup this product’s ID from the `produkty` table ────────────────
+        try:
+            if db_type == "postgres":
+                cursor.execute(
+                    "SELECT id FROM produkty WHERE produkt = %s",
+                    (produkt,)
+                )
+            else:
+                cursor.execute(
+                    "SELECT id FROM produkty WHERE produkt = ?",
+                    (produkt,)
+                )
+            base_id_row = cursor.fetchone()
+        except Exception:
+            base_id_row = None
+
+        if not base_id_row:
+            # If the product is not found in the database, exit early
+            return
+
+        base_id = base_id_row[0]
+
+        # ─── (C) Update co_occurrence counts for each other product in the basket ───
+        # 1) Collect all other product names currently in the basket (excluding the newly added one)
+        other_product_names = []
+        for sec_name, prod_dict in basket_items.items():
+            for p_name in prod_dict.keys():
+                if p_name != produkt:
+                    other_product_names.append(p_name)
+        other_product_names = list(set(other_product_names))
+
+        # 2) For each other product, lookup its ID and upsert co_occurrence both ways
+        for other_name in other_product_names:
+            try:
+                if db_type == "postgres":
+                    cursor.execute(
+                        "SELECT id FROM produkty WHERE produkt = %s",
+                        (other_name,)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT id FROM produkty WHERE produkt = ?",
+                        (other_name,)
+                    )
+                other_id_row = cursor.fetchone()
+            except Exception:
+                other_id_row = None
+
+            if not other_id_row:
+                continue
+
+            other_id = other_id_row[0]
+
+            # Upsert (base_id, other_id)
+            if db_type == "postgres":
+                cursor.execute(
+                    """
+                    INSERT INTO co_occurrence (base_product_id, co_product_id, count)
+                    VALUES (%s, %s, 1)
+                    ON CONFLICT (base_product_id, co_product_id)
+                    DO UPDATE SET count = co_occurrence.count + 1
+                    """,
+                    (base_id, other_id)
+                )
+                # Upsert (other_id, base_id)
+                cursor.execute(
+                    """
+                    INSERT INTO co_occurrence (base_product_id, co_product_id, count)
+                    VALUES (%s, %s, 1)
+                    ON CONFLICT (base_product_id, co_product_id)
+                    DO UPDATE SET count = co_occurrence.count + 1
+                    """,
+                    (other_id, base_id)
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO co_occurrence (base_product_id, co_product_id, count)
+                    VALUES (?, ?, 1)
+                    ON CONFLICT(base_product_id, co_product_id)
+                    DO UPDATE SET count = count + 1
+                    """,
+                    (base_id, other_id)
+                )
+                # Upsert (other_id, base_id)
+                cursor.execute(
+                    """
+                    INSERT INTO co_occurrence (base_product_id, co_product_id, count)
+                    VALUES (?, ?, 1)
+                    ON CONFLICT(base_product_id, co_product_id)
+                    DO UPDATE SET count = count + 1
+                    """,
+                    (other_id, base_id)
+                )
+
+        # Commit co_occurrence updates
+        try:
+            conn.commit()
+        except Exception:
+            pass
+
+        # ─── (D) Rebuild `recommendations` entries for this base_id ──────────────────
+        # 1) Delete any old recommendations for base_id
+        try:
+            if db_type == "postgres":
+                cursor.execute(
+                    "DELETE FROM recommendations WHERE base_product_id = %s",
+                    (base_id,)
+                )
+            else:
+                cursor.execute(
+                    "DELETE FROM recommendations WHERE base_product_id = ?",
+                    (base_id,)
+                )
+        except Exception:
+            pass
+
+        # 2) Fetch the top K co-occurring products for base_id
+        K = 3
+        try:
+            if db_type == "postgres":
+                cursor.execute(
+                    """
+                    SELECT co_product_id, count
+                    FROM co_occurrence
+                    WHERE base_product_id = %s
+                    ORDER BY count DESC
+                    LIMIT %s
+                    """,
+                    (base_id, K)
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    SELECT co_product_id, count
+                    FROM co_occurrence
+                    WHERE base_product_id = ?
+                    ORDER BY count DESC
+                    LIMIT {K}
+                    """,
+                    (base_id,)
+                )
+            top_co = cursor.fetchall()  # List of (other_id, count)
+        except Exception:
+            top_co = []
+
+        # 3) Insert those top co-occurring products into `recommendations` with priority=count
+        for rec_id, cnt in top_co:
+            try:
+                if db_type == "postgres":
+                    cursor.execute(
+                        """
+                        INSERT INTO recommendations (
+                            base_product_id,
+                            recommended_product_id,
+                            priority
+                        ) VALUES (%s, %s, %s)
+                        """,
+                        (base_id, rec_id, cnt)
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO recommendations (
+                            base_product_id,
+                            recommended_product_id,
+                            priority
+                        ) VALUES (?, ?, ?)
+                        """,
+                        (base_id, rec_id, cnt)
+                    )
+            except Exception:
+                pass
+
+        # Commit recommendation updates
+        try:
+            conn.commit()
+        except Exception:
+            pass
+
+        # ─── (E) Prompt the user for each of these top recommendations ───────────────
+        for rec_id, cnt in top_co:
+            # 1) Lookup the suggested product’s name
+            try:
+                if db_type == "postgres":
+                    cursor.execute(
+                        "SELECT produkt FROM produkty WHERE id = %s",
+                        (rec_id,)
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT produkt FROM produkty WHERE id = ?",
+                        (rec_id,)
+                    )
+                rec_name_row = cursor.fetchone()
+            except Exception:
+                rec_name_row = None
+
+            if not rec_name_row:
+                continue
+
+            suggested_name = rec_name_row[0]
+            ans = messagebox.askyesno(
+                "Doplnkové položky",
+                f"Chceli by ste k '{produkt}' pridať aj '{suggested_name}'?"
+            )
+            if not ans:
+                continue
+
+            # 2) User clicked “Yes” → fetch that suggested product’s full row and re-add
+            try:
+                if db_type == "postgres":
+                    cursor.execute(
+                        """
+                        SELECT produkt,
+                            jednotky,
+                            dodavatel,
+                            odkaz,
+                            koeficient_material,
+                            nakup_materialu,
+                            cena_prace,
+                            koeficient_prace,
+                            NULL
+                        FROM produkty
+                        WHERE id = %s
+                        """,
+                        (rec_id,)
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        SELECT produkt,
+                            jednotky,
+                            dodavatel,
+                            odkaz,
+                            koeficient_material,
+                            nakup_materialu,
+                            cena_prace,
+                            koeficient_prace,
+                            NULL
+                        FROM produkty
+                        WHERE id = ?
+                        """,
+                        (rec_id,)
+                    )
+                rec_item = cursor.fetchone()
+            except Exception:
+                rec_item = None
+
+            if rec_item:
+                add_to_basket(rec_item)
+            else:
+                messagebox.showwarning(
+                    "Chyba",
+                    f"Produkt s ID={rec_id} nebol nájdený."
+                )
+
+
 
     # ─── Edit basket cell on double-click
     def edit_basket_cell(event):
