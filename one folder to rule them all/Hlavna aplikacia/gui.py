@@ -132,6 +132,7 @@ def start(project_dir, json_path):
     )
 
     # ─── Database Treeview (DB results) ───────────────────────────────────
+        # ─── Database Treeview (DB results) ───────────────────────────────────
     tree_frame = tb.Frame(main_frame)
     tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -145,7 +146,23 @@ def start(project_dir, json_path):
         "cena_prace",
         "koeficient_prace"
     )
-    tree = ttk.Treeview(tree_frame, columns=db_columns, show="headings")
+    db_column_vars = {}
+    initial_db_display = [c for c in db_columns]
+
+    db_checkbox_frame = tb.LabelFrame(tree_frame, text="Zobraziť stĺpce:", padding=5)
+    db_checkbox_frame.pack(fill="x", pady=(0,5))
+    for col in db_columns:
+        var = tk.BooleanVar(value=True)
+        db_column_vars[col] = var
+        chk = tk.Checkbutton(
+            db_checkbox_frame,
+            text=col.capitalize(),
+            variable=var,
+            command=lambda: update_displayed_db_columns()
+        )
+        chk.pack(side="left", padx=5)
+
+    tree = ttk.Treeview(tree_frame, columns=db_columns, show="headings", displaycolumns=initial_db_display)
     for c in db_columns:
         tree.heading(c, text=c.capitalize())
         tree.column(c, anchor="center", stretch=True)
@@ -166,7 +183,16 @@ def start(project_dir, json_path):
         for col, pct in proportions.items():
             tree.column(col, width=int(total * pct), stretch=True)
 
+    def update_displayed_db_columns():
+        visible = [col for col, var in db_column_vars.items() if var.get()]
+        if not visible:
+            visible = ["produkt"]
+            db_column_vars["produkt"].set(True)
+        tree.config(displaycolumns=visible)
+        adjust_db_columns(tk.Event(width=tree.winfo_width()))
+
     tree.bind("<Configure>", adjust_db_columns)
+
     # On double-clicking a DB row, call add_to_basket_full
     tree.bind(
         "<Double-1>",
@@ -201,7 +227,7 @@ def start(project_dir, json_path):
         "pocet_prace"
     )
     column_vars = {}
-    checkbox_frame = tb.LabelFrame(basket_frame, text="Show columns:", padding=5)
+    checkbox_frame = tb.LabelFrame(basket_frame, text="Zobraziť stĺpce:", padding=5)
     checkbox_frame.pack(fill="x", pady=(3,8))
     for col in basket_columns:
         var = tk.BooleanVar(value=(col != "odkaz"))
