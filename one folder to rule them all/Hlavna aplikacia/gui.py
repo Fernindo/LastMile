@@ -131,6 +131,16 @@ def start(project_dir, json_path):
         lambda e: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
     )
 
+    tk.Label(top, text="Projekt:").pack(side="left", padx=(30, 5))
+    project_entry = tk.Entry(top, width=40)
+    project_entry.insert(0, project_name)
+    project_entry.pack(side="left")
+
+    tk.Label(top, text="Definícia:").pack(side="left", padx=(20, 5))
+    definition_entry = tk.Entry(top, width=50)
+    definition_entry.insert(0, "")
+    definition_entry.pack(side="left")
+
     # ─── Database Treeview (DB results) ───────────────────────────────────
         # ─── Database Treeview (DB results) ───────────────────────────────────
     tree_frame = tb.Frame(main_frame)
