@@ -9,6 +9,7 @@ import ttkbootstrap as tb
 import json
 import datetime
 import tkinter.simpledialog
+from datetime import datetime
 from ttkbootstrap import Style
 from collections import OrderedDict
 from praca import show_praca_window
@@ -21,8 +22,8 @@ from gui_functions import (
     load_basket,
     show_error,
     apply_filters,
-    update_basket_table,    
-    add_to_basket_full,
+    update_basket_table,
+    add_to_basket_full,         # “silent” version, DOES NOT auto-add recs
     reorder_basket_data,
     update_excel_from_basket,
     remove_from_basket,
@@ -33,15 +34,17 @@ from gui_functions import (
     add_custom_item,
     show_notes_popup,
     return_home,
-    
+    fetch_recommendations_async,     # NEW
+    update_recommendation_tree      # NEW
 )
 
 from filter_panel import create_filter_panel
 from excel_processing import update_excel
 from tkinter import messagebox, simpledialog
+
 def start(project_dir, json_path):
     """
-    Build the entire UI (layout, widgets, geometry) here. All logic calls live in gui_functions.py.
+    Build the entire UI (layout, widgets, geometry) here. All logic lives in gui_functions.py.
     """
 
     # ─── Prepare paths and DB ────────────────────────────────────────────
@@ -74,7 +77,7 @@ def start(project_dir, json_path):
     root.option_add("*Font", ("Segoe UI", 10))
 
     # ─── Track whether the basket has been modified ──────────────────────
-    basket_modified = [False]  # use list so nested functions can modify
+    basket_modified = [False]  # use a list so nested functions can modify
 
     def mark_modified():
         basket_modified[0] = True
@@ -85,7 +88,6 @@ def start(project_dir, json_path):
     main_frame.pack(side="right", fill="both", expand=True)
 
     # ─── Filter Panel (left) ──────────────────────────────────────────────
-    # Build category structure for the filter panel
     category_structure = {}
     try:
         cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
@@ -107,23 +109,33 @@ def start(project_dir, json_path):
     top = tb.Frame(main_frame, padding=5)
     top.pack(side="top", fill="x")
 
-    home_btn = tb.Button(top, text="🏠 Home", bootstyle="light",
-                        command=lambda: return_home(
-                            project_dir,
-                            basket_modified,
-                            basket_items,
-                            json_dir,
-                            project_name,
-                            conn,
-                            root
-                        ))
+    home_btn = tb.Button(
+        top,
+        text="🏠 Home",
+        bootstyle="light",
+        command=lambda: return_home(
+            project_dir,
+            basket_modified,
+            basket_items,
+            json_dir,
+            project_name,
+            conn,
+            root,
+            basket_tree,            # <-- pass basket_tree
+            reorder_basket_data     # <-- pass reorder function
+        )
+    )
     home_btn.pack(side="left")
 
-    praca_btn = tb.Button(top, text="🛠️ Práca", bootstyle="light",
-                          command=lambda: show_praca_window(cursor))
+    praca_btn = tb.Button(
+        top,
+        text="🛠️ Práca",
+        bootstyle="light",
+        command=lambda: show_praca_window(cursor)
+    )
     praca_btn.pack(side="left", padx=(10, 0))
 
-    tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20,5))
+    tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20, 5))
     name_entry = tk.Entry(top, width=30)
     name_entry.pack(side="left")
     name_entry.bind(
@@ -142,7 +154,6 @@ def start(project_dir, json_path):
     definition_entry.pack(side="left")
 
     # ─── Database Treeview (DB results) ───────────────────────────────────
-        # ─── Database Treeview (DB results) ───────────────────────────────────
     tree_frame = tb.Frame(main_frame)
     tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -160,7 +171,7 @@ def start(project_dir, json_path):
     initial_db_display = [c for c in db_columns]
 
     db_checkbox_frame = tb.LabelFrame(tree_frame, text="Zobraziť stĺpce:", padding=5)
-    db_checkbox_frame.pack(fill="x", pady=(0,5))
+    db_checkbox_frame.pack(fill="x", pady=(0, 5))
     for col in db_columns:
         var = tk.BooleanVar(value=True)
         db_column_vars[col] = var
@@ -172,7 +183,12 @@ def start(project_dir, json_path):
         )
         chk.pack(side="left", padx=5)
 
-    tree = ttk.Treeview(tree_frame, columns=db_columns, show="headings", displaycolumns=initial_db_display)
+    tree = ttk.Treeview(
+        tree_frame,
+        columns=db_columns,
+        show="headings",
+        displaycolumns=initial_db_display
+    )
     for c in db_columns:
         tree.heading(c, text=c.capitalize())
         tree.column(c, anchor="center", stretch=True)
@@ -203,25 +219,12 @@ def start(project_dir, json_path):
 
     tree.bind("<Configure>", adjust_db_columns)
 
-    # On double-clicking a DB row, call add_to_basket_full
-    tree.bind(
-        "<Double-1>",
-        lambda e: add_to_basket_full(
-            tree.item(tree.focus())["values"],
-            basket_items,
-            original_basket,
-            conn, cursor, db_type,
-            basket_tree,
-            mark_modified
-        )
-    )
-
     # ─── Basket Area ───────────────────────────────────────────────────────
     basket_frame = tb.Frame(main_frame, padding=5)
     basket_frame.pack(fill="both", expand=True, padx=10, pady=10)
     tk.Label(basket_frame, text="Košík - vybraté položky:").pack(anchor="w")
 
-    # -- Column Toggle Checkboxes --
+    # -- Column Toggle Checkboxes (Basket) --
     basket_columns = (
         "produkt",
         "jednotky",
@@ -238,7 +241,7 @@ def start(project_dir, json_path):
     )
     column_vars = {}
     checkbox_frame = tb.LabelFrame(basket_frame, text="Zobraziť stĺpce:", padding=5)
-    checkbox_frame.pack(fill="x", pady=(3,8))
+    checkbox_frame.pack(fill="x", pady=(3, 8))
     for col in basket_columns:
         var = tk.BooleanVar(value=(col != "odkaz"))
         column_vars[col] = var
@@ -298,22 +301,56 @@ def start(project_dir, json_path):
 
     basket_tree.bind("<Configure>", adjust_visible_basket_columns)
 
-    # -- Inline edit on double-click --
+    # ─── Inline edit on double-click (Basket), but intercept "produkt" column to show recs ─
     def on_basket_double_click(event):
         row = basket_tree.identify_row(event.y)
         col = basket_tree.identify_column(event.x)
-        if not row or basket_tree.parent(row) == "":
+        if not row:
             return
-        idx = int(col.replace("#","")) - 1
+
+        # If this is a section header (parent == ""), do nothing
+        if basket_tree.parent(row) == "":
+            return
+
+        # If user double-clicked on the "Produkt" column (#1), show recommendations:
+        if col == "#1":
+            vals = basket_tree.item(row)["values"]
+            produkt_name = vals[0]
+            # We already know the parent (section) is basket_tree.parent(row)
+            # so just fetch recs for produkt_name:
+            fetch_recommendations_async(
+                conn=conn,
+                cursor=cursor,
+                db_type=db_type,
+                base_product_name=produkt_name,
+                basket_items=basket_items,
+                root=root,
+                recom_tree=recom_tree,
+                max_recs=3
+            )
+            return
+
+        # Otherwise, do the normal inline-edit (float/int prompt):
+        idx = int(col.replace("#", "")) - 1
         if idx in (6, 9):
-            return  # computed columns → skip
+            return  # computed columns → skip editing
 
         old = basket_tree.set(row, col)
         col_name = basket_columns[idx]
         if col_name in ("pocet_materialu", "pocet_prace"):
-            new = simpledialog.askinteger("Upraviť bunku", f"Nová hodnota pre '{col_name}'", initialvalue=int(old), parent=root)
+            new = simpledialog.askinteger(
+                "Upraviť bunku",
+                f"Nová hodnota pre '{col_name}'",
+                initialvalue=int(old),
+                parent=root
+            )
         else:
-            new = simpledialog.askfloat("Upraviť bunku", f"Nová hodnota pre '{col_name}'", initialvalue=float(old), parent=root)
+            new = simpledialog.askfloat(
+                "Upraviť bunku",
+                f"Nová hodnota pre '{col_name}'",
+                initialvalue=float(old),
+                parent=root
+            )
         if new is None:
             return
 
@@ -332,7 +369,7 @@ def start(project_dir, json_path):
             11: "pocet_prace"
         }
         if idx in key_map:
-            basket_items[basket_tree.item(sec, 'text')][prod][key_map[idx]] = new
+            basket_items[basket_tree.item(sec, "text")][prod][key_map[idx]] = new
 
         mark_modified()
         update_basket_table(basket_tree, basket_items)
@@ -340,37 +377,59 @@ def start(project_dir, json_path):
 
     basket_tree.bind("<Double-1>", on_basket_double_click)
 
-    # -- Right-click context menu to Reset item --
+    # -- Right-click context menu to Reset item (Basket) --
     def on_basket_right_click(event):
         iid = basket_tree.identify_row(event.y)
         if not iid or not basket_tree.parent(iid):
             return
         menu = tk.Menu(root, tearoff=0)
-        menu.add_command(label="Reset položky", command=lambda: reset_item(
-            iid, basket_tree, basket_items, original_basket, total_spolu_var, mark_modified
-        ))
+        menu.add_command(
+            label="Reset položky",
+            command=lambda: reset_item(
+                iid,
+                basket_tree,
+                basket_items,
+                original_basket,
+                total_spolu_var,
+                mark_modified
+            )
+        )
         menu.post(event.x_root, event.y_root)
 
     basket_tree.bind("<Button-3>", on_basket_right_click)
 
     # -- Drag-drop reordering in basket (just moves items within same parent) --
     _drag = {"item": None}
-    basket_tree.bind("<ButtonPress-1>", lambda e: _drag.update({"item": basket_tree.identify_row(e.y)}))
-    basket_tree.bind("<B1-Motion>", lambda e: (
-        basket_tree.move(
-            _drag["item"],
-            basket_tree.parent(_drag["item"]),
-            basket_tree.index(basket_tree.identify_row(e.y))
-        ) if (_drag.get("item") and basket_tree.parent(basket_tree.identify_row(e.y)) == basket_tree.parent(_drag["item"]))
-        else None
-    ))
-    basket_tree.bind("<ButtonRelease-1>", lambda e: _drag.update({"item": None}))
+    basket_tree.bind(
+        "<ButtonPress-1>",
+        lambda e: _drag.update({"item": basket_tree.identify_row(e.y)})
+    )
+    basket_tree.bind(
+        "<B1-Motion>",
+        lambda e: (
+            basket_tree.move(
+                _drag["item"],
+                basket_tree.parent(_drag["item"]),
+                basket_tree.index(basket_tree.identify_row(e.y))
+            )
+            if (_drag.get("item")
+                and basket_tree.parent(basket_tree.identify_row(e.y)) ==
+                    basket_tree.parent(_drag["item"]))
+            else None
+        )
+    )
+    basket_tree.bind(
+        "<ButtonRelease-1>",
+        lambda e: _drag.update({"item": None})
+    )
 
     # ─── Grand Total Label (“Spolu: …”) ───────────────────────────────────
     total_frame = tk.Frame(basket_frame)
-    total_frame.pack(fill="x", pady=(2,0))
+    total_frame.pack(fill="x", pady=(2, 0))
     total_spolu_var = tk.StringVar(value="Spolu: 0.00")
-    tk.Label(total_frame, textvariable=total_spolu_var, anchor="e").pack(side="right", padx=10)
+    tk.Label(total_frame, textvariable=total_spolu_var, anchor="e").pack(
+        side="right", padx=10
+    )
 
     # ─── Notes button ─────────────────────────────────────────────────────
     notes_btn = tb.Button(
@@ -380,6 +439,56 @@ def start(project_dir, json_path):
         command=lambda: show_notes_popup(project_name, json_dir)
     )
     notes_btn.pack(pady=3)
+
+    # ─── NEW Position: Recommendations Label & Treeview ───────────────────
+    tk.Label(basket_frame, text="Doporučené položky:").pack(anchor="w", pady=(10, 0))
+
+    # Now include an extra, _hidden_ column at the end called "_section"
+    recom_columns = (
+        "produkt",
+        "jednotky",
+        "dodavatel",
+        "odkaz",
+        "koeficient_material",
+        "nakup_materialu",
+        "cena_prace",
+        "koeficient_prace",
+        "_section"     # <-- hidden column
+    )
+    # Display only the first 8 columns; hide "_section"
+    visible_recom_cols = recom_columns[:-1]
+
+    recom_tree = ttk.Treeview(
+        basket_frame,
+        columns=recom_columns,
+        show="headings",
+        displaycolumns=visible_recom_cols,  # hide "_section"
+        height=4  # show up to 4 rows by default
+    )
+    # Set up the first 8 column headings (visible):
+    for c in visible_recom_cols:
+        recom_tree.heading(c, text=c.capitalize())
+        recom_tree.column(c, anchor="center", stretch=True)
+    # Now configure the hidden "_section" column with zero width:
+    recom_tree.heading("_section", text="")         # no heading text
+    recom_tree.column("_section", width=0, stretch=False)
+
+    recom_tree.pack(fill="x", expand=False, pady=(0, 5))
+
+    # When you double-click a recommendation, insert it into the basket
+    # We do get all 9 fields (including section) out of .item()["values"].
+    recom_tree.bind(
+        "<Double-1>",
+        lambda e: add_to_basket_full(
+            recom_tree.item(recom_tree.focus())["values"],
+            basket_items,
+            original_basket,
+            conn, cursor, db_type,
+            basket_tree,
+            mark_modified
+        )
+    )
+    # ──────────────────────────────────────────────────────────────────────────
 
     # ─── Buttons Row: Remove, Add, Export (left) and Coeff Buttons (right) ─
     btn_container = tk.Frame(basket_frame)
@@ -395,7 +504,10 @@ def start(project_dir, json_path):
         left_btn_frame,
         text="Odstrániť",
         bootstyle="danger-outline",
-        command=lambda: (remove_from_basket(basket_tree, basket_items, update_basket_table), mark_modified())
+        command=lambda: (
+            remove_from_basket(basket_tree, basket_items, update_basket_table),
+            mark_modified()
+        )
     )
     remove_btn.pack(side="left", padx=(0, 10))
 
@@ -403,7 +515,13 @@ def start(project_dir, json_path):
         left_btn_frame,
         text="Pridať",
         bootstyle="primary-outline",
-        command=lambda: add_custom_item(basket_tree, basket_items, original_basket, total_spolu_var, mark_modified)
+        command=lambda: add_custom_item(
+            basket_tree,
+            basket_items,
+            original_basket,
+            total_spolu_var,
+            mark_modified
+        )
     )
     add_custom_btn.pack(side="left", padx=(0, 10))
 
@@ -445,6 +563,7 @@ def start(project_dir, json_path):
         )
     )
     coeff_revert_btn.pack(side="left")
+    # ──────────────────────────────────────────────────────────────────────────
 
     # ─── Initialize basket state ──────────────────────────────────────────
     basket_items = OrderedDict()
@@ -471,6 +590,44 @@ def start(project_dir, json_path):
         adjust_visible_basket_columns()
 
     update_displayed_columns()
+
+    # ── REPLACE the old DB-double-click binding with this new one ─────────────
+    def on_db_double_click(event):
+        """
+        Called when the user double-clicks a row in the main DB Treeview (`tree`):
+        1) Add exactly that product into the basket (silently).
+        2) Kick off fetch_recommendations_async(...) in a background thread.
+        """
+        selected = tree.item(tree.focus())
+        if not selected:
+            return
+        db_values = selected["values"]
+        base_name = db_values[0]
+
+        # 1) Insert base product into the basket
+        add_to_basket_full(
+            db_values,
+            basket_items,
+            original_basket,
+            conn, cursor, db_type,
+            basket_tree,
+            mark_modified
+        )
+
+        # 2) Kick off the async recommendation fetch
+        fetch_recommendations_async(
+            conn=conn,
+            cursor=cursor,
+            db_type=db_type,
+            base_product_name=base_name,
+            basket_items=basket_items,
+            root=root,
+            recom_tree=recom_tree,
+            max_recs=3
+        )
+
+    tree.bind("<Double-1>", on_db_double_click)
+    # ───────────────────────────────────────────────────────────────────────────
 
     # ─── Handle window close (“X”) ────────────────────────────────────────
     def on_closing():

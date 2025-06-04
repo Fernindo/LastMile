@@ -15,6 +15,7 @@ from collections import OrderedDict
 import copy
 import subprocess
 import sys
+import threading
 
 # Third-party imports that own specialized logic (no UI geometry happens here)
 import ttkbootstrap as tb
@@ -55,7 +56,7 @@ def get_database_connection():
         except Exception as e:
             print("PostgreSQL connection failed:", e)
     # fallback to local SQLite
-    conn = sqlite3.connect("local_backup.db")
+    conn = sqlite3.connect("local_backup.db", check_same_thread=False)
     print("🕠 Using local SQLite database (offline mode)")
     return conn, 'sqlite'
 
@@ -312,19 +313,18 @@ def remove_from_basket(basket_tree, basket_items, update_basket_table):
     and from the underlying basket_items dict, then refresh the table.
     """
     for iid in basket_tree.selection():
-        # If the selected item has no parent, it’s a “section header” → remove the whole section
         parent = basket_tree.parent(iid)
         if parent == "":
+            # Selected item is a “section header”
             section_name = basket_tree.item(iid, "text")
             basket_items.pop(section_name, None)
         else:
-            # Otherwise, it’s a product row → remove just that product
+            # Selected item is a product row
             prod_name = basket_tree.item(iid, "values")[0]
             section_name = basket_tree.item(parent, "text")
             if section_name in basket_items:
                 basket_items[section_name].pop(prod_name, None)
 
-    # After modifying basket_items, redraw the Treeview:
     update_basket_table(basket_tree, basket_items)
 
 def update_basket_table(basket_tree, basket_items):
@@ -367,36 +367,42 @@ def add_to_basket_full(item, basket_items, original_basket,
                        conn, cursor, db_type,
                        basket_tree, mark_modified):
     """
-    Add a product row (8 columns + optional section) into `basket_items`.
-    Also update co-occurrence and recommendations in the database.
-    Then refresh the basket_tree and mark the basket as “modified”.
+    Add a single product row (8 columns + optional section) into `basket_items`.
+    Also update co-occurrence and recommendations in the database,
+    but do NOT auto-add any recommended items to the basket.
+
+    1) If the product (item) is not already in its section, insert it.
+    2) Update the co_occurrence table (count pairs with existing basket items).
+    3) Recompute the top‐K recommendations for this product and overwrite
+       the `recommendations` table. (But do not insert those recs here.)
+    4) Refresh the basket_tree and mark the basket as modified.
     """
+    # Now item has length 9: last element is the “section” string
     produkt, jednotky, dodavatel, odkaz, \
     koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
     section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
 
-    data = {
-        "jednotky":            jednotky,
-        "dodavatel":           dodavatel,
-        "odkaz":               odkaz,
-        "koeficient_material": float(koef_mat),
-        "nakup_materialu":     float(nakup_mat),
-        "koeficient_prace":    float(koef_prace),
-        "cena_prace":          float(cena_prace),
-        "pocet_materialu":     1,
-        "pocet_prace":         1
-    }
+    # 1) Only add if not already present
     if section not in basket_items:
         basket_items[section] = OrderedDict()
-    if produkt in basket_items[section]:
-        basket_items[section][produkt]["pocet_materialu"] += 1
-        basket_items[section][produkt]["pocet_prace"]    += 1
-    else:
+
+    if produkt not in basket_items[section]:
+        data = {
+            "jednotky":            jednotky,
+            "dodavatel":           dodavatel,
+            "odkaz":               odkaz,
+            "koeficient_material": float(koef_mat),
+            "nakup_materialu":     float(nakup_mat),
+            "koeficient_prace":    float(koef_prace),
+            "cena_prace":          float(cena_prace),
+            "pocet_materialu":     1,
+            "pocet_prace":         1
+        }
         basket_items[section][produkt] = data
         original_basket.setdefault(section, OrderedDict())[produkt] = copy.deepcopy(data)
 
-    update_basket_table(basket_tree, basket_items)
-    mark_modified()
+        update_basket_table(basket_tree, basket_items)
+        mark_modified()
 
     # ─── Retrieve this product’s ID from the `produkty` table ─────────
     try:
@@ -415,11 +421,11 @@ def add_to_basket_full(item, basket_items, original_basket,
         base_id_row = None
 
     if not base_id_row:
-        return  # product not found → skip co-occurrence
+        return  # product not found → skip co-occurrence & recommendations
 
     base_id = base_id_row[0]
 
-    # ─── Co-occurrence updates ───────────────────────────────────────
+    # ─── Update co-occurrence counts ───────────────────────────
     other_product_names = [
         p_name
         for sec_name, prod_dict in basket_items.items()
@@ -448,7 +454,7 @@ def add_to_basket_full(item, basket_items, original_basket,
             continue
         other_id = other_id_row[0]
 
-        # Upsert (base_id, other_id)
+        # Upsert for (base_id, other_id) and (other_id, base_id)
         if db_type == "postgres":
             cursor.execute(
                 """
@@ -493,21 +499,7 @@ def add_to_basket_full(item, basket_items, original_basket,
     except Exception:
         pass
 
-    # ─── Rebuild recommendations for this base_id ───────────────────────
-    try:
-        if db_type == "postgres":
-            cursor.execute(
-                "DELETE FROM recommendations WHERE base_product_id = %s",
-                (base_id,)
-            )
-        else:
-            cursor.execute(
-                "DELETE FROM recommendations WHERE base_product_id = ?",
-                (base_id,)
-            )
-    except Exception:
-        pass
-
+    # ─── Compute top-K recommendations ─────────────────────────────
     K = 3
     try:
         if db_type == "postgres":
@@ -536,6 +528,21 @@ def add_to_basket_full(item, basket_items, original_basket,
     except Exception:
         top_co = []
 
+    # ─── Overwrite recommendations for this base_id ─────────────────
+    try:
+        if db_type == "postgres":
+            cursor.execute(
+                "DELETE FROM recommendations WHERE base_product_id = %s",
+                (base_id,)
+            )
+        else:
+            cursor.execute(
+                "DELETE FROM recommendations WHERE base_product_id = ?",
+                (base_id,)
+            )
+    except Exception:
+        pass
+
     for rec_id, cnt in top_co:
         try:
             if db_type == "postgres":
@@ -562,93 +569,13 @@ def add_to_basket_full(item, basket_items, original_basket,
                 )
         except Exception:
             pass
+
     try:
         conn.commit()
     except Exception:
         pass
 
-    # ─── Prompt the user for each recommended item ─────────────────────
-    for rec_id, cnt in top_co:
-        try:
-            if db_type == "postgres":
-                cursor.execute(
-                    "SELECT produkt FROM produkty WHERE id = %s",
-                    (rec_id,)
-                )
-            else:
-                cursor.execute(
-                    "SELECT produkt FROM produkty WHERE id = ?",
-                    (rec_id,)
-                )
-            rec_name_row = cursor.fetchone()
-        except Exception:
-            rec_name_row = None
-
-        if not rec_name_row:
-            continue
-
-        suggested_name = rec_name_row[0]
-        ans = messagebox.askyesno(
-            "Doplnkové položky",
-            f"Chceli by ste k '{produkt}' pridať aj '{suggested_name}'?"
-        )
-        if not ans:
-            continue
-
-        try:
-            if db_type == "postgres":
-                cursor.execute(
-                    """
-                    SELECT produkt,
-                        jednotky,
-                        dodavatel,
-                        odkaz,
-                        koeficient_material,
-                        nakup_materialu,
-                        cena_prace,
-                        koeficient_prace,
-                        NULL
-                    FROM produkty
-                    WHERE id = %s
-                    """,
-                    (rec_id,)
-                )
-            else:
-                cursor.execute(
-                    """
-                    SELECT produkt,
-                        jednotky,
-                        dodavatel,
-                        odkaz,
-                        koeficient_material,
-                        nakup_materialu,
-                        cena_prace,
-                        koeficient_prace,
-                        NULL
-                    FROM produkty
-                    WHERE id = ?
-                    """,
-                    (rec_id,)
-                )
-            rec_item = cursor.fetchone()
-        except Exception:
-            rec_item = None
-
-        if rec_item:
-            # Recursively call add_to_basket_full for the suggested product
-            add_to_basket_full(
-                rec_item,
-                basket_items,
-                original_basket,
-                conn, cursor, db_type,
-                basket_tree,
-                mark_modified
-            )
-        else:
-            messagebox.showwarning(
-                "Chyba",
-                f"Produkt s ID={rec_id} nebol nájdený."
-            )
+    return
 
 def reorder_basket_data(basket_tree, basket_items):
     """
@@ -946,15 +873,14 @@ def return_home(
     project_name,
     conn,
     root,
-    basket_tree,            # ← new parameter
-    reorder_basket_data_fn  # ← optionally, also pass the function itself
+    basket_tree,            # <— newly required
+    reorder_basket_data_fn  # <— newly required
 ):
     """
     Called when “Home” button is pressed.
     If basket_modified is True, save basket; then close DB and launch launcher.exe.
     """
-    if basket_modified[0]:  # pass a mutable so we can set it
-        # Re‐use the reorder_basket_data function we imported
+    if basket_modified[0]:
         reorder_basket_data_fn(basket_tree, basket_items)
         save_basket(json_dir, project_name, basket_items)
 
@@ -964,3 +890,182 @@ def return_home(
         [sys.executable, os.path.join(project_dir, "launcher.exe")],
         cwd=project_dir
     )
+
+
+
+def fetch_recommendations_async(
+    conn,
+    cursor,
+    db_type,
+    base_product_name,
+    basket_items,
+    root,
+    recom_tree,
+    max_recs=3
+):
+    """
+    1) Immediately clear `recom_tree` and insert a “Loading…” row.
+    2) Spawn a background thread that:
+       a) Looks up `base_id` from `produkty` WHERE `produkt = base_product_name`.
+       b) Runs a single JOIN + GROUP BY query on `recommendations → produkty → class` 
+          to fetch up to `max_recs` distinct products (produkt, jednotky, dodavatel, odkaz, 
+          koeficient_material, nakup_materialu, cena_prace, koeficient_prace, section_name).
+       c) Filters out any row whose (section_name, produkt) is already in `basket_items`.
+       d) Calls `root.after(0, lambda: update_recommendation_tree(recom_tree, filtered_list))`.
+    """
+    # 1) Show “Loading…” placeholder in the Treeview
+    recom_tree.delete(*recom_tree.get_children())
+    recom_tree.insert(
+        "",
+        "end",
+        values=("Loading recommendations…",) + ("",) * 7 + ("",)
+        # We must supply 9 empty slots when inserting: 8 visible columns + 1 hidden "_section"
+    )
+
+    def _worker():
+        # If using SQLite, create a fresh cursor per thread (sqlite3 is not threadsafe on same cursor):
+        if db_type == "sqlite":
+            thread_cursor = conn.cursor()
+        else:
+            # For Postgres, you can either reuse `cursor` or create a new one via conn.cursor()
+            thread_cursor = cursor
+
+        # ─────────────────────────────────────────────────────────────────────
+        # 2a) Look up base_id from produkty WHERE produkt = base_product_name
+        try:
+            if db_type == "sqlite":
+                thread_cursor.execute(
+                    "SELECT id FROM produkty WHERE produkt = ?",
+                    (base_product_name,)
+                )
+            else:
+                thread_cursor.execute(
+                    "SELECT id FROM produkty WHERE produkt = %s",
+                    (base_product_name,)
+                )
+            row = thread_cursor.fetchone()
+            if not row:
+                # No such product found → update Treeview with empty list
+                root.after(0, lambda: update_recommendation_tree(recom_tree, []))
+                return
+            base_id = row[0]
+        except Exception:
+            # On any error, just clear the recommendations
+            root.after(0, lambda: update_recommendation_tree(recom_tree, []))
+            return
+
+        # ─────────────────────────────────────────────────────────────────────
+        # 2b) Single JOIN + GROUP BY query: pull all rec fields + "one" section_name per product
+        try:
+            if db_type == "sqlite":
+                thread_cursor.execute("""
+                    SELECT
+                      p.produkt,
+                      p.jednotky,
+                      p.dodavatel,
+                      p.odkaz,
+                      p.koeficient_material,
+                      p.nakup_materialu,
+                      p.cena_prace,
+                      p.koeficient_prace,
+                      COALESCE(MIN(c.nazov_tabulky), 'Uncategorized') AS section_name
+                    FROM recommendations r
+                    JOIN produkty p
+                      ON r.recommended_product_id = p.id
+                    LEFT JOIN produkt_class pc
+                      ON p.id = pc.produkt_id
+                    LEFT JOIN class c
+                      ON pc.class_id = c.id
+                    WHERE r.base_product_id = ?
+                    GROUP BY
+                      p.id,
+                      p.produkt,
+                      p.jednotky,
+                      p.dodavatel,
+                      p.odkaz,
+                      p.koeficient_material,
+                      p.nakup_materialu,
+                      p.cena_prace,
+                      p.koeficient_prace
+                    ORDER BY MAX(r.priority) DESC
+                    LIMIT ?
+                """, (base_id, max_recs))
+            else:
+                # PostgreSQL version uses %s placeholders
+                thread_cursor.execute("""
+                    SELECT
+                      p.produkt,
+                      p.jednotky,
+                      p.dodavatel,
+                      p.odkaz,
+                      p.koeficient_material,
+                      p.nakup_materialu,
+                      p.cena_prace,
+                      p.koeficient_prace,
+                      COALESCE(MIN(c.nazov_tabulky), 'Uncategorized') AS section_name
+                    FROM recommendations r
+                    JOIN produkty p
+                      ON r.recommended_product_id = p.id
+                    LEFT JOIN produkt_class pc
+                      ON p.id = pc.produkt_id
+                    LEFT JOIN class c
+                      ON pc.class_id = c.id
+                    WHERE r.base_product_id = %s
+                    GROUP BY
+                      p.id,
+                      p.produkt,
+                      p.jednotky,
+                      p.dodavatel,
+                      p.odkaz,
+                      p.koeficient_material,
+                      p.nakup_materialu,
+                      p.cena_prace,
+                      p.koeficient_prace
+                    ORDER BY MAX(r.priority) DESC
+                    LIMIT %s
+                """, (base_id, max_recs))
+            all_recs = thread_cursor.fetchall()
+        except Exception:
+            all_recs = []
+
+        # ─────────────────────────────────────────────────────────────────────
+        # 2c) Filter out anything already in basket_items
+        filtered_recs = []
+        for rec in all_recs:
+            # rec tuple is:
+            # ( produkt, jednotky, dodavatel, odkaz,
+            #   koeficient_material, nakup_materialu,
+            #   cena_prace, koeficient_prace, section_name )
+            produkt_name = rec[0]
+            section_name = rec[8]
+            if section_name in basket_items and produkt_name in basket_items[section_name]:
+                continue
+            filtered_recs.append(rec)
+
+        # ─────────────────────────────────────────────────────────────────────
+        # 2d) Hand off to main thread to update the Treeview
+        root.after(0, lambda: update_recommendation_tree(recom_tree, filtered_recs))
+
+    # 3) Fire off the background thread (daemon=True so it won't block on exit)
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+def update_recommendation_tree(recom_tree, rec_list):
+    """
+    Clear `recom_tree` and insert each tuple in `rec_list` as a new row.
+    Each rec tuple must have exactly 9 columns:
+      ( produkt, jednotky, dodavatel, odkaz,
+        koeficient_material, nakup_materialu,
+        cena_prace, koeficient_prace, section_name )
+
+    We ignore the 9th when displaying, but it is stored so that
+    add_to_basket_full(...) uses that correct section.
+    """
+    # 1) Clear existing rows
+    recom_tree.delete(*recom_tree.get_children())
+
+    # 2) Insert each rec: values = rec (all 9 fields)
+    for rec in rec_list:
+        # rec is (produkt, jednotky, dodavatel, odkaz, koeficient_material,
+        #        nakup_materialu, cena_prace, koeficient_prace, section_name)
+        recom_tree.insert("", "end", values=rec)
