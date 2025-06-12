@@ -12,8 +12,9 @@ def show_praca_window(cursor):
         return
 
     praca_window = tk.Toplevel()
-    praca_window.title("Odhad pracovnej činnosti")
-    praca_window.geometry("1150x600")
+    praca_window.title("🛠️ Odhad pracovnej činnosti")
+    praca_window.geometry("1250x650")
+    praca_window.configure(bg="#f9f9f9")
 
     entries = []
 
@@ -51,34 +52,34 @@ def show_praca_window(cursor):
 
     def add_row(role_id=None, rola="", plat=0.0):
         row = {}
-        idx = len(entries) + 1  # header is row 0
+        idx = len(entries) + 1
 
         row["rola_var"] = tk.StringVar(value=rola)
-        tk.Entry(table_frame, textvariable=row["rola_var"], width=20, justify="center").grid(row=idx, column=0, padx=2, pady=1)
+        tk.Entry(table_frame, textvariable=row["rola_var"], width=25, justify="center").grid(row=idx, column=0, padx=4, pady=4)
 
         row["osoby_var"] = tk.StringVar(value="1")
-        tk.Button(table_frame, text="-", width=2, command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1)
-        tk.Entry(table_frame, textvariable=row["osoby_var"], width=5, justify="center").grid(row=idx, column=2)
-        tk.Button(table_frame, text="+", width=2, command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3)
+        tk.Button(table_frame, text="-", width=3, command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1, padx=1)
+        tk.Entry(table_frame, textvariable=row["osoby_var"], width=6, justify="center").grid(row=idx, column=2, padx=1)
+        tk.Button(table_frame, text="+", width=3, command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3, padx=1)
 
         row["hodiny_var"] = tk.StringVar(value="8")
-        tk.Button(table_frame, text="-", width=2, command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4)
-        tk.Entry(table_frame, textvariable=row["hodiny_var"], width=5, justify="center").grid(row=idx, column=5)
-        tk.Button(table_frame, text="+", width=2, command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6)
+        tk.Button(table_frame, text="-", width=3, command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4, padx=1)
+        tk.Entry(table_frame, textvariable=row["hodiny_var"], width=6, justify="center").grid(row=idx, column=5, padx=1)
+        tk.Button(table_frame, text="+", width=3, command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6, padx=1)
 
-        row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", width=8, relief="groove", anchor="center")
-        row["plat_label"].grid(row=idx, column=7, padx=2)
+        row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", width=10, relief="groove", anchor="center", bg="#fff")
+        row["plat_label"].grid(row=idx, column=7, padx=4)
 
-        row["spolu_label"] = tk.Label(table_frame, text="0.00", width=8, relief="sunken", anchor="center")
-        row["spolu_label"].grid(row=idx, column=8, padx=2)
+        row["spolu_label"] = tk.Label(table_frame, text="0.00", width=10, relief="sunken", anchor="center", bg="#f0f0f0")
+        row["spolu_label"].grid(row=idx, column=8, padx=4)
 
         row["koef_var"] = tk.StringVar(value="1.0")
-        tk.Button(table_frame, text="-", width=2, command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9)
-        tk.Entry(table_frame, textvariable=row["koef_var"], width=5, justify="center").grid(row=idx, column=10)
-        tk.Button(table_frame, text="+", width=2, command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11)
+        tk.Button(table_frame, text="-", width=3, command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9, padx=1)
+        tk.Entry(table_frame, textvariable=row["koef_var"], width=6, justify="center").grid(row=idx, column=10, padx=1)
+        tk.Button(table_frame, text="+", width=3, command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11, padx=1)
 
         row["predaj_var"] = tk.StringVar(value="0.00")
-        tk.Entry(table_frame, textvariable=row["predaj_var"], width=8, justify="center").grid(row=idx, column=12, padx=2)
+        tk.Entry(table_frame, textvariable=row["predaj_var"], width=10, justify="center").grid(row=idx, column=12, padx=4)
 
         entries.append(row)
         recalculate()
@@ -97,28 +98,28 @@ def show_praca_window(cursor):
                 widget.destroy()
         recalculate()
 
-    # Horné tlačidlá
-    top_frame = tk.Frame(praca_window)
-    top_frame.pack(fill="x", padx=10, pady=10)
-    Button(top_frame, text="➕ Pridať", bootstyle="success", command=lambda: add_row(rola="Nová rola", plat=0)).pack(side="left", padx=5)
-    Button(top_frame, text="❌ Odstrániť", bootstyle="danger", command=remove_row).pack(side="left", padx=5)
+    # Horný panel
+    top_frame = tk.Frame(praca_window, bg="#f9f9f9")
+    top_frame.pack(fill="x", padx=15, pady=15)
+    Button(top_frame, text="➕ Pridať", bootstyle="success", width=12, command=lambda: add_row(rola="Nová rola", plat=0)).pack(side="left", padx=10)
+    Button(top_frame, text="❌ Odstrániť", bootstyle="danger", width=12, command=remove_row).pack(side="left", padx=10)
 
     # Tabuľka
-    table_frame = tk.Frame(praca_window)
-    table_frame.pack(fill="both", expand=True, padx=10, pady=5)
+    table_frame = tk.Frame(praca_window, bg="#fdfdfd", bd=2, relief="groove")
+    table_frame.pack(fill="both", expand=True, padx=15, pady=10)
 
     headers = [
-        ("Rola", 20),
-        ("", 2), ("Osoby", 5), ("", 2),
-        ("", 2), ("Hodiny", 5), ("", 2),
-        ("Plat €/h", 8),
-        ("Spolu", 8),
-        ("", 2), ("Koef.", 5), ("", 2),
-        ("Predaj", 8)
+        ("Rola", 25),
+        ("", 3), ("Osoby", 6), ("", 3),
+        ("", 3), ("Hodiny", 6), ("", 3),
+        ("Plat €/h", 10),
+        ("Spolu", 10),
+        ("", 3), ("Koef.", 6), ("", 3),
+        ("Predaj", 10)
     ]
 
     for i, (text, width) in enumerate(headers):
-        tk.Label(table_frame, text=text, font=("Segoe UI", 10, "bold"), width=width, anchor="center").grid(
+        tk.Label(table_frame, text=text, font=("Segoe UI", 10, "bold"), width=width, bg="#e6e6fa", relief="ridge").grid(
             row=0, column=i, padx=2, pady=2
         )
 

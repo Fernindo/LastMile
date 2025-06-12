@@ -1,7 +1,7 @@
 import sys
 import os
 import tkinter as tk
-from tkinter import messagebox, Listbox
+from tkinter import messagebox, Listbox, Scrollbar, Frame, Label, Button
 
 def main():
     # Determine base directory (where launcher.py or launcher.exe lives)
@@ -10,21 +10,48 @@ def main():
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Look for the "projects" folder next to us
+    # Look for the "projects" folder
     projects_dir = os.path.join(base_dir, "projects")
     if not os.path.isdir(projects_dir):
-        messagebox.showerror(
-            "Error",
-            "Missing 'projects' folder next to the launcher."
-        )
+        messagebox.showerror("Chyba", "Chýba priečinok 'projects' pri launcheri.")
         sys.exit(1)
 
-    # Build the archive window
+    # Build main window
     root = tk.Tk()
-    root.title("Archive")
-    lb = Listbox(root, width=40, height=20)
-    lb.pack(fill=tk.BOTH, expand=True)
+    root.title("📁 Archív projektov")
+    root.geometry("420x500")
+    root.configure(bg="#f0f4f8")
 
+    # Title and description
+    Label(root, text="Vyber projekt pre otvorenie", font=("Segoe UI", 14, "bold"), bg="#f0f4f8").pack(pady=(20, 10))
+    
+    # Frame for listbox + scrollbar
+    list_frame = Frame(root, bg="#f0f4f8")
+    list_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+    lb = Listbox(
+        list_frame,
+        width=40,
+        height=20,
+        font=("Segoe UI", 10),
+        bg="white",
+        fg="black",
+        highlightthickness=1,
+        highlightcolor="#0078D7",
+        selectbackground="#0078D7",     # Výrazné pozadie pri výbere
+        selectforeground="white",       # Biele písmo na výbere
+        activestyle="none"
+    )
+    lb.pack(side="left", fill="both", expand=True)
+
+    sb = Scrollbar(list_frame, orient="vertical", command=lb.yview)
+    sb.pack(side="right", fill="y")
+    lb.config(yscrollcommand=sb.set)
+
+    # Close button
+    Button(root, text="Zavrieť", command=root.destroy, font=("Segoe UI", 10), bg="#e0e0e0", relief="flat").pack(pady=(5, 15))
+
+    # On double click
     def on_open(evt):
         sel = lb.curselection()
         if not sel:
@@ -32,11 +59,9 @@ def main():
         display = lb.get(sel[0]).strip()
 
         if " | " in display:
-            # format: "YYYY-MM-DD | basename"
             date_part, base = [s.strip() for s in display.split("|", 1)]
             json_file = f"{base}_{date_part}.json"
         else:
-            # format: "basename" only
             base = display
             json_file = f"{base}.json"
 
@@ -47,14 +72,10 @@ def main():
 
     lb.bind("<Double-1>", on_open)
 
-    # Gather and sort .json files
+    # Load JSON files
     files = [f for f in os.listdir(projects_dir) if f.lower().endswith(".json")]
-    files.sort(
-        key=lambda f: os.path.getmtime(os.path.join(projects_dir, f)),
-        reverse=True
-    )
+    files.sort(key=lambda f: os.path.getmtime(os.path.join(projects_dir, f)), reverse=True)
 
-    # Populate list: show "date | basename" or just "basename"
     for f in files:
         name, _ = os.path.splitext(f)
         if "_" in name:
