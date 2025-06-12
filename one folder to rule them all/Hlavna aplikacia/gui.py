@@ -175,6 +175,11 @@ def start(project_dir, json_path):
     # ─── Database Treeview (DB results) ───────────────────────────────────
     tree_frame = tb.Frame(main_frame)
     tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
+    tree_scroll_y = ttk.Scrollbar(tree_frame, orient="vertical")
+    tree_scroll_x = ttk.Scrollbar(tree_frame, orient="horizontal")
+
+    tree_scroll_y.pack(side="right", fill="y")
+    tree_scroll_x.pack(side="bottom", fill="x")
 
     db_columns = (
         "produkt",
@@ -201,17 +206,21 @@ def start(project_dir, json_path):
             command=lambda: update_displayed_db_columns()
         )
         chk.pack(side="left", padx=5)
-
-    tree = ttk.Treeview(
+    
+    tree = ttk.Treeview(   
         tree_frame,
         columns=db_columns,
         show="headings",
-        displaycolumns=initial_db_display
+        displaycolumns=initial_db_display,
+        yscrollcommand=tree_scroll_y.set,
+        xscrollcommand=tree_scroll_x.set
     )
     for c in db_columns:
         tree.heading(c, text=c.capitalize())
         tree.column(c, anchor="center", stretch=True)
     tree.pack(fill="both", expand=True)
+    tree_scroll_y.config(command=tree.yview)
+    tree_scroll_x.config(command=tree.xview)
 
     def adjust_db_columns(event):
         total = event.width
@@ -225,6 +234,7 @@ def start(project_dir, json_path):
             "cena_prace":          0.08,
             "koeficient_prace":    0.08,
         }
+
         for col, pct in proportions.items():
             tree.column(col, width=int(total * pct), stretch=True)
 
@@ -242,7 +252,13 @@ def start(project_dir, json_path):
     basket_frame = tb.Frame(main_frame, padding=5)
     basket_frame.pack(fill="both", expand=True, padx=10, pady=10)
     tk.Label(basket_frame, text="Košík - vybraté položky:").pack(anchor="w")
+    basket_tree_container = tb.Frame(basket_frame)
+    basket_tree_container.pack(fill="both", expand=True)
 
+    basket_scroll_y = ttk.Scrollbar(basket_tree_container, orient="vertical")
+    basket_scroll_x = ttk.Scrollbar(basket_tree_container, orient="horizontal")
+    basket_scroll_y.pack(side="right", fill="y")
+    basket_scroll_x.pack(side="bottom", fill="x")
     # -- Column Toggle Checkboxes (Basket) --
     basket_columns = (
         "produkt",
@@ -278,7 +294,9 @@ def start(project_dir, json_path):
         basket_frame,
         columns=basket_columns,
         show="tree headings",
-        displaycolumns=initial_display
+        displaycolumns=initial_display,
+        yscrollcommand=basket_scroll_y.set,
+        xscrollcommand=basket_scroll_x.set
     )
     basket_tree.heading("#0", text="")
     basket_tree.column("#0", width=20, anchor="w", stretch=False)
@@ -286,6 +304,8 @@ def start(project_dir, json_path):
         basket_tree.heading(c, text=c.capitalize())
         basket_tree.column(c, anchor="center", stretch=True)
     basket_tree.pack(fill="both", expand=True)
+    basket_scroll_y.config(command=basket_tree.yview)
+    basket_scroll_x.config(command=basket_tree.xview)
 
     # Bind resizing → adjust only visible columns
     def adjust_visible_basket_columns(event=None):
