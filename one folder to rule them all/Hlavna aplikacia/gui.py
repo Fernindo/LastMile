@@ -98,13 +98,8 @@ def start(project_dir, json_path):
         db_visible[0] = not db_visible[0]
 
 
-    toggle_btn = tb.Button(
-        main_frame,
-        text="🔽 Skryť databázu",
-        bootstyle="secondary",
-        command=toggle_db_view
-    )
-    toggle_btn.pack(anchor="w", padx=10)
+    
+   
 
     # ─── Filter Panel (left) ──────────────────────────────────────────────
     category_structure = {}
@@ -128,6 +123,13 @@ def start(project_dir, json_path):
     top = tb.Frame(main_frame, padding=5)
     top.pack(side="top", fill="x")
 
+    toggle_btn = tb.Button(
+        top,
+        text="🔽 Skryť databázu",
+        bootstyle="secondary",
+        command=toggle_db_view
+    )
+    toggle_btn.pack(side="left", padx=(0, 10))
     home_btn = tb.Button(
         top,
         text="🏠 Home",
@@ -255,6 +257,7 @@ def start(project_dir, json_path):
     basket_tree_container = tb.Frame(basket_frame)
     basket_tree_container.pack(fill="both", expand=True)
 
+    # Scrollbary
     basket_scroll_y = ttk.Scrollbar(basket_tree_container, orient="vertical")
     basket_scroll_x = ttk.Scrollbar(basket_tree_container, orient="horizontal")
     basket_scroll_y.pack(side="right", fill="y")
@@ -291,12 +294,12 @@ def start(project_dir, json_path):
     # -- Basket Treeview --
     initial_display = [c for c in basket_columns if c != "odkaz"]
     basket_tree = ttk.Treeview(
-        basket_frame,
-        columns=basket_columns,
-        show="tree headings",
-        displaycolumns=initial_display,
-        yscrollcommand=basket_scroll_y.set,
-        xscrollcommand=basket_scroll_x.set
+    basket_tree_container,  # ✅ správne ukotvenie
+    columns=basket_columns,
+    show="tree headings",
+    displaycolumns=initial_display,
+    yscrollcommand=basket_scroll_y.set,
+    xscrollcommand=basket_scroll_x.set
     )
     basket_tree.heading("#0", text="")
     basket_tree.column("#0", width=20, anchor="w", stretch=False)
