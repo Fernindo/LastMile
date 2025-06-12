@@ -115,4 +115,5 @@ def create_filter_panel(parent, on_mousewheel_callback,
         for var in category_vars.values(): var.set(False)
         on_mousewheel_callback()
 
-    return filter_container, setup_category_tree, category_vars, table_vars
+    return filter_container, filter_frame, setup_category_tree, category_vars, table_vars
+

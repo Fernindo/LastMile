@@ -83,9 +83,10 @@ def start(project_dir, json_path):
         basket_modified[0] = True
 
     # ─── Top-Level Frames ─────────────────────────────────────────────────
-    filter_frame = None  # will be set by create_filter_panel
+    
     main_frame   = tb.Frame(root, padding=10)
     main_frame.pack(side="right", fill="both", expand=True)
+    
     db_visible = [True]  # Používame list kvôli mutabilite
 
     def toggle_db_view():
@@ -110,13 +111,41 @@ def start(project_dir, json_path):
     except:
         pass
 
-    filter_frame, setup_cat_tree, category_vars, table_vars = create_filter_panel(
+    # --- Filter panel (create + toggle) --------------------------------------
+    filter_container, filter_frame, setup_cat_tree, category_vars, table_vars = create_filter_panel(
         root,
         lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
     )
-    filter_frame.config(width=350)
-    filter_frame.pack(side="left", fill="y", padx=10, pady=10)
+    filter_container.config(width=350)
+
     setup_cat_tree(category_structure)
+
+    filter_visible = [False]  # stav panelu
+
+    def toggle_filter():
+        if filter_visible[0]:
+            filter_container.place_forget()
+            filter_toggle_btn.config(text="▶")
+        else:
+            # ukotvíme panel úplne vlevo s výškou celej obrazovky
+            filter_container.place(x=0, y=0, relheight=1)
+            filter_toggle_btn.config(text="◀")
+        filter_visible[0] = not filter_visible[0]
+
+    toggle_filter_container = tk.Frame(root, bg="#f0f4f8")
+    toggle_filter_container.place(relx=0.0, rely=0.5, anchor="w")
+
+    filter_toggle_btn = tk.Button(
+        toggle_filter_container,
+        text="▶",
+        font=("Segoe UI", 12, "bold"),
+        width=2,
+        height=1,
+        bg="#e0e0e0",
+        relief="flat",
+        command=toggle_filter
+    )
+    filter_toggle_btn.pack()
 
     # ─── Main Area (right) ────────────────────────────────────────────────
     # Top bar (Home button + Search entry)
