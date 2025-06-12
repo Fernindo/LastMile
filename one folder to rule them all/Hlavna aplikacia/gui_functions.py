@@ -1032,10 +1032,10 @@ def fetch_recommendations_async(
         # 2c) Filter out anything already in basket_items
         filtered_recs = []
         for rec in all_recs:
-            # rec tuple is:
-            # ( produkt, jednotky, dodavatel, odkaz,
-            #   koeficient_material, nakup_materialu,
-            #   cena_prace, koeficient_prace, section_name )
+            if len(rec) < 9:
+                print(f"⚠️ Skipping malformed recommendation: {rec}")
+                continue
+
             produkt_name = rec[0]
             section_name = rec[8]
             if section_name in basket_items and produkt_name in basket_items[section_name]:
@@ -1066,6 +1066,10 @@ def update_recommendation_tree(recom_tree, rec_list):
 
     # 2) Insert each rec: values = rec (all 9 fields)
     for rec in rec_list:
-        # rec is (produkt, jednotky, dodavatel, odkaz, koeficient_material,
-        #        nakup_materialu, cena_prace, koeficient_prace, section_name)
+        # If section name is missing (only 8 elements), append empty string
+        if len(rec) == 8:
+            rec = rec + ("",)
+        elif len(rec) < 8:
+            continue  # skip malformed row
+
         recom_tree.insert("", "end", values=rec)

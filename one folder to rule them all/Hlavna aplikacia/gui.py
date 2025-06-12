@@ -86,6 +86,25 @@ def start(project_dir, json_path):
     filter_frame = None  # will be set by create_filter_panel
     main_frame   = tb.Frame(root, padding=10)
     main_frame.pack(side="right", fill="both", expand=True)
+    db_visible = [True]  # Používame list kvôli mutabilite
+
+    def toggle_db_view():
+        if db_visible[0]:
+            tree_frame.pack_forget()
+            toggle_btn.config(text="🔼 Zobraziť databázu")
+        else:
+            tree_frame.pack(in_=main_frame, before=basket_frame, fill="both", expand=True, padx=10, pady=10)
+            toggle_btn.config(text="🔽 Skryť databázu")
+        db_visible[0] = not db_visible[0]
+
+
+    toggle_btn = tb.Button(
+        main_frame,
+        text="🔽 Skryť databázu",
+        bootstyle="secondary",
+        command=toggle_db_view
+    )
+    toggle_btn.pack(anchor="w", padx=10)
 
     # ─── Filter Panel (left) ──────────────────────────────────────────────
     category_structure = {}
