@@ -865,32 +865,6 @@ def show_notes_popup(project_name, json_dir):
     notes_window.grab_set()
     notes_window.wait_window()
 
-def return_home(
-    project_dir,
-    basket_modified,
-    basket_items,
-    json_dir,
-    project_name,
-    conn,
-    root,
-    basket_tree,            # <— newly required
-    reorder_basket_data_fn  # <— newly required
-):
-    """
-    Called when “Home” button is pressed.
-    If basket_modified is True, save basket; then close DB and launch launcher.exe.
-    """
-    if basket_modified[0]:
-        reorder_basket_data_fn(basket_tree, basket_items)
-        save_basket(json_dir, project_name, basket_items)
-
-    conn.close()
-    root.destroy()
-    subprocess.Popen(
-        [sys.executable, os.path.join(project_dir, "launcher.exe")],
-        cwd=project_dir
-    )
-
 
 
 def fetch_recommendations_async(

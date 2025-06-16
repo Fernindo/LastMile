@@ -33,7 +33,6 @@ from gui_functions import (
     reset_item,
     add_custom_item,
     show_notes_popup,
-    return_home,
     fetch_recommendations_async,     # NEW
     update_recommendation_tree      # NEW
 )
@@ -98,6 +97,41 @@ def start(project_dir, json_path):
             toggle_btn.config(text="🔽 Skryť databázu")
         db_visible[0] = not db_visible[0]
 
+        # ─── Track whether the database is visible ───────────────────────────
+    db_visible = [True]
+
+    def toggle_db_view():
+        if db_visible[0]:
+            tree_frame.pack_forget()
+            toggle_btn.config(text="🔼 Zobraziť databázu")
+        else:
+            tree_frame.pack(
+                in_=main_frame,
+                before=basket_frame,
+                fill="both",
+                expand=True,
+                padx=10,
+                pady=10
+            )
+            toggle_btn.config(text="🔽 Skryť databázu")
+        db_visible[0] = not db_visible[0]
+
+    # ─── Track whether the basket is visible ────────────────────────────
+    basket_visible = [True]
+
+    def toggle_basket_view():
+        if basket_visible[0]:
+            basket_frame.pack_forget()
+            toggle_basket_btn.config(text="🔼 Zobraziť košík")
+        else:
+            basket_frame.pack(
+                fill="both",
+                expand=True,
+                padx=10,
+                pady=10
+            )
+            toggle_basket_btn.config(text="🔽 Skryť košík")
+        basket_visible[0] = not basket_visible[0]
 
     
    
@@ -158,24 +192,16 @@ def start(project_dir, json_path):
         bootstyle="secondary",
         command=toggle_db_view
     )
-    toggle_btn.pack(side="left", padx=(0, 10))
-    home_btn = tb.Button(
-        top,
-        text="🏠 Home",
-        bootstyle="light",
-        command=lambda: return_home(
-            project_dir,
-            basket_modified,
-            basket_items,
-            json_dir,
-            project_name,
-            conn,
-            root,
-            basket_tree,            # <-- pass basket_tree
-            reorder_basket_data     # <-- pass reorder function
-        )
+    toggle_btn.pack(side="left", padx=(10, 0))
+    
+    toggle_basket_btn = tb.Button(
+    top,
+    text="🔽 Skryť košík",
+    bootstyle="secondary",
+    command=toggle_basket_view
     )
-    home_btn.pack(side="left")
+    toggle_basket_btn.pack(side="left", padx=(10, 0))
+
 
     praca_btn = tb.Button(
         top,
@@ -503,13 +529,7 @@ def start(project_dir, json_path):
     )
 
     # ─── Notes button ─────────────────────────────────────────────────────
-    notes_btn = tb.Button(
-        basket_frame,
-        text="Poznámky",
-        bootstyle="secondary",
-        command=lambda: show_notes_popup(project_name, json_dir)
-    )
-    notes_btn.pack(pady=3)
+    
 
     # ─── NEW Position: Recommendations Label & Treeview ───────────────────
     tk.Label(basket_frame, text="Doporučené položky:").pack(anchor="w", pady=(10, 0))
@@ -595,6 +615,14 @@ def start(project_dir, json_path):
         )
     )
     add_custom_btn.pack(side="left", padx=(0, 10))
+    
+    notes_btn = tb.Button(
+        left_btn_frame,
+        text="Poznámky",
+        bootstyle="secondary",
+        command=lambda: show_notes_popup(project_name, json_dir)
+    )
+    notes_btn.pack(side="left", padx=(0, 10))
 
     export_btn = tb.Button(
         left_btn_frame,
