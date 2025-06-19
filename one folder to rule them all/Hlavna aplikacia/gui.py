@@ -75,6 +75,10 @@ def start(project_dir, json_path):
     root.state("zoomed")
     root.option_add("*Font", ("Segoe UI", 10))
 
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=0)  # filter column
+    root.grid_columnconfigure(1, weight=1)
+
     # ─── Track whether the basket has been modified ──────────────────────
     basket_modified = [False]  # use a list so nested functions can modify
 
@@ -84,7 +88,7 @@ def start(project_dir, json_path):
     # ─── Top-Level Frames ─────────────────────────────────────────────────
     
     main_frame   = tb.Frame(root, padding=10)
-    main_frame.pack(side="right", fill="both", expand=True)
+    main_frame.grid(row=0, column=0, sticky="nsew")
     
     db_visible = [True]  # Používame list kvôli mutabilite
 
@@ -158,13 +162,20 @@ def start(project_dir, json_path):
 
     def toggle_filter():
         if filter_visible[0]:
-            filter_container.place_forget()
+            # hide filter, expand main into column 0
+            filter_container.grid_forget()
+            main_frame.grid(row=0, column=0, sticky="nsew")
+            root.grid_columnconfigure(0, weight=1)
             filter_toggle_btn.config(text="▶")
         else:
-            # ukotvíme panel úplne vlevo s výškou celej obrazovky
-            filter_container.place(x=0, y=0, relheight=1)
+            # show filter in column 0, push main to column 1
+            filter_container.grid(row=0, column=0, sticky="ns")
+            main_frame.grid(row=0, column=1, sticky="nsew")
+            root.grid_columnconfigure(0, weight=0)
+            root.grid_columnconfigure(1, weight=1)
             filter_toggle_btn.config(text="◀")
         filter_visible[0] = not filter_visible[0]
+
 
     toggle_filter_container = tk.Frame(root, bg="#f0f4f8")
     toggle_filter_container.place(relx=0.0, rely=0.5, anchor="w")
