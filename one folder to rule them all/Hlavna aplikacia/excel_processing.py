@@ -1,15 +1,14 @@
-import xlwings as xw
 import os
 import shutil
 import sys
 import tkinter.filedialog
+import xlwings as xw
 
-def update_excel(selected_items, project_name, notes_text=""):
+def update_excel(selected_items, project_name, notes_text="", definicia_text="", praca_data=None):
     if not selected_items:
         print("⚠ No items selected for Excel.")
         return
 
-    # ─── File Save Dialog (cross-platform) ─────────────────────────────
     filetypes = [("Excel files", "*.xlsx"), ("All files", "*.*")]
     new_file = tkinter.filedialog.asksaveasfilename(
         title="Exportovať do Excelu",
@@ -21,7 +20,6 @@ def update_excel(selected_items, project_name, notes_text=""):
         print("❌ Export zrušený používateľom.")
         return
 
-    # ─── Locate template ────────────────────────────────────────────────
     if getattr(sys, 'frozen', False):
         base_dir = sys._MEIPASS
     else:
@@ -30,7 +28,6 @@ def update_excel(selected_items, project_name, notes_text=""):
     template_file = os.path.join(base_dir, "Vzorova_CP3.xlsx")
     if not os.path.exists(template_file):
         print(f"❌ Template file not found at: {template_file}")
-        print("Make sure that 'Vzorova_CP3.xlsx' is in the same folder as your scripts.")
         return
 
     try:
@@ -44,6 +41,9 @@ def update_excel(selected_items, project_name, notes_text=""):
         app = xw.App(visible=False)
         wb = xw.Book(new_file)
         sheet = wb.sheets[0]
+
+        sheet.range("B9:K9").value = [[project_name] * 10]
+        sheet.range("B10:K10").value = [[definicia_text] * 10]
 
         TEMPLATE_ROW = 18
         insert_position = TEMPLATE_ROW
@@ -134,6 +134,16 @@ def update_excel(selected_items, project_name, notes_text=""):
                     notes_sheet.cells(i, 1).value = line
             except Exception as e:
                 print("⚠ Failed to add notes sheet:", e)
+
+        if praca_data:
+            start_row = 44
+            start_col = 10  # Column J
+            headers = ["Rola", "Počet osôb", "Hodiny", "Plat/h", "Spolu", "Koef.", "Predaj"]
+            for col, header in enumerate(headers):
+                sheet.cells(start_row, start_col + col).value = header
+            for r_idx, row in enumerate(praca_data, start=start_row + 1):
+                for c_idx, val in enumerate(row):
+                    sheet.cells(r_idx, start_col + c_idx).value = val
 
         wb.save()
         wb.close()

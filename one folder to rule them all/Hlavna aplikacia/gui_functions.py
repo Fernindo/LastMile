@@ -605,16 +605,13 @@ def reorder_basket_data(basket_tree, basket_items):
     basket_items.clear()
     basket_items.update(new_basket)
 
-def update_excel_from_basket(basket_items, project_name):
+def update_excel_from_basket(basket_items, project_name, definicia_text=""):
     """
-    Build an Excel file (on Desktop) summarizing all basket rows.
+    Otvorí dialógové okno na výber miesta uloženia a vytvorí Excel súbor.
     """
     if not basket_items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
-
-    desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-    out_file = os.path.join(desktop, f"{project_name}.xlsx")
 
     excel_data = []
     for section, products in basket_items.items():
@@ -622,23 +619,19 @@ def update_excel_from_basket(basket_items, project_name):
             excel_data.append((
                 section,
                 produkt,
-                v["jednotky"],
-                v["dodavatel"],
-                v["odkaz"],
-                v.get("koeficient_material", 0),
-                v.get("koeficient_prace",    1),
-                v.get("nakup_materialu",     0),
-                v.get("cena_prace",          0),
-                v.get("pocet_prace",         1),
+                v.get("jednotky", ""),
+                v.get("dodavatel", ""),
+                v.get("odkaz", ""),
+                v.get("koeficient_material", 1.0),
+                v.get("koeficient_prace",    1.0),
+                v.get("nakup_materialu",     0.0),
+                v.get("cena_prace",          0.0),
                 v.get("pocet_materialu",     1),
+                v.get("pocet_prace",         1),
             ))
 
-    success = update_excel(excel_data, out_file)
-    if success and os.path.exists(out_file):
-        messagebox.showinfo(
-            "Export hotový",
-            f"✅ Súbor bol úspešne uložený na plochu ako:\n{out_file}"
-        )
+    update_excel(excel_data, project_name, definicia_text=definicia_text)
+
 
 def recompute_total_spolu(basket_items, total_spolu_var):
     """

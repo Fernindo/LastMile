@@ -641,8 +641,12 @@ def start(project_dir, json_path):
         bootstyle="success",
         command=lambda: (
             reorder_basket_data(basket_tree, basket_items),
-            update_excel_from_basket(basket_items, project_name)
+            update_excel_from_basket(
+                basket_items,
+                project_entry.get(),
+                definicia_text=definition_entry.get()
         )
+    )
     )
     export_btn.pack(side="left")
 
