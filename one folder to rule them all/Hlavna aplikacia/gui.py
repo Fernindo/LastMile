@@ -9,6 +9,7 @@ import json
 from datetime import datetime
 import tkinter.simpledialog
 from ttkbootstrap import Style
+from ttkbootstrap.widgets import Combobox
 from collections import OrderedDict
 from praca import show_praca_window
 
@@ -213,6 +214,22 @@ def start(project_dir, json_path):
     definition_entry = tk.Entry(top, width=50)
     definition_entry.insert(0, "")
     definition_entry.pack(side="left")
+
+    # Theme selector
+    theme_var = tk.StringVar(value="litera")
+    theme_combo = Combobox(
+        top,
+        textvariable=theme_var,
+        values=style.theme_names(),
+        width=10,
+        state="readonly"
+    )
+    theme_combo.pack(side="right", padx=(5, 10))
+
+    def change_theme(event=None):
+        style.theme_use(theme_var.get())
+
+    theme_combo.bind("<<ComboboxSelected>>", change_theme)
 
     # ─── Database Treeview (DB results) ───────────────────────────────────
     tree_frame = tb.Frame(main_frame)
