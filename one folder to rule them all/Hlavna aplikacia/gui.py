@@ -303,7 +303,9 @@ def start(project_dir, json_path):
             visible = ["produkt"]
             db_column_vars["produkt"].set(True)
         tree.config(displaycolumns=visible)
-        adjust_db_columns(tk.Event(width=tree.winfo_width()))
+        event = tk.Event()
+        event.width = tree.winfo_width()
+        adjust_db_columns(event)
 
     tree.bind("<Configure>", adjust_db_columns)
 
