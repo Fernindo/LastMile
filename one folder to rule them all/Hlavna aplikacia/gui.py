@@ -320,27 +320,36 @@ def start(project_dir, json_path):
     basket_scroll_y.pack(side="right", fill="y")
     basket_scroll_x.pack(side="bottom", fill="x")
     # -- Column Toggle Checkboxes (Basket) --
+    # Reorder columns so material related fields are grouped together
+    # followed by work/praca related fields. Columns are made wider via a
+    # larger default width to better fit text.
     basket_columns = (
         "produkt",
         "jednotky",
+
+        # --- Material ---------------------------------------------------
         "pocet_materialu",
-        "predaj_mat_jedn",
-        "predaj_mat_spolu",
-        "pocet_prace",
-        "predaj_praca_jedn",
-        "predaj_praca_spolu",
-        "predaj_spolu",
         "koeficient_material",
         "nakup_mat_jedn",
+        "predaj_mat_jedn",
         "nakup_mat_spolu",
+        "predaj_mat_spolu",
         "zisk_material",
         "marza_material",
+
+        # --- Praca ------------------------------------------------------
+        "pocet_prace",
         "koeficient_praca",
         "cena_prace",
         "nakup_praca_spolu",
+        "predaj_praca_jedn",
+        "predaj_praca_spolu",
         "zisk_praca",
         "marza_praca",
-        "sync_qty"
+
+        # --- Summary / misc -------------------------------------------
+        "predaj_spolu",
+        "sync_qty",
     )
     column_vars = {}
     checkbox_frame = tb.LabelFrame(basket_frame, text="Zobraziť stĺpce:", padding=5)
@@ -370,7 +379,9 @@ def start(project_dir, json_path):
     basket_tree.column("#0", width=20, anchor="w", stretch=False)
     for c in basket_columns:
         basket_tree.heading(c, text=c.capitalize())
-        basket_tree.column(c, width=120, anchor="center", stretch=False)
+        # Slightly wider default width so longer text fits and the
+        # horizontal scrollbar becomes usable when needed.
+        basket_tree.column(c, width=150, anchor="center", stretch=False)
     basket_tree.pack(fill="both", expand=True)
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
