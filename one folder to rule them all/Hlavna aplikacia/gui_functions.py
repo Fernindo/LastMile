@@ -628,12 +628,16 @@ def reorder_basket_data(basket_tree, basket_items):
             # Indices correspond to basket_columns in gui.py
             prods[vals[0]] = {
                 "jednotky":            vals[1],
-                "koeficient_material": float(vals[9]),
-                "nakup_materialu":     float(vals[10]),
-                "koeficient_prace":    float(vals[14]),
-                "cena_prace":          float(vals[15]),
-                "pocet_materialu":     int(vals[2]),
-                "pocet_prace":         int(vals[5]),
+                # Base material and work values are editable directly in the
+                # Treeview, so pull them from their visible columns.
+                "koeficient_material": float(vals[3]),
+                "nakup_materialu":     float(vals[4]),
+                "koeficient_prace":    float(vals[11]),
+                "cena_prace":          float(vals[12]),
+                # Counts may be edited as floats, e.g. "20.0" → cast via float
+                # before converting to int to avoid ValueError.
+                "pocet_materialu":     int(float(vals[2])),
+                "pocet_prace":         int(float(vals[10])),
                 "sync_qty":            (vals[19] == "✓")
             }
         new_basket[sec_name] = prods
