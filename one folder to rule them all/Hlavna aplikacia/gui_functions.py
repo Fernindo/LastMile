@@ -366,29 +366,37 @@ def update_basket_table(basket_tree, basket_items):
             sync = "✓" if d.get("sync_qty") else ""
 
             basket_tree.insert(
-                sec_id, "end", text="",
+                sec_id,
+                "end",
+                text="",
                 values=(
                     produkt,
                     d.get("jednotky", ""),
+
+                    # --- Material ---
                     poc_mat,
-                    predaj_mat_jedn,
-                    predaj_mat_spolu,
-                    poc_pr,
-                    predaj_praca_jedn,
-                    predaj_praca_spolu,
-                    predaj_spolu,
                     koef_mat,
                     nakup_mat,
+                    predaj_mat_jedn,
                     nakup_mat_spolu,
+                    predaj_mat_spolu,
                     zisk_mat,
                     marza_mat,
+
+                    # --- Praca ---
+                    poc_pr,
                     koef_pr,
                     cena_pr,
                     nakup_praca_spolu,
+                    predaj_praca_jedn,
+                    predaj_praca_spolu,
                     zisk_pr,
                     marza_pr,
-                    sync
-                )
+
+                    # --- Summary ---
+                    predaj_spolu,
+                    sync,
+                ),
             )
 
 def add_to_basket_full(item, basket_items, original_basket,
@@ -620,12 +628,12 @@ def reorder_basket_data(basket_tree, basket_items):
             # Indices correspond to basket_columns in gui.py
             prods[vals[0]] = {
                 "jednotky":            vals[1],
-                "koeficient_material": float(vals[9]),
-                "nakup_materialu":     float(vals[10]),
-                "koeficient_prace":    float(vals[14]),
-                "cena_prace":          float(vals[15]),
+                "koeficient_material": float(vals[3]),
+                "nakup_materialu":     float(vals[4]),
+                "koeficient_prace":    float(vals[11]),
+                "cena_prace":          float(vals[12]),
                 "pocet_materialu":     int(vals[2]),
-                "pocet_prace":         int(vals[5]),
+                "pocet_prace":         int(vals[10]),
                 "sync_qty":            (vals[19] == "✓")
             }
         new_basket[sec_name] = prods
