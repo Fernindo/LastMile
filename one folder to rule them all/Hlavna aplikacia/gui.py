@@ -294,13 +294,8 @@ def start(project_dir, json_path):
             "koeficient_prace":    0.08,
         }
 
-        visible = tree.cget("displaycolumns")
-        if isinstance(visible, str):
-            visible = (visible,)
-        total_prop = sum(proportions.get(c, 1) for c in visible)
-        for col in visible:
-            pct = proportions.get(col, 1)
-            tree.column(col, width=int(total * pct / total_prop), stretch=True)
+        for col, pct in proportions.items():
+            tree.column(col, width=int(total * pct), stretch=True)
 
     def update_displayed_db_columns():
         visible = [col for col, var in db_column_vars.items() if var.get()]
@@ -318,12 +313,12 @@ def start(project_dir, json_path):
     tk.Label(basket_frame, text="Košík - vybraté položky:").pack(anchor="w")
     basket_tree_container = tb.Frame(basket_frame)
     basket_tree_container.pack(fill="both", expand=True)
-    basket_tree_container.rowconfigure(0, weight=1)
-    basket_tree_container.columnconfigure(0, weight=1)
 
     # Scrollbary
     basket_scroll_y = ttk.Scrollbar(basket_tree_container, orient="vertical")
     basket_scroll_x = ttk.Scrollbar(basket_tree_container, orient="horizontal")
+    basket_scroll_y.pack(side="right", fill="y")
+    basket_scroll_x.pack(side="bottom", fill="x")
     # -- Column Toggle Checkboxes (Basket) --
     # Reorder columns so material related fields are grouped together
     # followed by work/praca related fields. Columns are made wider via a
@@ -373,7 +368,7 @@ def start(project_dir, json_path):
     # -- Basket Treeview --
     initial_display = [c for c in basket_columns]
     basket_tree = ttk.Treeview(
-        basket_tree_container,
+        basket_tree_container,  # ✅ správne ukotvenie
         columns=basket_columns,
         show="tree headings",
         displaycolumns=initial_display,
@@ -382,28 +377,14 @@ def start(project_dir, json_path):
     )
     basket_tree.heading("#0", text="")
     basket_tree.column("#0", width=20, anchor="w", stretch=False)
-    # Maintain a reasonable minimum width per column so text isn't cropped.
-    basket_min_width = 150
     for c in basket_columns:
         basket_tree.heading(c, text=c.capitalize())
-
-        
+        # Slightly wider default width so longer text fits and the
+        # horizontal scrollbar becomes usable when needed.
+        basket_tree.column(c, width=150, anchor="center", stretch=False)
+    basket_tree.pack(fill="both", expand=True)
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
-
-    def adjust_basket_columns(event):
-        total = event.width
-        visible = basket_tree.cget("displaycolumns")
-        if isinstance(visible, str):
-            visible = (visible,)
-        count = len(visible)
-        if count == 0:
-            return
-        width = max(basket_min_width, int(total / count))
-        for col in visible:
-            basket_tree.column(col, width=width, stretch=False)
-
-    basket_tree.bind("<Configure>", adjust_basket_columns)
 
 
 
@@ -497,12 +478,8 @@ def start(project_dir, json_path):
         sec = basket_tree.parent(row)
         prod = basket_tree.item(row)["values"][0]
         if col_name in editable_cols:
-            target = "nakup_materialu" if col_name == "nakup_mat_jedn" else col_name
-            basket_items[basket_tree.item(sec, "text")][prod][target] = new
-            if (
-                basket_items[basket_tree.item(sec, "text")][prod].get("sync_qty")
-                and col_name == "pocet_materialu"
-            ):
+            basket_items[basket_tree.item(sec, "text")][prod][col_name] = new
+            if basket_items[basket_tree.item(sec, "text")][prod].get("sync_qty") and col_name == "pocet_materialu":
                 basket_items[basket_tree.item(sec, "text")][prod]["pocet_prace"] = new
 
         mark_modified()
@@ -727,7 +704,6 @@ def start(project_dir, json_path):
             visible = ["produkt"]
             column_vars["produkt"].set(True)
         basket_tree.config(displaycolumns=visible)
-        adjust_basket_columns(tk.Event(width=basket_tree.winfo_width()))
 
     update_displayed_columns()
 
