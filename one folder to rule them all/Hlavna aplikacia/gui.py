@@ -386,11 +386,8 @@ def start(project_dir, json_path):
     basket_min_width = 150
     for c in basket_columns:
         basket_tree.heading(c, text=c.capitalize())
-        basket_tree.column(c, width=basket_min_width, anchor="center",
-                          stretch=False)
-    basket_tree.grid(row=0, column=0, sticky="nsew")
-    basket_scroll_y.grid(row=0, column=1, sticky="ns")
-    basket_scroll_x.grid(row=1, column=0, sticky="ew")
+
+        
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
 
