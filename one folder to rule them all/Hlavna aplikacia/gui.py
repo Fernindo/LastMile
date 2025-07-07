@@ -359,62 +359,24 @@ def start(project_dir, json_path):
     # -- Basket Treeview --
     initial_display = [c for c in basket_columns]
     basket_tree = ttk.Treeview(
-    basket_tree_container,  # ✅ správne ukotvenie
-    columns=basket_columns,
-    show="tree headings",
-    displaycolumns=initial_display,
-    yscrollcommand=basket_scroll_y.set,
-    xscrollcommand=basket_scroll_x.set
+        basket_tree_container,  # ✅ správne ukotvenie
+        columns=basket_columns,
+        show="tree headings",
+        displaycolumns=initial_display,
+        yscrollcommand=basket_scroll_y.set,
+        xscrollcommand=basket_scroll_x.set,
     )
     basket_tree.heading("#0", text="")
     basket_tree.column("#0", width=20, anchor="w", stretch=False)
     for c in basket_columns:
         basket_tree.heading(c, text=c.capitalize())
-        basket_tree.column(c, anchor="center", stretch=True)
+        basket_tree.column(c, width=120, anchor="center", stretch=False)
     basket_tree.pack(fill="both", expand=True)
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
 
-    # Bind resizing → adjust only visible columns
-    def adjust_visible_basket_columns(event=None):
-        total_width = basket_tree.winfo_width()
-        if total_width <= 0:
-            return
-        icon_width = max(int(total_width * 0.11), 20)
-        basket_tree.column("#0", width=icon_width, anchor="w", stretch=False)
-        available = max(total_width - icon_width, 100)
-        visible_cols = basket_tree.cget("displaycolumns")
-        if isinstance(visible_cols, str):
-            visible_cols = (visible_cols,)
-        proportions = {
-            "produkt":             0.13,
-            "jednotky":            0.05,
-            "pocet_materialu":     0.06,
-            "predaj_mat_jedn":     0.07,
-            "predaj_mat_spolu":    0.07,
-            "pocet_prace":         0.06,
-            "predaj_praca_jedn":   0.07,
-            "predaj_praca_spolu":  0.07,
-            "predaj_spolu":        0.07,
-            "koeficient_material": 0.06,
-            "nakup_mat_jedn":      0.06,
-            "nakup_mat_spolu":     0.06,
-            "zisk_material":       0.06,
-            "marza_material":      0.06,
-            "koeficient_praca":    0.06,
-            "cena_prace":          0.06,
-            "nakup_praca_spolu":   0.06,
-            "zisk_praca":          0.06,
-            "marza_praca":         0.06,
-            "sync_qty":            0.05,
-        }
-        sum_weights = sum(proportions[col] for col in visible_cols)
-        for col in visible_cols:
-            weight = proportions[col]
-            pct = weight / sum_weights
-            basket_tree.column(col, width=int(available * pct), stretch=True)
 
-    basket_tree.bind("<Configure>", adjust_visible_basket_columns)
+
 
     # ─── Inline edit on double-click (Basket), but intercept "produkt" column to show recs ─
     def on_basket_double_click(event):
@@ -724,14 +686,13 @@ def start(project_dir, json_path):
     # ─── Initial filtering of DB results ─────────────────────────────────
     apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
 
-    # ─── Ensure basket columns display matches checkboxes and fill width ───
+    # ─── Ensure basket columns display matches checkboxes ───
     def update_displayed_columns():
         visible = [col for col, var in column_vars.items() if var.get()]
         if not visible:
             visible = ["produkt"]
             column_vars["produkt"].set(True)
         basket_tree.config(displaycolumns=visible)
-        adjust_visible_basket_columns()
 
     update_displayed_columns()
 
