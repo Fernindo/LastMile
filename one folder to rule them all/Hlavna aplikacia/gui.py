@@ -2,25 +2,20 @@
 
 import sys
 import os
-import sqlite3
 import tkinter as tk
 import tkinter.ttk as ttk
 import ttkbootstrap as tb
 import json
-import datetime
-import tkinter.simpledialog
 from datetime import datetime
+import tkinter.simpledialog
 from ttkbootstrap import Style
 from collections import OrderedDict
 from praca import show_praca_window
 
 from gui_functions import (
-    is_online,
     get_database_connection,
     sync_postgres_to_sqlite,
-    save_basket,
     load_basket,
-    show_error,
     apply_filters,
     update_basket_table,
     add_to_basket_full,         # “silent” version, DOES NOT auto-add recs
@@ -33,12 +28,10 @@ from gui_functions import (
     reset_item,
     add_custom_item,
     show_notes_popup,
-    fetch_recommendations_async,     # NEW
-    update_recommendation_tree      # NEW
+    fetch_recommendations_async
 )
 
 from filter_panel import create_filter_panel
-from excel_processing import update_excel
 from tkinter import messagebox, simpledialog
 
 def start(project_dir, json_path):
@@ -98,25 +91,6 @@ def start(project_dir, json_path):
             toggle_btn.config(text="🔼 Zobraziť databázu")
         else:
             tree_frame.pack(in_=main_frame, before=basket_frame, fill="both", expand=True, padx=10, pady=10)
-            toggle_btn.config(text="🔽 Skryť databázu")
-        db_visible[0] = not db_visible[0]
-
-        # ─── Track whether the database is visible ───────────────────────────
-    db_visible = [True]
-
-    def toggle_db_view():
-        if db_visible[0]:
-            tree_frame.pack_forget()
-            toggle_btn.config(text="🔼 Zobraziť databázu")
-        else:
-            tree_frame.pack(
-                in_=main_frame,
-                before=basket_frame,
-                fill="both",
-                expand=True,
-                padx=10,
-                pady=10
-            )
             toggle_btn.config(text="🔽 Skryť databázu")
         db_visible[0] = not db_visible[0]
 
