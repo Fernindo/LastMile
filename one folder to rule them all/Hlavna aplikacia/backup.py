@@ -1,5 +1,3 @@
-import os
-
 def clean_sql_file():
     input_path = r"C:\Users\slaso\Desktop\LastMile\backup_inserts.sql"
     output_path = r"C:\Users\slaso\Desktop\LastMile\backup_tables_only.sql"

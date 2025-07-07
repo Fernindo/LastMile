@@ -131,7 +131,7 @@ def show_praca_window(cursor):
             messagebox.showwarning("Upozornenie", "Musí zostať aspoň jedna rola.")
             return
         # Odstranenie posledneho riadku
-        row = entries.pop()
+        entries.pop()
         for widget in table_frame.grid_slaves():
             if int(widget.grid_info()["row"]) == len(entries) + 1:
                 widget.destroy()

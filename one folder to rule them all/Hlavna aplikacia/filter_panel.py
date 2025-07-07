@@ -39,7 +39,7 @@ def create_filter_panel(parent, on_mousewheel_callback,
     canvas.configure(xscrollcommand=h_scrollbar.set)
 
     filter_frame = tk.Frame(canvas, bg="white")
-    canvas_window = canvas.create_window((0, 0), window=filter_frame, anchor="nw")
+    canvas.create_window((0, 0), window=filter_frame, anchor="nw")
 
     canvas.pack(fill=tk.BOTH, expand=True)
     h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
