@@ -169,15 +169,17 @@ def save_basket(project_path, project_name, basket_items, user_name=""):
         sec_obj = {"section": section, "products": []}
         for pname, info in prods.items():
             sec_obj["products"].append({
-                "produkt":         pname,
-                "jednotky":        info.get("jednotky", ""),
-                "dodavatel":       info.get("dodavatel", ""),
-                "odkaz":           info.get("odkaz", ""),
-                "koeficient":      info.get("koeficient_material", 0),
-                "nakup_materialu": info.get("nakup_materialu", 0),
-                "cena_prace":      info.get("cena_prace", 0),
-                "pocet_prace":     info.get("pocet_prace", 1),
-                "pocet_materialu": info.get("pocet_materialu", 1),
+                "produkt":             pname,
+                "jednotky":            info.get("jednotky", ""),
+                "dodavatel":           info.get("dodavatel", ""),
+                "odkaz":               info.get("odkaz", ""),
+                "koeficient_material": info.get("koeficient_material", 0),
+                "koeficient_prace":    info.get("koeficient_prace", 1),
+                "nakup_materialu":     info.get("nakup_materialu", 0),
+                "cena_prace":          info.get("cena_prace", 0),
+                "pocet_prace":         info.get("pocet_prace", 1),
+                "pocet_materialu":     info.get("pocet_materialu", 1),
+                "sync_qty":            info.get("sync_qty", False)
             })
         out["items"].append(sec_obj)
 
@@ -224,6 +226,7 @@ def load_basket(project_path, project_name, file_path=None):
                 "cena_prace":          float(p.get("cena_prace", 0)),
                 "pocet_prace":         int(p.get("pocet_prace", 1)),
                 "pocet_materialu":     int(p.get("pocet_materialu", 1)),
+                "sync_qty":           bool(p.get("sync_qty", False)),
             }
         basket_items[section] = prods
 
@@ -337,29 +340,54 @@ def update_basket_table(basket_tree, basket_items):
         sec_id = basket_tree.insert("", "end", text=section, open=True)
         for produkt, d in products.items():
             # Compute derived columns
+            poc_mat = int(d.get("pocet_materialu", 1))
+            poc_pr  = int(d.get("pocet_prace", 1))
+
             koef_mat = float(d.get("koeficient_material", 0))
             nakup_mat = float(d.get("nakup_materialu", 0))
-            predaj_mat = nakup_mat * koef_mat
+            predaj_mat_jedn  = nakup_mat * koef_mat
+            predaj_mat_spolu = predaj_mat_jedn * poc_mat
 
             koef_pr = float(d.get("koeficient_prace", 1))
             cena_pr = float(d.get("cena_prace", 0))
-            predaj_pr = cena_pr * koef_pr
+            predaj_praca_jedn  = cena_pr * koef_pr
+            predaj_praca_spolu = predaj_praca_jedn * poc_pr
+
+            predaj_spolu = predaj_mat_spolu + predaj_praca_spolu
+
+            nakup_mat_spolu = nakup_mat * poc_mat
+            zisk_mat = predaj_mat_spolu - nakup_mat_spolu
+            marza_mat = (zisk_mat / predaj_mat_spolu * 100) if predaj_mat_spolu else 0
+
+            nakup_praca_spolu = cena_pr * poc_pr
+            zisk_pr = predaj_praca_spolu - nakup_praca_spolu
+            marza_pr = (zisk_pr / predaj_praca_spolu * 100) if predaj_praca_spolu else 0
+
+            sync = "✓" if d.get("sync_qty") else ""
 
             basket_tree.insert(
                 sec_id, "end", text="",
                 values=(
                     produkt,
                     d.get("jednotky", ""),
-                    d.get("dodavatel", ""),
-                    d.get("odkaz", ""),
+                    poc_mat,
+                    predaj_mat_jedn,
+                    predaj_mat_spolu,
+                    poc_pr,
+                    predaj_praca_jedn,
+                    predaj_praca_spolu,
+                    predaj_spolu,
                     koef_mat,
                     nakup_mat,
-                    predaj_mat,
+                    nakup_mat_spolu,
+                    zisk_mat,
+                    marza_mat,
                     koef_pr,
                     cena_pr,
-                    predaj_pr,
-                    int(d.get("pocet_materialu", 1)),
-                    int(d.get("pocet_prace", 1))
+                    nakup_praca_spolu,
+                    zisk_pr,
+                    marza_pr,
+                    sync
                 )
             )
 
@@ -396,7 +424,8 @@ def add_to_basket_full(item, basket_items, original_basket,
             "koeficient_prace":    float(koef_prace),
             "cena_prace":          float(cena_prace),
             "pocet_materialu":     1,
-            "pocet_prace":         1
+            "pocet_prace":         1,
+            "sync_qty":           False
         }
         basket_items[section][produkt] = data
         original_basket.setdefault(section, OrderedDict())[produkt] = copy.deepcopy(data)
@@ -591,14 +620,13 @@ def reorder_basket_data(basket_tree, basket_items):
             # Indices correspond to basket_columns in gui.py
             prods[vals[0]] = {
                 "jednotky":            vals[1],
-                "dodavatel":           vals[2],
-                "odkaz":               vals[3],
-                "koeficient_material": float(vals[4]),
-                "nakup_materialu":     float(vals[5]),
-                "koeficient_prace":    float(vals[7]),
-                "cena_prace":          float(vals[8]),
-                "pocet_materialu":     int(vals[10]),
-                "pocet_prace":         int(vals[11])
+                "koeficient_material": float(vals[9]),
+                "nakup_materialu":     float(vals[10]),
+                "koeficient_prace":    float(vals[14]),
+                "cena_prace":          float(vals[15]),
+                "pocet_materialu":     int(vals[2]),
+                "pocet_prace":         int(vals[5]),
+                "sync_qty":            (vals[19] == "✓")
             }
         new_basket[sec_name] = prods
 
@@ -643,11 +671,13 @@ def recompute_total_spolu(basket_items, total_spolu_var):
         for pname, info in products.items():
             koef_mat = float(info.get("koeficient_material", 0))
             nakup_mat = float(info.get("nakup_materialu", 0))
-            predaj_mat = nakup_mat * koef_mat
+            poc_mat = int(info.get("pocet_materialu", 1))
+            predaj_mat = nakup_mat * koef_mat * poc_mat
 
             koef_pr = float(info.get("koeficient_prace", 1))
             cena_pr = float(info.get("cena_prace", 0))
-            predaj_pr = cena_pr * koef_pr
+            poc_pr = int(info.get("pocet_prace", 1))
+            predaj_pr = cena_pr * koef_pr * poc_pr
 
             total += (predaj_mat + predaj_pr)
     total_spolu_var.set(f"Spolu: {total:.2f}")
@@ -717,7 +747,7 @@ def reset_item(iid, basket_tree, basket_items, original_basket, total_spolu_var,
     if not orig:
         messagebox.showinfo("Chýba originál", "Pôvodné hodnoty nie sú k dispozícii.")
         return
-    for k in ("koeficient_material", "nakup_materialu", "koeficient_prace", "cena_prace", "pocet_materialu", "pocet_prace"):
+    for k in ("koeficient_material", "nakup_materialu", "koeficient_prace", "cena_prace", "pocet_materialu", "pocet_prace", "sync_qty"):
         basket_items[basket_tree.item(sec,'text')][prod][k] = copy.deepcopy(orig[k])
 
     update_basket_table(basket_tree, basket_items)
@@ -807,7 +837,8 @@ def add_custom_item(basket_tree, basket_items, original_basket,
             "koeficient_prace":    koef_pr,
             "cena_prace":          cena_pr,
             "pocet_materialu":     poc_mat,
-            "pocet_prace":         poc_pr
+            "pocet_prace":         poc_pr,
+            "sync_qty":           False
         }
         basket_items[section][name] = data
         original_basket.setdefault(section, OrderedDict())[name] = copy.deepcopy(data)

@@ -323,22 +323,30 @@ def start(project_dir, json_path):
     basket_columns = (
         "produkt",
         "jednotky",
-        "dodavatel",
-        "odkaz",
-        "koeficient_material",
-        "nakup_materialu",
-        "predaj_material",
-        "koeficient_prace",
-        "cena_prace",
-        "predaj_praca",
         "pocet_materialu",
-        "pocet_prace"
+        "predaj_mat_jedn",
+        "predaj_mat_spolu",
+        "pocet_prace",
+        "predaj_praca_jedn",
+        "predaj_praca_spolu",
+        "predaj_spolu",
+        "koeficient_material",
+        "nakup_mat_jedn",
+        "nakup_mat_spolu",
+        "zisk_material",
+        "marza_material",
+        "koeficient_praca",
+        "cena_prace",
+        "nakup_praca_spolu",
+        "zisk_praca",
+        "marza_praca",
+        "sync_qty"
     )
     column_vars = {}
     checkbox_frame = tb.LabelFrame(basket_frame, text="Zobraziť stĺpce:", padding=5)
     checkbox_frame.pack(fill="x", pady=(3, 8))
     for col in basket_columns:
-        var = tk.BooleanVar(value=(col != "odkaz"))
+        var = tk.BooleanVar(value=True)
         column_vars[col] = var
         chk = tk.Checkbutton(
             checkbox_frame,
@@ -349,7 +357,7 @@ def start(project_dir, json_path):
         chk.pack(side="left", padx=5)
 
     # -- Basket Treeview --
-    initial_display = [c for c in basket_columns if c != "odkaz"]
+    initial_display = [c for c in basket_columns]
     basket_tree = ttk.Treeview(
     basket_tree_container,  # ✅ správne ukotvenie
     columns=basket_columns,
@@ -380,17 +388,25 @@ def start(project_dir, json_path):
             visible_cols = (visible_cols,)
         proportions = {
             "produkt":             0.13,
-            "jednotky":            0.07,
-            "dodavatel":           0.12,
-            "odkaz":               0.16,
-            "koeficient_material": 0.07,
-            "nakup_materialu":     0.07,
-            "predaj_material":     0.07,
-            "koeficient_prace":    0.07,
-            "cena_prace":          0.07,
-            "predaj_praca":        0.07,
-            "pocet_materialu":     0.07,
-            "pocet_prace":         0.07,
+            "jednotky":            0.05,
+            "pocet_materialu":     0.06,
+            "predaj_mat_jedn":     0.07,
+            "predaj_mat_spolu":    0.07,
+            "pocet_prace":         0.06,
+            "predaj_praca_jedn":   0.07,
+            "predaj_praca_spolu":  0.07,
+            "predaj_spolu":        0.07,
+            "koeficient_material": 0.06,
+            "nakup_mat_jedn":      0.06,
+            "nakup_mat_spolu":     0.06,
+            "zisk_material":       0.06,
+            "marza_material":      0.06,
+            "koeficient_praca":    0.06,
+            "cena_prace":          0.06,
+            "nakup_praca_spolu":   0.06,
+            "zisk_praca":          0.06,
+            "marza_praca":         0.06,
+            "sync_qty":            0.05,
         }
         sum_weights = sum(proportions[col] for col in visible_cols)
         for col in visible_cols:
@@ -438,11 +454,32 @@ def start(project_dir, json_path):
             return
         col_name = visible_cols[idx_visible]
         idx = basket_columns.index(col_name)
-        if col_name in ("predaj_material", "predaj_praca"):
-            return  # computed columns → skip editing
+        sec = basket_tree.parent(row)
+        prod = basket_tree.item(row)["values"][0]
+        editable_cols = {
+            "jednotky",
+            "koeficient_material",
+            "nakup_mat_jedn",
+            "koeficient_praca",
+            "cena_prace",
+            "pocet_materialu",
+            "pocet_prace",
+        }
+        if col_name not in editable_cols and col_name != "sync_qty" and col_name not in {"pocet_materialu", "pocet_prace"}:
+            # Computed columns
+            return
 
         old = basket_tree.set(row, col_name)
-        if col_name in ("pocet_materialu", "pocet_prace"):
+        if col_name == "sync_qty":
+            new_val = not basket_items[basket_tree.item(sec, "text")][prod].get("sync_qty", False)
+            basket_items[basket_tree.item(sec, "text")][prod]["sync_qty"] = new_val
+            if new_val:
+                # sync counts
+                mat_count = basket_items[basket_tree.item(sec, "text")][prod]["pocet_materialu"]
+                basket_items[basket_tree.item(sec, "text")][prod]["pocet_prace"] = mat_count
+        elif col_name in ("pocet_materialu", "pocet_prace"):
+            if col_name == "pocet_prace" and basket_items[basket_tree.item(sec, "text")][prod].get("sync_qty"):
+                return
             new = simpledialog.askinteger(
                 "Upraviť bunku",
                 f"Nová hodnota pre '{col_name}'",
@@ -456,25 +493,21 @@ def start(project_dir, json_path):
                 initialvalue=float(old),
                 parent=root
             )
+        if col_name == "sync_qty":
+            update_basket_table(basket_tree, basket_items)
+            recompute_total_spolu(basket_items, total_spolu_var)
+            mark_modified()
+            return
         if new is None:
             return
 
         basket_tree.set(row, col_name, new)
         sec = basket_tree.parent(row)
         prod = basket_tree.item(row)["values"][0]
-        editable_cols = {
-            "jednotky",
-            "dodavatel",
-            "odkaz",
-            "koeficient_material",
-            "nakup_materialu",
-            "koeficient_prace",
-            "cena_prace",
-            "pocet_materialu",
-            "pocet_prace",
-        }
         if col_name in editable_cols:
             basket_items[basket_tree.item(sec, "text")][prod][col_name] = new
+            if basket_items[basket_tree.item(sec, "text")][prod].get("sync_qty") and col_name == "pocet_materialu":
+                basket_items[basket_tree.item(sec, "text")][prod]["pocet_prace"] = new
 
         mark_modified()
         update_basket_table(basket_tree, basket_items)
