@@ -11,6 +11,7 @@ import tkinter.simpledialog
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Combobox
 from collections import OrderedDict
+import threading
 from praca import show_praca_window
 
 from gui_functions import (
@@ -650,18 +651,33 @@ def start(project_dir, json_path):
     )
     notes_btn.pack(side="left", padx=(0, 10))
 
+    def export_with_progress():
+        reorder_basket_data(basket_tree, basket_items)
+
+        progress_win = tk.Toplevel(root)
+        progress_win.title("Export")
+        pb = tb.Progressbar(progress_win, mode="indeterminate", length=200)
+        pb.pack(padx=20, pady=20)
+        pb.start()
+
+        def worker():
+            try:
+                update_excel_from_basket(
+                    basket_items,
+                    project_entry.get(),
+                    definicia_text=definition_entry.get()
+                )
+            finally:
+                pb.stop()
+                progress_win.destroy()
+
+        threading.Thread(target=worker, daemon=True).start()
+
     export_btn = tb.Button(
         left_btn_frame,
         text="Exportovať",
         bootstyle="success",
-        command=lambda: (
-            reorder_basket_data(basket_tree, basket_items),
-            update_excel_from_basket(
-                basket_items,
-                project_entry.get(),
-                definicia_text=definition_entry.get()
-        )
-    )
+        command=export_with_progress
     )
     export_btn.pack(side="left")
 
