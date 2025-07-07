@@ -430,12 +430,18 @@ def start(project_dir, json_path):
             return
 
         # Otherwise, do the normal inline-edit (float/int prompt):
-        idx = int(col.replace("#", "")) - 1
-        if idx in (6, 9):
+        idx_visible = int(col.replace("#", "")) - 1
+        visible_cols = basket_tree.cget("displaycolumns")
+        if isinstance(visible_cols, str):
+            visible_cols = (visible_cols,)
+        if idx_visible >= len(visible_cols):
+            return
+        col_name = visible_cols[idx_visible]
+        idx = basket_columns.index(col_name)
+        if col_name in ("predaj_material", "predaj_praca"):
             return  # computed columns → skip editing
 
-        old = basket_tree.set(row, col)
-        col_name = basket_columns[idx]
+        old = basket_tree.set(row, col_name)
         if col_name in ("pocet_materialu", "pocet_prace"):
             new = simpledialog.askinteger(
                 "Upraviť bunku",
@@ -453,22 +459,22 @@ def start(project_dir, json_path):
         if new is None:
             return
 
-        basket_tree.set(row, col, new)
+        basket_tree.set(row, col_name, new)
         sec = basket_tree.parent(row)
         prod = basket_tree.item(row)["values"][0]
-        key_map = {
-            1: "jednotky",
-            2: "dodavatel",
-            3: "odkaz",
-            4: "koeficient_material",
-            5: "nakup_materialu",
-            7: "koeficient_prace",
-            8: "cena_prace",
-            10: "pocet_materialu",
-            11: "pocet_prace"
+        editable_cols = {
+            "jednotky",
+            "dodavatel",
+            "odkaz",
+            "koeficient_material",
+            "nakup_materialu",
+            "koeficient_prace",
+            "cena_prace",
+            "pocet_materialu",
+            "pocet_prace",
         }
-        if idx in key_map:
-            basket_items[basket_tree.item(sec, "text")][prod][key_map[idx]] = new
+        if col_name in editable_cols:
+            basket_items[basket_tree.item(sec, "text")][prod][col_name] = new
 
         mark_modified()
         update_basket_table(basket_tree, basket_items)
