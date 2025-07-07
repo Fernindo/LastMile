@@ -377,6 +377,7 @@ def start(project_dir, json_path):
 
 
 
+
     # ─── Inline edit on double-click (Basket), but intercept "produkt" column to show recs ─
     def on_basket_double_click(event):
         row = basket_tree.identify_row(event.y)
