@@ -303,7 +303,9 @@ def start(project_dir, json_path):
             visible = ["produkt"]
             db_column_vars["produkt"].set(True)
         tree.config(displaycolumns=visible)
-        adjust_db_columns(tk.Event(width=tree.winfo_width()))
+        event = tk.Event()
+        event.width = tree.winfo_width()
+        adjust_db_columns(event)
 
     tree.bind("<Configure>", adjust_db_columns)
 
@@ -354,7 +356,11 @@ def start(project_dir, json_path):
     column_vars = {}
     checkbox_frame = tb.LabelFrame(basket_frame, text="Zobraziť stĺpce:", padding=5)
     checkbox_frame.pack(fill="x", pady=(3, 8))
-    for col in basket_columns:
+
+    # Arrange the checkbox filters in two rows so long column names remain fully
+    # visible without requiring a horizontal scrollbar.
+    per_row = (len(basket_columns) + 1) // 2
+    for idx, col in enumerate(basket_columns):
         var = tk.BooleanVar(value=True)
         column_vars[col] = var
         chk = tk.Checkbutton(
@@ -363,7 +369,9 @@ def start(project_dir, json_path):
             variable=var,
             command=lambda: update_displayed_columns()
         )
-        chk.pack(side="left", padx=5)
+        r = idx // per_row
+        c = idx % per_row
+        chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
     # -- Basket Treeview --
     initial_display = [c for c in basket_columns]
@@ -376,12 +384,16 @@ def start(project_dir, json_path):
         xscrollcommand=basket_scroll_x.set,
     )
     basket_tree.heading("#0", text="")
-    basket_tree.column("#0", width=20, anchor="w", stretch=False)
+    # Provide ample space for section headers so the section name is always
+    # visible even when many basket columns are shown.
+    basket_tree.column("#0", width=180, anchor="w", stretch=False)
+
     for c in basket_columns:
         basket_tree.heading(c, text=c.capitalize())
-        # Slightly wider default width so longer text fits and the
-        # horizontal scrollbar becomes usable when needed.
-        basket_tree.column(c, width=150, anchor="center", stretch=False)
+        # Estimate a width that fits the entire column name. Longer names get a
+        # bit more room so the heading text isn't truncated.
+        heading_width = max(150, len(c) * 8 + 30)
+        basket_tree.column(c, width=heading_width, anchor="center", stretch=False)
     basket_tree.pack(fill="both", expand=True)
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
