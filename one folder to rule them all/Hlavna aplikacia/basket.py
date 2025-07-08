@@ -72,9 +72,7 @@ class Basket:
     # ------------------------------------------------------------------
     def update_tree(self, tree) -> None:
         tree.delete(*tree.get_children())
-        for section, products in self.items.items():
-            sec_id = tree.insert("", "end", text=section, open=True)
-            for produkt, d in products.items():
+
                 poc_mat = int(d.pocet_materialu)
                 poc_pr = int(d.pocet_prace)
                 koef_mat = float(d.koeficient_material)
@@ -119,7 +117,7 @@ class Basket:
                         predaj_spolu,
                         sync,
                     ),
-                )
+
 
     def recompute_total(self) -> float:
         total = 0.0

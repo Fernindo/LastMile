@@ -392,18 +392,23 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     except:
         pass
 
+    row_idx = 0
     for cid in sorted(grouped):
         header = cnames.get(cid, "Uncategorized")
         tree.insert("", "end", values=("", f"-- {header} --"), tags=("header",))
         for row in grouped[cid]:
+            tag = "even" if row_idx % 2 == 0 else "odd"
             # row has 8 columns: (produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, koef_prace)
-            tree.insert("", "end", values=row + (header,))
+            tree.insert("", "end", values=row + (header,), tags=(tag,))
+            row_idx += 1
     tree.tag_configure(
         "header",
         font=("Arial", 10, "bold"),
         background="#e0f7fa",
         foreground="#006064"
     )
+    tree.tag_configure("even", background="#f9f9f9")
+    tree.tag_configure("odd", background="#ffffff")
 
 # ─── Basket Table Updaters ─────────────────────────────────────────────────
 

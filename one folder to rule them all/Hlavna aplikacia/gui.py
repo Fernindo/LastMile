@@ -65,6 +65,16 @@ def start(project_dir, json_path):
         foreground="#006064",
         relief="flat"
     )
+    style.configure(
+        "Recom.Treeview.Heading",
+        background="#e6e6fa",
+        foreground="#006064",
+        relief="flat"
+    )
+
+    style.configure("Main.Treeview", rowheight=24, font=("Segoe UI", 10))
+    style.configure("Basket.Treeview", rowheight=24, font=("Segoe UI", 10))
+    style.configure("Recom.Treeview", rowheight=24, font=("Segoe UI", 10))
     root.title(f"Project: {project_name}")
     root.state("zoomed")
     root.option_add("*Font", ("Segoe UI", 10))
@@ -266,13 +276,14 @@ def start(project_dir, json_path):
         )
         chk.pack(side="left", padx=5)
     
-    tree = ttk.Treeview(   
+    tree = ttk.Treeview(
         tree_frame,
         columns=db_columns,
         show="headings",
         displaycolumns=initial_db_display,
         yscrollcommand=tree_scroll_y.set,
-        xscrollcommand=tree_scroll_x.set
+        xscrollcommand=tree_scroll_x.set,
+        style="Main.Treeview",
     )
     for c in db_columns:
         tree.heading(c, text=c.capitalize())
@@ -382,6 +393,7 @@ def start(project_dir, json_path):
         displaycolumns=initial_display,
         yscrollcommand=basket_scroll_y.set,
         xscrollcommand=basket_scroll_x.set,
+        style="Basket.Treeview",
     )
     basket_tree.heading("#0", text="")
     # Provide ample space for section headers so the section name is always
@@ -590,7 +602,8 @@ def start(project_dir, json_path):
         show="headings",
         displaycolumns=visible_recom_cols,  # hide "_section"
         height=4,                       # show up to 4 rows by default
-        yscrollcommand=recom_scroll_y.set
+        yscrollcommand=recom_scroll_y.set,
+        style="Recom.Treeview",
     )
     # Set up the first 8 column headings (visible):
     for c in visible_recom_cols:
