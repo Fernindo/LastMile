@@ -75,6 +75,8 @@ class Basket:
 
         for section, products in self.items.items():
             sec_id = tree.insert("", "end", text=section)
+            # Expand sections by default so all products are visible
+            tree.item(sec_id, open=True)
             for produkt, d in products.items():
                 poc_mat = int(d.pocet_materialu)
                 poc_pr = int(d.pocet_prace)
