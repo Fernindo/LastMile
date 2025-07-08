@@ -69,10 +69,13 @@ class Basket:
                 sec_name = tree.item(parent, "text")
                 self.remove(sec_name, prod_name)
 
-    # ------------------------------------------------------------------
     def update_tree(self, tree) -> None:
+        """Refresh all rows of the provided tree widget."""
         tree.delete(*tree.get_children())
 
+        for section, products in self.items.items():
+            sec_id = tree.insert("", "end", text=section)
+            for produkt, d in products.items():
                 poc_mat = int(d.pocet_materialu)
                 poc_pr = int(d.pocet_prace)
                 koef_mat = float(d.koeficient_material)
@@ -90,7 +93,7 @@ class Basket:
                 nakup_praca_spolu = cena_pr * poc_pr
                 zisk_pr = predaj_praca_spolu - nakup_praca_spolu
                 marza_pr = (zisk_pr / predaj_praca_spolu * 100) if predaj_praca_spolu else 0
-                sync = "✓" if d.sync_qty else ""
+                sync = "\u2713" if d.sync_qty else ""
                 tree.insert(
                     sec_id,
                     "end",
@@ -117,6 +120,7 @@ class Basket:
                         predaj_spolu,
                         sync,
                     ),
+                )
 
 
     def recompute_total(self) -> float:
