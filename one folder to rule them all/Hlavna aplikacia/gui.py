@@ -292,6 +292,7 @@ def start(project_dir, json_path):
     tree_scroll_x.config(command=tree.xview)
 
     def adjust_db_columns(event):
+        """Resize visible DB columns proportionally to the widget width."""
         total = event.width
         proportions = {
             "produkt":             0.22,
@@ -304,8 +305,17 @@ def start(project_dir, json_path):
             "koeficient_prace":    0.08,
         }
 
-        for col, pct in proportions.items():
-            tree.column(col, width=int(total * pct), stretch=True)
+        visible = tree.cget("displaycolumns")
+        if isinstance(visible, str):
+            visible = (visible,)
+        total_pct = sum(proportions.get(col, 0) for col in visible)
+        if total_pct == 0:
+            total_pct = len(visible)
+
+        for col in visible:
+            pct = proportions.get(col, 1 / len(visible))
+            width = int(total * pct / total_pct)
+            tree.column(col, width=width, stretch=True)
 
     def update_displayed_db_columns():
         visible = [col for col, var in db_column_vars.items() if var.get()]
