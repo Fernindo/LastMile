@@ -394,7 +394,7 @@ def start(project_dir, json_path):
         # Estimate a width that fits the entire column name. Longer names get a
         # bit more room so the heading text isn't truncated.
         heading_width = max(150, len(c) * 8 + 30)
-        basket_tree.column(c, width=heading_width, anchor="center", stretch=False)
+        basket_tree.column(c, width=heading_width, anchor="center", stretch=True)
     basket_tree.pack(fill="both", expand=True)
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
@@ -559,7 +559,11 @@ def start(project_dir, json_path):
     
 
     # ─── NEW Position: Recommendations Label & Treeview ───────────────────
-    tk.Label(basket_frame, text="Doporučené položky:").pack(anchor="w", pady=(10, 0))
+    recom_container = tb.LabelFrame(basket_frame, text="Doporučené položky:")
+    recom_container.pack(fill="x", expand=False, pady=(10, 5))
+
+    recom_scroll_y = ttk.Scrollbar(recom_container, orient="vertical")
+    recom_scroll_y.pack(side="right", fill="y")
 
     # Now include an extra, _hidden_ column at the end called "_section"
     recom_columns = (
@@ -578,11 +582,12 @@ def start(project_dir, json_path):
     visible_recom_cols = recom_columns[:-1]
 
     recom_tree = ttk.Treeview(
-        basket_frame,
+        recom_container,
         columns=recom_columns,
         show="headings",
         displaycolumns=visible_recom_cols,  # hide "_section"
-        height=4  # show up to 4 rows by default
+        height=4,                       # show up to 4 rows by default
+        yscrollcommand=recom_scroll_y.set
     )
     # Set up the first 8 column headings (visible):
     for c in visible_recom_cols:
@@ -592,7 +597,8 @@ def start(project_dir, json_path):
     recom_tree.heading("_section", text="")         # no heading text
     recom_tree.column("_section", width=0, stretch=False)
 
-    recom_tree.pack(fill="x", expand=False, pady=(0, 5))
+    recom_tree.pack(fill="both", expand=True)
+    recom_scroll_y.config(command=recom_tree.yview)
 
     # When you double-click a recommendation, insert it into the basket
     # We do get all 10 fields (including section) out of .item()["values"].
