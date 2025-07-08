@@ -564,6 +564,7 @@ def start(project_dir, json_path):
     # Now include an extra, _hidden_ column at the end called "_section"
     recom_columns = (
         "produkt",
+        "score",
         "jednotky",
         "dodavatel",
         "odkaz",
@@ -573,7 +574,7 @@ def start(project_dir, json_path):
         "koeficient_prace",
         "_section"     # <-- hidden column
     )
-    # Display only the first 8 columns; hide "_section"
+    # Display only the first 9 columns; hide "_section"
     visible_recom_cols = recom_columns[:-1]
 
     recom_tree = ttk.Treeview(
@@ -594,16 +595,21 @@ def start(project_dir, json_path):
     recom_tree.pack(fill="x", expand=False, pady=(0, 5))
 
     # When you double-click a recommendation, insert it into the basket
-    # We do get all 9 fields (including section) out of .item()["values"].
+    # We do get all 10 fields (including section) out of .item()["values"].
     recom_tree.bind(
         "<Double-1>",
         lambda e: add_to_basket_full(
             recom_tree.item(recom_tree.focus())["values"],
             basket_items,
             original_basket,
-            conn, cursor, db_type,
+            conn,
+            cursor,
+            db_type,
             basket_tree,
-            mark_modified
+            mark_modified,
+            from_recommendation=True,
+            base_product_id=getattr(recom_tree, "base_product_id", None),
+            rec_k=3,
         )
     )
     # ──────────────────────────────────────────────────────────────────────────
@@ -755,7 +761,8 @@ def start(project_dir, json_path):
             original_basket,
             conn, cursor, db_type,
             basket_tree,
-            mark_modified
+            mark_modified,
+            rec_k=3
         )
 
         # 2) Kick off the async recommendation fetch
