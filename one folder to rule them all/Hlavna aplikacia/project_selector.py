@@ -6,12 +6,6 @@ import tkinter as tk
 import ttkbootstrap as tb
 from ttkbootstrap import Style
 from tkinter import messagebox, filedialog
-import launcher
-import excel_processing
-import gui
-import gui_functions
-import filter_panel
-import notes_panel
 
 # ─── Default JSON template ────────────────────────────────────────────────
 DEFAULT_TEMPLATE = {"data": "Default session content."}

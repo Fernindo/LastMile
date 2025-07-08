@@ -15,17 +15,13 @@ from collections import OrderedDict
 import copy
 
 from basket import Basket, BasketItem
-import subprocess
-import sys
 import threading
 
-# Third-party imports that own specialized logic (no UI geometry happens here)
-import ttkbootstrap as tb
-from ttkbootstrap import Style
-
-from excel_processing import update_excel
-from filter_panel import create_filter_panel
-from notes_panel import create_notes_panel
+from helpers import (
+    update_excel,
+    create_filter_panel,
+    create_notes_panel,
+)
 
 # ─── Network / Database Helpers ─────────────────────────────────────────────
 
@@ -481,7 +477,7 @@ def add_to_basket_full(
     # ─── Update co-occurrence counts ───────────────────────────
     other_product_names = [
         p_name
-        for sec_name, prod_dict in basket_items.items()
+        for sec_name, prod_dict in basket.items.items()
         for p_name in prod_dict.keys()
         if p_name != produkt
     ]
@@ -678,10 +674,7 @@ def update_excel_from_basket(basket: Basket, project_name, definicia_text=""):
 
 
 def recompute_total_spolu(basket: Basket, total_spolu_var):
-    """
-    Walk through basket_items and sum (predaj_material + predaj_praca) for each product.
-    Update total_spolu_var accordingly.
-    """
+    """Recalculate the basket total and update ``total_spolu_var``."""
     total = basket.recompute_total()
     total_spolu_var.set(f"Spolu: {total:.2f}")
 

@@ -5,7 +5,7 @@ a = Analysis(
     ['project_selector.py'],
     pathex=[],
     binaries=[],
-    datas=[('gui.py', '.'), ('gui_functions.py', '.'), ('filter_panel.py', '.'), ('notes_panel.py', '.'), ('excel_processing.py', '.'), ('launcher.exe', '.')],
+    datas=[('gui.py', '.'), ('gui_functions.py', '.'), ('helpers.py', '.'), ('launcher.exe', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

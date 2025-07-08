@@ -11,7 +11,7 @@ import tkinter.simpledialog
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Combobox
 import threading
-from praca import show_praca_window
+from helpers import show_praca_window, create_filter_panel
 from basket import Basket, load_basket
 
 from gui_functions import (
@@ -32,7 +32,6 @@ from gui_functions import (
     fetch_recommendations_async
 )
 
-from filter_panel import create_filter_panel
 from tkinter import messagebox, simpledialog
 
 def start(project_dir, json_path):
