@@ -72,13 +72,7 @@ class Basket:
     # ------------------------------------------------------------------
     def update_tree(self, tree) -> None:
         tree.delete(*tree.get_children())
-        tree.tag_configure("even", background="#f9f9f9")
-        tree.tag_configure("odd", background="#ffffff")
-        row_idx = 0
-        for section, products in self.items.items():
-            sec_id = tree.insert("", "end", text=section, open=True)
-            for produkt, d in products.items():
-                tag = "even" if row_idx % 2 == 0 else "odd"
+
                 poc_mat = int(d.pocet_materialu)
                 poc_pr = int(d.pocet_prace)
                 koef_mat = float(d.koeficient_material)
@@ -123,9 +117,7 @@ class Basket:
                         predaj_spolu,
                         sync,
                     ),
-                    tags=(tag,)
-                )
-                row_idx += 1
+
 
     def recompute_total(self) -> float:
         total = 0.0
