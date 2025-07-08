@@ -141,6 +141,101 @@ def sync_postgres_to_sqlite(pg_conn):
     sqlite_conn.close()
     print("✔ Synced PostgreSQL → SQLite (produkty, class, produkt_class)")
 
+
+def ensure_recommendation_schema(cursor, db_type):
+    """Create recommendation-related tables and indexes if they don't exist."""
+    if db_type == "sqlite":
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS co_occurrence (
+                base_product_id INTEGER,
+                co_product_id   INTEGER,
+                count           INTEGER DEFAULT 0,
+                last_updated    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (base_product_id, co_product_id)
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_co_base ON co_occurrence(base_product_id)"
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recommendations (
+                base_product_id        INTEGER,
+                recommended_product_id INTEGER,
+                priority               REAL,
+                PRIMARY KEY (base_product_id, recommended_product_id)
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rec_base ON recommendations(base_product_id)"
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recommendation_feedback (
+                base_product_id        INTEGER,
+                recommended_product_id INTEGER,
+                action                 TEXT,
+                ts                     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+    else:
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS co_occurrence (
+                base_product_id INTEGER,
+                co_product_id   INTEGER,
+                count           INTEGER DEFAULT 0,
+                last_updated    TIMESTAMP DEFAULT NOW(),
+                PRIMARY KEY (base_product_id, co_product_id)
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_co_base ON co_occurrence(base_product_id)"
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recommendations (
+                base_product_id        INTEGER,
+                recommended_product_id INTEGER,
+                priority               REAL,
+                PRIMARY KEY (base_product_id, recommended_product_id)
+            )
+            """
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rec_base ON recommendations(base_product_id)"
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recommendation_feedback (
+                base_product_id        INTEGER,
+                recommended_product_id INTEGER,
+                action                 TEXT,
+                ts                     TIMESTAMP DEFAULT NOW()
+            )
+            """
+        )
+
+
+def log_recommendation_feedback(cursor, db_type, base_id, rec_id, action):
+    """Insert a feedback record into recommendation_feedback."""
+    ensure_recommendation_schema(cursor, db_type)
+    if db_type == "postgres":
+        cursor.execute(
+            "INSERT INTO recommendation_feedback (base_product_id, recommended_product_id, action) VALUES (%s,%s,%s)",
+            (base_id, rec_id, action),
+        )
+    else:
+        cursor.execute(
+            "INSERT INTO recommendation_feedback (base_product_id, recommended_product_id, action) VALUES (?,?,?)",
+            (base_id, rec_id, action),
+        )
+
 # ─── Basket Persistence / I/O ────────────────────────────────────────────────
 
 def save_basket(project_path, project_name, basket_items, user_name=""):
@@ -399,9 +494,20 @@ def update_basket_table(basket_tree, basket_items):
                 ),
             )
 
-def add_to_basket_full(item, basket_items, original_basket,
-                       conn, cursor, db_type,
-                       basket_tree, mark_modified):
+def add_to_basket_full(
+    item,
+    basket_items,
+    original_basket,
+    conn,
+    cursor,
+    db_type,
+    basket_tree,
+    mark_modified,
+    *,
+    rec_k=3,
+    from_recommendation=False,
+    base_product_id=None,
+):
     """
     Add a single product row (8 columns + optional section) into `basket_items`.
     Also update co-occurrence and recommendations in the database,
@@ -440,6 +546,8 @@ def add_to_basket_full(item, basket_items, original_basket,
 
         update_basket_table(basket_tree, basket_items)
         mark_modified()
+
+    ensure_recommendation_schema(cursor, db_type)
 
     # ─── Retrieve this product’s ID from the `produkty` table ─────────
     try:
@@ -495,38 +603,38 @@ def add_to_basket_full(item, basket_items, original_basket,
         if db_type == "postgres":
             cursor.execute(
                 """
-                INSERT INTO co_occurrence (base_product_id, co_product_id, count)
-                VALUES (%s, %s, 1)
+                INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
+                VALUES (%s, %s, 1, NOW())
                 ON CONFLICT (base_product_id, co_product_id)
-                DO UPDATE SET count = co_occurrence.count + 1
+                DO UPDATE SET count = co_occurrence.count + 1, last_updated = NOW()
                 """,
                 (base_id, other_id)
             )
             cursor.execute(
                 """
-                INSERT INTO co_occurrence (base_product_id, co_product_id, count)
-                VALUES (%s, %s, 1)
+                INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
+                VALUES (%s, %s, 1, NOW())
                 ON CONFLICT (base_product_id, co_product_id)
-                DO UPDATE SET count = co_occurrence.count + 1
+                DO UPDATE SET count = co_occurrence.count + 1, last_updated = NOW()
                 """,
                 (other_id, base_id)
             )
         else:
             cursor.execute(
                 """
-                INSERT INTO co_occurrence (base_product_id, co_product_id, count)
-                VALUES (?, ?, 1)
+                INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
+                VALUES (?, ?, 1, CURRENT_TIMESTAMP)
                 ON CONFLICT(base_product_id, co_product_id)
-                DO UPDATE SET count = count + 1
+                DO UPDATE SET count = count + 1, last_updated = CURRENT_TIMESTAMP
                 """,
                 (base_id, other_id)
             )
             cursor.execute(
                 """
-                INSERT INTO co_occurrence (base_product_id, co_product_id, count)
-                VALUES (?, ?, 1)
+                INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
+                VALUES (?, ?, 1, CURRENT_TIMESTAMP)
                 ON CONFLICT(base_product_id, co_product_id)
-                DO UPDATE SET count = count + 1
+                DO UPDATE SET count = count + 1, last_updated = CURRENT_TIMESTAMP
                 """,
                 (other_id, base_id)
             )
@@ -537,29 +645,33 @@ def add_to_basket_full(item, basket_items, original_basket,
         pass
 
     # ─── Compute top-K recommendations ─────────────────────────────
-    K = 3
+    K = rec_k
     try:
         if db_type == "postgres":
             cursor.execute(
                 """
-                SELECT co_product_id, count
+                SELECT
+                  co_product_id,
+                  count * 1.0 / (1 + EXTRACT(EPOCH FROM (now() - last_updated))/86400) AS score
                 FROM co_occurrence
                 WHERE base_product_id = %s
-                ORDER BY count DESC
+                ORDER BY score DESC
                 LIMIT %s
                 """,
                 (base_id, K)
             )
         else:
             cursor.execute(
-                f"""
-                SELECT co_product_id, count
+                """
+                SELECT
+                  co_product_id,
+                  count * 1.0 / (1 + (strftime('%s','now') - strftime('%s', last_updated))/86400.0) AS score
                 FROM co_occurrence
                 WHERE base_product_id = ?
-                ORDER BY count DESC
-                LIMIT {K}
+                ORDER BY score DESC
+                LIMIT ?
                 """,
-                (base_id,)
+                (base_id, K)
             )
         top_co = cursor.fetchall()
     except Exception:
@@ -580,7 +692,7 @@ def add_to_basket_full(item, basket_items, original_basket,
     except Exception:
         pass
 
-    for rec_id, cnt in top_co:
+    for rec_id, score in top_co:
         try:
             if db_type == "postgres":
                 cursor.execute(
@@ -590,8 +702,10 @@ def add_to_basket_full(item, basket_items, original_basket,
                         recommended_product_id,
                         priority
                     ) VALUES (%s, %s, %s)
+                    ON CONFLICT (base_product_id, recommended_product_id)
+                    DO UPDATE SET priority = EXCLUDED.priority
                     """,
-                    (base_id, rec_id, cnt)
+                    (base_id, rec_id, score)
                 )
             else:
                 cursor.execute(
@@ -601,8 +715,10 @@ def add_to_basket_full(item, basket_items, original_basket,
                         recommended_product_id,
                         priority
                     ) VALUES (?, ?, ?)
+                    ON CONFLICT(base_product_id, recommended_product_id)
+                    DO UPDATE SET priority = excluded.priority
                     """,
-                    (base_id, rec_id, cnt)
+                    (base_id, rec_id, score)
                 )
         except Exception:
             pass
@@ -611,6 +727,13 @@ def add_to_basket_full(item, basket_items, original_basket,
         conn.commit()
     except Exception:
         pass
+
+    if from_recommendation and base_product_id is not None:
+        try:
+            log_recommendation_feedback(cursor, db_type, base_product_id, base_id, "accepted")
+            conn.commit()
+        except Exception:
+            pass
 
     return
 
@@ -928,8 +1051,8 @@ def fetch_recommendations_async(
     recom_tree.insert(
         "",
         "end",
-        values=("Loading recommendations…",) + ("",) * 7 + ("",)
-        # We must supply 9 empty slots when inserting: 8 visible columns + 1 hidden "_section"
+        values=("Loading recommendations…",) + ("",) * 8 + ("",)
+        # We must supply 10 empty slots when inserting: 9 visible columns + 1 hidden "_section"
     )
 
     def _worker():
@@ -959,6 +1082,7 @@ def fetch_recommendations_async(
                 root.after(0, lambda: update_recommendation_tree(recom_tree, []))
                 return
             base_id = row[0]
+            root.after(0, lambda: setattr(recom_tree, "base_product_id", base_id))
         except Exception:
             # On any error, just clear the recommendations
             root.after(0, lambda: update_recommendation_tree(recom_tree, []))
@@ -971,6 +1095,7 @@ def fetch_recommendations_async(
                 thread_cursor.execute("""
                     SELECT
                       p.produkt,
+                      MAX(r.priority) AS score,
                       p.jednotky,
                       p.dodavatel,
                       p.odkaz,
@@ -997,7 +1122,7 @@ def fetch_recommendations_async(
                       p.nakup_materialu,
                       p.cena_prace,
                       p.koeficient_prace
-                    ORDER BY MAX(r.priority) DESC
+                    ORDER BY score DESC
                     LIMIT ?
                 """, (base_id, max_recs))
             else:
@@ -1005,6 +1130,7 @@ def fetch_recommendations_async(
                 thread_cursor.execute("""
                     SELECT
                       p.produkt,
+                      MAX(r.priority) AS score,
                       p.jednotky,
                       p.dodavatel,
                       p.odkaz,
@@ -1031,7 +1157,7 @@ def fetch_recommendations_async(
                       p.nakup_materialu,
                       p.cena_prace,
                       p.koeficient_prace
-                    ORDER BY MAX(r.priority) DESC
+                    ORDER BY score DESC
                     LIMIT %s
                 """, (base_id, max_recs))
             all_recs = thread_cursor.fetchall()
@@ -1042,12 +1168,12 @@ def fetch_recommendations_async(
         # 2c) Filter out anything already in basket_items
         filtered_recs = []
         for rec in all_recs:
-            if len(rec) < 9:
+            if len(rec) < 10:
                 print(f"⚠️ Skipping malformed recommendation: {rec}")
                 continue
 
             produkt_name = rec[0]
-            section_name = rec[8]
+            section_name = rec[9]
             if section_name in basket_items and produkt_name in basket_items[section_name]:
                 continue
             filtered_recs.append(rec)
@@ -1063,23 +1189,23 @@ def fetch_recommendations_async(
 def update_recommendation_tree(recom_tree, rec_list):
     """
     Clear `recom_tree` and insert each tuple in `rec_list` as a new row.
-    Each rec tuple must have exactly 9 columns:
-      ( produkt, jednotky, dodavatel, odkaz,
+    Each rec tuple must have exactly 10 columns:
+      ( produkt, score, jednotky, dodavatel, odkaz,
         koeficient_material, nakup_materialu,
         cena_prace, koeficient_prace, section_name )
 
-    We ignore the 9th when displaying, but it is stored so that
+    We ignore the last element when displaying, but it is stored so that
     add_to_basket_full(...) uses that correct section.
     """
     # 1) Clear existing rows
     recom_tree.delete(*recom_tree.get_children())
 
-    # 2) Insert each rec: values = rec (all 9 fields)
+    # 2) Insert each rec: values = rec (all 10 fields)
     for rec in rec_list:
-        # If section name is missing (only 8 elements), append empty string
-        if len(rec) == 8:
+        # If section name is missing (only 9 elements), append empty string
+        if len(rec) == 9:
             rec = rec + ("",)
-        elif len(rec) < 8:
+        elif len(rec) < 9:
             continue  # skip malformed row
 
         recom_tree.insert("", "end", values=rec)
