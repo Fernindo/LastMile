@@ -29,7 +29,7 @@ from gui_functions import (
     reset_item,
     add_custom_item,
     show_notes_popup,
-    fetch_recommendations_async
+    show_all_recommendations_popup
 )
 
 from tkinter import messagebox, simpledialog
@@ -423,23 +423,7 @@ def start(project_dir, json_path):
         if basket_tree.parent(row) == "":
             return
 
-        # If user double-clicked on the "Produkt" column (#1), show recommendations:
-        if col == "#1":
-            vals = basket_tree.item(row)["values"]
-            produkt_name = vals[0]
-            # We already know the parent (section) is basket_tree.parent(row)
-            # so just fetch recs for produkt_name:
-            fetch_recommendations_async(
-                conn=conn,
-                cursor=cursor,
-                db_type=db_type,
-                base_product_name=produkt_name,
-                basket=basket,
-                root=root,
-                recom_tree=recom_tree,
-                max_recs=3,
-            )
-            return
+
 
         # Otherwise, do the normal inline-edit (float/int prompt):
         idx_visible = int(col.replace("#", "")) - 1
@@ -570,69 +554,6 @@ def start(project_dir, json_path):
     )
 
     # ─── Notes button ─────────────────────────────────────────────────────
-    
-
-    # ─── NEW Position: Recommendations Label & Treeview ───────────────────
-    recom_container = tb.LabelFrame(basket_frame, text="Doporučené položky:")
-    recom_container.pack(fill="x", expand=False, pady=(10, 5))
-
-    recom_scroll_y = ttk.Scrollbar(recom_container, orient="vertical")
-    recom_scroll_y.pack(side="right", fill="y")
-
-    # Now include an extra, _hidden_ column at the end called "_section"
-    recom_columns = (
-        "produkt",
-        "score",
-        "jednotky",
-        "dodavatel",
-        "odkaz",
-        "koeficient_material",
-        "nakup_materialu",
-        "cena_prace",
-        "koeficient_prace",
-        "_section"     # <-- hidden column
-    )
-    # Display only the first 9 columns; hide "_section"
-    visible_recom_cols = recom_columns[:-1]
-
-    recom_tree = ttk.Treeview(
-        recom_container,
-        columns=recom_columns,
-        show="headings",
-        displaycolumns=visible_recom_cols,  # hide "_section"
-        height=4,                       # show up to 4 rows by default
-        yscrollcommand=recom_scroll_y.set,
-        style="Recom.Treeview",
-    )
-    # Set up the first 8 column headings (visible):
-    for c in visible_recom_cols:
-        recom_tree.heading(c, text=c.capitalize())
-        recom_tree.column(c, anchor="center", stretch=True)
-    # Now configure the hidden "_section" column with zero width:
-    recom_tree.heading("_section", text="")         # no heading text
-    recom_tree.column("_section", width=0, stretch=False)
-
-    recom_tree.pack(fill="both", expand=True)
-    recom_scroll_y.config(command=recom_tree.yview)
-
-    # When you double-click a recommendation, insert it into the basket
-    # We do get all 10 fields (including section) out of .item()["values"].
-    recom_tree.bind(
-        "<Double-1>",
-        lambda e: add_to_basket_full(
-            recom_tree.item(recom_tree.focus())["values"],
-            basket,
-            conn,
-            cursor,
-            db_type,
-            basket_tree,
-            mark_modified,
-            from_recommendation=True,
-            base_product_id=getattr(recom_tree, "base_product_id", None),
-            rec_k=3,
-        )
-    )
-    # ──────────────────────────────────────────────────────────────────────────
 
     # ─── Buttons Row: Remove, Add, Export (left) and Coeff Buttons (right) ─
     btn_container = tk.Frame(basket_frame)
@@ -675,6 +596,22 @@ def start(project_dir, json_path):
         command=lambda: show_notes_popup(project_name, json_dir)
     )
     notes_btn.pack(side="left", padx=(0, 10))
+
+    recom_window_btn = tb.Button(
+        left_btn_frame,
+        text="Odporučené",
+        bootstyle="secondary",
+        command=lambda: show_all_recommendations_popup(
+            root,
+            basket,
+            conn,
+            cursor,
+            db_type,
+            basket_tree,
+            mark_modified,
+        )
+    )
+    recom_window_btn.pack(side="left", padx=(0, 10))
 
     def export_with_progress():
         reorder_basket_data(basket_tree, basket)
@@ -772,8 +709,7 @@ def start(project_dir, json_path):
     def on_db_double_click(event):
         """
         Called when the user double-clicks a row in the main DB Treeview (`tree`):
-        1) Add exactly that product into the basket (silently).
-        2) Kick off fetch_recommendations_async(...) in a background thread.
+        it simply adds that product to the basket.
         """
         selected = tree.item(tree.focus())
         if not selected:
@@ -789,18 +725,6 @@ def start(project_dir, json_path):
             basket_tree,
             mark_modified,
             rec_k=3
-        )
-
-        # 2) Kick off the async recommendation fetch
-        fetch_recommendations_async(
-            conn=conn,
-            cursor=cursor,
-            db_type=db_type,
-            base_product_name=base_name,
-            basket=basket,
-            root=root,
-            recom_tree=recom_tree,
-            max_recs=3
         )
 
     tree.bind("<Double-1>", on_db_double_click)

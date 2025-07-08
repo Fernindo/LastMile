@@ -154,6 +154,16 @@ def ensure_recommendation_schema(cursor, db_type):
             )
             """
         )
+        # ── Ensure `last_updated` column exists (handle older DBs) ─────────────
+        try:
+            cursor.execute("PRAGMA table_info(co_occurrence)")
+            cols = [row[1] for row in cursor.fetchall()]
+            if "last_updated" not in cols:
+                cursor.execute(
+                    "ALTER TABLE co_occurrence ADD COLUMN last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                )
+        except Exception:
+            pass
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_co_base ON co_occurrence(base_product_id)"
         )
@@ -192,6 +202,20 @@ def ensure_recommendation_schema(cursor, db_type):
             )
             """
         )
+        # ── Ensure `last_updated` column exists on PostgreSQL ────────────────
+        try:
+            cursor.execute(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'co_occurrence' AND column_name = 'last_updated'
+                """
+            )
+            if cursor.fetchone() is None:
+                cursor.execute(
+                    "ALTER TABLE co_occurrence ADD COLUMN last_updated TIMESTAMP DEFAULT NOW()"
+                )
+        except Exception:
+            pass
         cursor.execute(
             "CREATE INDEX IF NOT EXISTS idx_co_base ON co_occurrence(base_product_id)"
         )
@@ -1055,3 +1079,132 @@ def update_recommendation_tree(recom_tree, rec_list):
             continue  # skip malformed row
 
         recom_tree.insert("", "end", values=rec)
+
+
+def show_all_recommendations_popup(root, basket: Basket, conn, cursor, db_type,
+                                   basket_tree, mark_modified, max_recs=20):
+    """Open a window listing aggregated recommendations for all basket items."""
+    ensure_recommendation_schema(cursor, db_type)
+
+    product_names = [
+        pname
+        for section, prods in basket.items.items()
+        for pname in prods.keys()
+    ]
+    if not product_names:
+        messagebox.showinfo("Odporučené", "Košík je prázdny")
+        return
+
+    placeholders = ",".join(["%s" if db_type == "postgres" else "?" for _ in product_names])
+    try:
+        cursor.execute(
+            f"SELECT id, produkt FROM produkty WHERE produkt IN ({placeholders})",
+            tuple(product_names),
+        )
+        rows = cursor.fetchall()
+        id_list = [row[0] for row in rows]
+    except Exception:
+        id_list = []
+
+    if not id_list:
+        messagebox.showinfo("Odporučené", "Nepodarilo sa získať odporúčania")
+        return
+
+    id_placeholders = ",".join(["%s" if db_type == "postgres" else "?" for _ in id_list])
+    try:
+        cursor.execute(
+            f"""
+            SELECT
+              p.produkt,
+              SUM(r.priority) AS score,
+              p.jednotky,
+              p.dodavatel,
+              p.odkaz,
+              p.koeficient_material,
+              p.nakup_materialu,
+              p.cena_prace,
+              p.koeficient_prace,
+              COALESCE(MIN(c.nazov_tabulky), 'Uncategorized') AS section_name
+            FROM recommendations r
+            JOIN produkty p ON r.recommended_product_id = p.id
+            LEFT JOIN produkt_class pc ON p.id = pc.produkt_id
+            LEFT JOIN class c ON pc.class_id = c.id
+            WHERE r.base_product_id IN ({id_placeholders})
+            GROUP BY p.id, p.produkt, p.jednotky, p.dodavatel, p.odkaz,
+                     p.koeficient_material, p.nakup_materialu,
+                     p.cena_prace, p.koeficient_prace
+            ORDER BY score DESC
+            LIMIT {max_recs}
+            """,
+            tuple(id_list),
+        )
+        recs = cursor.fetchall()
+    except Exception:
+        recs = []
+
+    filtered = []
+    for rec in recs:
+        if len(rec) < 10:
+            continue
+        pname = rec[0]
+        section = rec[9]
+        if section in basket.items and pname in basket.items[section]:
+            continue
+        filtered.append(rec)
+
+    win = tk.Toplevel(root)
+    win.title("Odporučené položky")
+
+    scroll_y = ttk.Scrollbar(win, orient="vertical")
+    scroll_y.pack(side="right", fill="y")
+
+    columns = (
+        "produkt",
+        "score",
+        "jednotky",
+        "dodavatel",
+        "odkaz",
+        "koeficient_material",
+        "nakup_materialu",
+        "cena_prace",
+        "koeficient_prace",
+        "_section",
+    )
+    visible = columns[:-1]
+
+    tree = ttk.Treeview(
+        win,
+        columns=columns,
+        show="headings",
+        displaycolumns=visible,
+        yscrollcommand=scroll_y.set,
+        height=min(15, len(filtered) + 1),
+    )
+    for c in visible:
+        tree.heading(c, text=c.capitalize())
+        tree.column(c, anchor="center", stretch=True)
+    tree.heading("_section", text="")
+    tree.column("_section", width=0, stretch=False)
+    tree.pack(fill="both", expand=True)
+    scroll_y.config(command=tree.yview)
+
+    for rec in filtered:
+        tree.insert("", "end", values=rec)
+
+    tree.bind(
+        "<Double-1>",
+        lambda e: add_to_basket_full(
+            tree.item(tree.focus())["values"],
+            basket,
+            conn,
+            cursor,
+            db_type,
+            basket_tree,
+            mark_modified,
+            from_recommendation=True,
+        ),
+    )
+
+    win.transient(root)
+    win.grab_set()
+    win.wait_window()
