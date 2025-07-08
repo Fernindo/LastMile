@@ -10,14 +10,13 @@ from datetime import datetime
 import tkinter.simpledialog
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Combobox
-from collections import OrderedDict
 import threading
 from praca import show_praca_window
+from basket import Basket, load_basket
 
 from gui_functions import (
     get_database_connection,
     sync_postgres_to_sqlite,
-    load_basket,
     apply_filters,
     update_basket_table,
     add_to_basket_full,         # “silent” version, DOES NOT auto-add recs
@@ -66,6 +65,16 @@ def start(project_dir, json_path):
         foreground="#006064",
         relief="flat"
     )
+    style.configure(
+        "Recom.Treeview.Heading",
+        background="#e6e6fa",
+        foreground="#006064",
+        relief="flat"
+    )
+
+    style.configure("Main.Treeview", rowheight=24, font=("Segoe UI", 10))
+    style.configure("Basket.Treeview", rowheight=24, font=("Segoe UI", 10))
+    style.configure("Recom.Treeview", rowheight=24, font=("Segoe UI", 10))
     root.title(f"Project: {project_name}")
     root.state("zoomed")
     root.option_add("*Font", ("Segoe UI", 10))
@@ -267,13 +276,14 @@ def start(project_dir, json_path):
         )
         chk.pack(side="left", padx=5)
     
-    tree = ttk.Treeview(   
+    tree = ttk.Treeview(
         tree_frame,
         columns=db_columns,
         show="headings",
         displaycolumns=initial_db_display,
         yscrollcommand=tree_scroll_y.set,
-        xscrollcommand=tree_scroll_x.set
+        xscrollcommand=tree_scroll_x.set,
+        style="Main.Treeview",
     )
     for c in db_columns:
         tree.heading(c, text=c.capitalize())
@@ -383,6 +393,7 @@ def start(project_dir, json_path):
         displaycolumns=initial_display,
         yscrollcommand=basket_scroll_y.set,
         xscrollcommand=basket_scroll_x.set,
+        style="Basket.Treeview",
     )
     basket_tree.heading("#0", text="")
     # Provide ample space for section headers so the section name is always
@@ -424,10 +435,10 @@ def start(project_dir, json_path):
                 cursor=cursor,
                 db_type=db_type,
                 base_product_name=produkt_name,
-                basket_items=basket_items,
+                basket=basket,
                 root=root,
                 recom_tree=recom_tree,
-                max_recs=3
+                max_recs=3,
             )
             return
 
@@ -456,15 +467,15 @@ def start(project_dir, json_path):
             return
 
         old = basket_tree.set(row, col_name)
+        section_name = basket_tree.item(sec, "text")
         if col_name == "sync_qty":
-            new_val = not basket_items[basket_tree.item(sec, "text")][prod].get("sync_qty", False)
-            basket_items[basket_tree.item(sec, "text")][prod]["sync_qty"] = new_val
+            new_val = not basket.items[section_name][prod].sync_qty
+            basket.items[section_name][prod].sync_qty = new_val
             if new_val:
-                # sync counts
-                mat_count = basket_items[basket_tree.item(sec, "text")][prod]["pocet_materialu"]
-                basket_items[basket_tree.item(sec, "text")][prod]["pocet_prace"] = mat_count
+                mat_count = basket.items[section_name][prod].pocet_materialu
+                basket.items[section_name][prod].pocet_prace = mat_count
         elif col_name in ("pocet_materialu", "pocet_prace"):
-            if col_name == "pocet_prace" and basket_items[basket_tree.item(sec, "text")][prod].get("sync_qty"):
+            if col_name == "pocet_prace" and basket.items[section_name][prod].sync_qty:
                 return
             new = simpledialog.askinteger(
                 "Upraviť bunku",
@@ -480,8 +491,8 @@ def start(project_dir, json_path):
                 parent=root
             )
         if col_name == "sync_qty":
-            update_basket_table(basket_tree, basket_items)
-            recompute_total_spolu(basket_items, total_spolu_var)
+            update_basket_table(basket_tree, basket)
+            recompute_total_spolu(basket, total_spolu_var)
             mark_modified()
             return
         if new is None:
@@ -491,13 +502,18 @@ def start(project_dir, json_path):
         sec = basket_tree.parent(row)
         prod = basket_tree.item(row)["values"][0]
         if col_name in editable_cols:
-            basket_items[basket_tree.item(sec, "text")][prod][col_name] = new
-            if basket_items[basket_tree.item(sec, "text")][prod].get("sync_qty") and col_name == "pocet_materialu":
-                basket_items[basket_tree.item(sec, "text")][prod]["pocet_prace"] = new
+            attr = col_name
+            if attr == "nakup_mat_jedn":
+                attr = "nakup_materialu"
+            if attr == "koeficient_praca":
+                attr = "koeficient_prace"
+            setattr(basket.items[section_name][prod], attr, new)
+            if basket.items[section_name][prod].sync_qty and col_name == "pocet_materialu":
+                basket.items[section_name][prod].pocet_prace = new
 
         mark_modified()
-        update_basket_table(basket_tree, basket_items)
-        recompute_total_spolu(basket_items, total_spolu_var)
+        update_basket_table(basket_tree, basket)
+        recompute_total_spolu(basket, total_spolu_var)
 
     basket_tree.bind("<Double-1>", on_basket_double_click)
 
@@ -512,8 +528,7 @@ def start(project_dir, json_path):
             command=lambda: reset_item(
                 iid,
                 basket_tree,
-                basket_items,
-                original_basket,
+                basket,
                 total_spolu_var,
                 mark_modified
             )
@@ -587,7 +602,8 @@ def start(project_dir, json_path):
         show="headings",
         displaycolumns=visible_recom_cols,  # hide "_section"
         height=4,                       # show up to 4 rows by default
-        yscrollcommand=recom_scroll_y.set
+        yscrollcommand=recom_scroll_y.set,
+        style="Recom.Treeview",
     )
     # Set up the first 8 column headings (visible):
     for c in visible_recom_cols:
@@ -606,8 +622,7 @@ def start(project_dir, json_path):
         "<Double-1>",
         lambda e: add_to_basket_full(
             recom_tree.item(recom_tree.focus())["values"],
-            basket_items,
-            original_basket,
+            basket,
             conn,
             cursor,
             db_type,
@@ -635,7 +650,7 @@ def start(project_dir, json_path):
         text="Odstrániť",
         bootstyle="danger-outline",
         command=lambda: (
-            remove_from_basket(basket_tree, basket_items, update_basket_table),
+            remove_from_basket(basket_tree, basket),
             mark_modified()
         )
     )
@@ -647,8 +662,7 @@ def start(project_dir, json_path):
         bootstyle="primary-outline",
         command=lambda: add_custom_item(
             basket_tree,
-            basket_items,
-            original_basket,
+            basket,
             total_spolu_var,
             mark_modified
         )
@@ -664,7 +678,7 @@ def start(project_dir, json_path):
     notes_btn.pack(side="left", padx=(0, 10))
 
     def export_with_progress():
-        reorder_basket_data(basket_tree, basket_items)
+        reorder_basket_data(basket_tree, basket)
 
         progress_win = tk.Toplevel(root)
         progress_win.title("Export")
@@ -675,7 +689,7 @@ def start(project_dir, json_path):
         def worker():
             try:
                 update_excel_from_basket(
-                    basket_items,
+                    basket,
                     project_entry.get(),
                     definicia_text=definition_entry.get()
                 )
@@ -698,9 +712,8 @@ def start(project_dir, json_path):
         text="Nastav koeficient",
         bootstyle="info-outline",
         command=lambda: apply_global_coefficient(
-            basket_items,
+            basket,
             basket_tree,
-            base_coeffs,
             total_spolu_var,
             mark_modified
         )
@@ -712,9 +725,8 @@ def start(project_dir, json_path):
         text="Revert koeficient",
         bootstyle="warning-outline",
         command=lambda: revert_coefficient(
-            basket_items,
+            basket,
             basket_tree,
-            base_coeffs,
             total_spolu_var,
             mark_modified
         )
@@ -723,16 +735,26 @@ def start(project_dir, json_path):
     # ──────────────────────────────────────────────────────────────────────────
 
     # ─── Initialize basket state ──────────────────────────────────────────
-    basket_items = OrderedDict()
-    original_basket = OrderedDict()
-    base_coeffs = {}  # for global coefficient revert
-
+    basket = Basket()
     basket_items_loaded, saved = load_basket(json_dir, project_name, file_path=commit_file)
     for sec, prods in basket_items_loaded.items():
-        original_basket.setdefault(sec, OrderedDict()).update(prods)
-    basket_items.update(basket_items_loaded)
-    update_basket_table(basket_tree, basket_items)
-    recompute_total_spolu(basket_items, total_spolu_var)
+        for pname, data in prods.items():
+            basket.add_item(
+                (
+                    pname,
+                    data.get("jednotky", ""),
+                    data.get("dodavatel", ""),
+                    data.get("odkaz", ""),
+                    data.get("koeficient_material", 1.0),
+                    data.get("nakup_materialu", 0.0),
+                    data.get("cena_prace", 0.0),
+                    data.get("koeficient_prace", 1.0),
+                    sec,
+                ),
+                section=sec,
+            )
+    update_basket_table(basket_tree, basket)
+    recompute_total_spolu(basket, total_spolu_var)
 
     # ─── Initial filtering of DB results ─────────────────────────────────
     apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
@@ -763,8 +785,7 @@ def start(project_dir, json_path):
         # 1) Insert base product into the basket
         add_to_basket_full(
             db_values,
-            basket_items,
-            original_basket,
+            basket,
             conn, cursor, db_type,
             basket_tree,
             mark_modified,
@@ -777,7 +798,7 @@ def start(project_dir, json_path):
             cursor=cursor,
             db_type=db_type,
             base_product_name=base_name,
-            basket_items=basket_items,
+            basket=basket,
             root=root,
             recom_tree=recom_tree,
             max_recs=3
@@ -798,7 +819,7 @@ def start(project_dir, json_path):
             root.destroy()
             return
 
-        reorder_basket_data(basket_tree, basket_items)
+        reorder_basket_data(basket_tree, basket)
         default_base = "basket"
         fname = tk.simpledialog.askstring(
             "Košík — Uložiť ako",
@@ -824,20 +845,20 @@ def start(project_dir, json_path):
             "project": project_name,
             "items": []
         }
-        for section, prods in basket_items.items():
+        for section, prods in basket.items.items():
             sec_obj = {"section": section, "products": []}
             for pname, info in prods.items():
                 sec_obj["products"].append({
                     "produkt":              pname,
-                    "jednotky":            info.get("jednotky", ""),
-                    "dodavatel":           info.get("dodavatel", ""),
-                    "odkaz":               info.get("odkaz", ""),
-                    "koeficient_material": info.get("koeficient_material", 0),
-                    "nakup_materialu":     info.get("nakup_materialu", 0),
-                    "koeficient_prace":    info.get("koeficient_prace", 1),
-                    "cena_prace":          info.get("cena_prace", 0),
-                    "pocet_prace":         info.get("pocet_prace", 1),
-                    "pocet_materialu":     info.get("pocet_materialu", 1),
+                    "jednotky":            info.jednotky,
+                    "dodavatel":           info.dodavatel,
+                    "odkaz":               info.odkaz,
+                    "koeficient_material": info.koeficient_material,
+                    "nakup_materialu":     info.nakup_materialu,
+                    "koeficient_prace":    info.koeficient_prace,
+                    "cena_prace":          info.cena_prace,
+                    "pocet_prace":         info.pocet_prace,
+                    "pocet_materialu":     info.pocet_materialu,
                 })
             out["items"].append(sec_obj)
 
