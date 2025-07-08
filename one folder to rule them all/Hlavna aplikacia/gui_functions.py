@@ -13,6 +13,8 @@ from datetime import datetime
 import glob
 from collections import OrderedDict
 import copy
+
+from basket import Basket, BasketItem
 import subprocess
 import sys
 import threading
@@ -405,99 +407,18 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
 
 # ─── Basket Table Updaters ─────────────────────────────────────────────────
 
-def remove_from_basket(basket_tree, basket_items, update_basket_table):
-    """
-    Remove the selected rows (or entire sections) from the basket Treeview
-    and from the underlying basket_items dict, then refresh the table.
-    """
-    for iid in basket_tree.selection():
-        parent = basket_tree.parent(iid)
-        if parent == "":
-            # Selected item is a “section header”
-            section_name = basket_tree.item(iid, "text")
-            basket_items.pop(section_name, None)
-        else:
-            # Selected item is a product row
-            prod_name = basket_tree.item(iid, "values")[0]
-            section_name = basket_tree.item(parent, "text")
-            if section_name in basket_items:
-                basket_items[section_name].pop(prod_name, None)
+def remove_from_basket(basket_tree, basket: Basket):
+    """Remove selected rows/sections and refresh the tree."""
+    basket.remove_selection(basket_tree)
+    basket.update_tree(basket_tree)
 
-    update_basket_table(basket_tree, basket_items)
-
-def update_basket_table(basket_tree, basket_items):
-    """
-    Clear and repopulate the basket Treeview from basket_items.
-    Compute derived fields on the fly.
-    """
-    basket_tree.delete(*basket_tree.get_children())
-    for section, products in basket_items.items():
-        sec_id = basket_tree.insert("", "end", text=section, open=True)
-        for produkt, d in products.items():
-            # Compute derived columns
-            poc_mat = int(d.get("pocet_materialu", 1))
-            poc_pr  = int(d.get("pocet_prace", 1))
-
-            koef_mat = float(d.get("koeficient_material", 0))
-            nakup_mat = float(d.get("nakup_materialu", 0))
-            predaj_mat_jedn  = nakup_mat * koef_mat
-            predaj_mat_spolu = predaj_mat_jedn * poc_mat
-
-            koef_pr = float(d.get("koeficient_prace", 1))
-            cena_pr = float(d.get("cena_prace", 0))
-            predaj_praca_jedn  = cena_pr * koef_pr
-            predaj_praca_spolu = predaj_praca_jedn * poc_pr
-
-            predaj_spolu = predaj_mat_spolu + predaj_praca_spolu
-
-            nakup_mat_spolu = nakup_mat * poc_mat
-            zisk_mat = predaj_mat_spolu - nakup_mat_spolu
-            marza_mat = (zisk_mat / predaj_mat_spolu * 100) if predaj_mat_spolu else 0
-
-            nakup_praca_spolu = cena_pr * poc_pr
-            zisk_pr = predaj_praca_spolu - nakup_praca_spolu
-            marza_pr = (zisk_pr / predaj_praca_spolu * 100) if predaj_praca_spolu else 0
-
-            sync = "✓" if d.get("sync_qty") else ""
-
-            basket_tree.insert(
-                sec_id,
-                "end",
-                text="",
-                values=(
-                    produkt,
-                    d.get("jednotky", ""),
-
-                    # --- Material ---
-                    poc_mat,
-                    koef_mat,
-                    nakup_mat,
-                    predaj_mat_jedn,
-                    nakup_mat_spolu,
-                    predaj_mat_spolu,
-                    zisk_mat,
-                    marza_mat,
-
-                    # --- Praca ---
-                    poc_pr,
-                    koef_pr,
-                    cena_pr,
-                    nakup_praca_spolu,
-                    predaj_praca_jedn,
-                    predaj_praca_spolu,
-                    zisk_pr,
-                    marza_pr,
-
-                    # --- Summary ---
-                    predaj_spolu,
-                    sync,
-                ),
-            )
+def update_basket_table(basket_tree, basket: Basket):
+    """Repopulate the treeview from the Basket object."""
+    basket.update_tree(basket_tree)
 
 def add_to_basket_full(
     item,
-    basket_items,
-    original_basket,
+    basket: Basket,
     conn,
     cursor,
     db_type,
@@ -524,27 +445,9 @@ def add_to_basket_full(
     koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
     section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
 
-    # 1) Only add if not already present
-    if section not in basket_items:
-        basket_items[section] = OrderedDict()
-
-    if produkt not in basket_items[section]:
-        data = {
-            "jednotky":            jednotky,
-            "dodavatel":           dodavatel,
-            "odkaz":               odkaz,
-            "koeficient_material": float(koef_mat),
-            "nakup_materialu":     float(nakup_mat),
-            "koeficient_prace":    float(koef_prace),
-            "cena_prace":          float(cena_prace),
-            "pocet_materialu":     1,
-            "pocet_prace":         1,
-            "sync_qty":           False
-        }
-        basket_items[section][produkt] = data
-        original_basket.setdefault(section, OrderedDict())[produkt] = copy.deepcopy(data)
-
-        update_basket_table(basket_tree, basket_items)
+    added = basket.add_item(item, section)
+    if added:
+        basket.update_tree(basket_tree)
         mark_modified()
 
     ensure_recommendation_schema(cursor, db_type)
@@ -737,93 +640,53 @@ def add_to_basket_full(
 
     return
 
-def reorder_basket_data(basket_tree, basket_items):
-    """
-    After edits in the Treeview, pull everything back into basket_items.
-    Only user-editable fields are saved; derived fields are recalculated later.
-    """
-    new_basket = OrderedDict()
-    for sec in basket_tree.get_children(""):
-        sec_name = basket_tree.item(sec, "text")
-        prods = OrderedDict()
-        for child in basket_tree.get_children(sec):
-            vals = basket_tree.item(child, "values")
-            # Indices correspond to basket_columns in gui.py
-            prods[vals[0]] = {
-                "jednotky":            vals[1],
-                # Base material and work values are editable directly in the
-                # Treeview, so pull them from their visible columns.
-                "koeficient_material": float(vals[3]),
-                "nakup_materialu":     float(vals[4]),
-                "koeficient_prace":    float(vals[11]),
-                "cena_prace":          float(vals[12]),
-                # Counts may be edited as floats, e.g. "20.0" → cast via float
-                # before converting to int to avoid ValueError.
-                "pocet_materialu":     int(float(vals[2])),
-                "pocet_prace":         int(float(vals[10])),
-                "sync_qty":            (vals[19] == "✓")
-            }
-        new_basket[sec_name] = prods
+def reorder_basket_data(basket_tree, basket: Basket):
+    """Pull edits from the Treeview back into the Basket object."""
+    basket.reorder_from_tree(basket_tree)
 
-    basket_items.clear()
-    basket_items.update(new_basket)
-
-def update_excel_from_basket(basket_items, project_name, definicia_text=""):
+def update_excel_from_basket(basket: Basket, project_name, definicia_text=""):
     """
     Otvorí dialógové okno na výber miesta uloženia a vytvorí Excel súbor.
     """
-    if not basket_items:
+    if not basket.items:
         messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
         return
 
     excel_data = []
-    for section, products in basket_items.items():
+    for section, products in basket.items.items():
         for produkt, v in products.items():
             excel_data.append((
                 section,
                 produkt,
-                v.get("jednotky", ""),
-                v.get("dodavatel", ""),
-                v.get("odkaz", ""),
-                v.get("koeficient_material", 1.0),
-                v.get("koeficient_prace",    1.0),
-                v.get("nakup_materialu",     0.0),
-                v.get("cena_prace",          0.0),
-                v.get("pocet_materialu",     1),
-                v.get("pocet_prace",         1),
+                v.jednotky,
+                v.dodavatel,
+                v.odkaz,
+                v.koeficient_material,
+                v.koeficient_prace,
+                v.nakup_materialu,
+                v.cena_prace,
+                v.pocet_materialu,
+                v.pocet_prace,
             ))
 
     update_excel(excel_data, project_name, definicia_text=definicia_text)
 
 
-def recompute_total_spolu(basket_items, total_spolu_var):
+def recompute_total_spolu(basket: Basket, total_spolu_var):
     """
     Walk through basket_items and sum (predaj_material + predaj_praca) for each product.
     Update total_spolu_var accordingly.
     """
-    total = 0.0
-    for section, products in basket_items.items():
-        for pname, info in products.items():
-            koef_mat = float(info.get("koeficient_material", 0))
-            nakup_mat = float(info.get("nakup_materialu", 0))
-            poc_mat = int(info.get("pocet_materialu", 1))
-            predaj_mat = nakup_mat * koef_mat * poc_mat
-
-            koef_pr = float(info.get("koeficient_prace", 1))
-            cena_pr = float(info.get("cena_prace", 0))
-            poc_pr = int(info.get("pocet_prace", 1))
-            predaj_pr = cena_pr * koef_pr * poc_pr
-
-            total += (predaj_mat + predaj_pr)
+    total = basket.recompute_total()
     total_spolu_var.set(f"Spolu: {total:.2f}")
 
-def apply_global_coefficient(basket_items, basket_tree, base_coeffs, total_spolu_var, mark_modified):
+def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var, mark_modified):
     """
     Prompt for a new coefficient value, then override every item's
     koeficient_material and koeficient_prace to exactly that value.
     Store originals in base_coeffs on first use to allow revert.
     """
-    if not basket_items:
+    if not basket.items:
         messagebox.showinfo("Info", "Košík je prázdny.")
         return
 
@@ -835,42 +698,33 @@ def apply_global_coefficient(basket_items, basket_tree, base_coeffs, total_spolu
     if factor is None:
         return  # user cancelled
 
-    if not base_coeffs:
-        for section, products in basket_items.items():
+    if not basket.base_coeffs:
+        for section, products in basket.items.items():
             for pname, info in products.items():
-                base_coeffs[(section, pname)] = (
-                    float(info.get("koeficient_material", 1.0)),
-                    float(info.get("koeficient_prace", 1.0))
+                basket.base_coeffs[(section, pname)] = (
+                    float(info.koeficient_material),
+                    float(info.koeficient_prace)
                 )
 
-    for section, products in basket_items.items():
-        for pname, info in products.items():
-            info["koeficient_material"] = factor
-            info["koeficient_prace"]    = factor
-
-    update_basket_table(basket_tree, basket_items)
-    recompute_total_spolu(basket_items, total_spolu_var)
+    basket.apply_global_coefficient(factor)
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var)
     mark_modified()
 
-def revert_coefficient(basket_items, basket_tree, base_coeffs, total_spolu_var, mark_modified):
+def revert_coefficient(basket: Basket, basket_tree, total_spolu_var, mark_modified):
     """
     Revert all coefficients to their originals from base_coeffs, then clear base_coeffs.
     """
-    if not base_coeffs:
+    if not basket.base_coeffs:
         messagebox.showinfo("Info", "Žiadne pôvodné koeficienty nie sú uložené.")
         return
 
-    for (section, pname), (orig_mat, orig_pr) in base_coeffs.items():
-        if section in basket_items and pname in basket_items[section]:
-            basket_items[section][pname]["koeficient_material"] = orig_mat
-            basket_items[section][pname]["koeficient_prace"]    = orig_pr
-
-    base_coeffs.clear()
-    update_basket_table(basket_tree, basket_items)
-    recompute_total_spolu(basket_items, total_spolu_var)
+    basket.revert_coefficient()
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var)
     mark_modified()
 
-def reset_item(iid, basket_tree, basket_items, original_basket, total_spolu_var, mark_modified):
+def reset_item(iid, basket_tree, basket: Basket, total_spolu_var, mark_modified):
     """
     Reset a single item’s numeric fields back to their original values.
     """
@@ -878,18 +732,13 @@ def reset_item(iid, basket_tree, basket_items, original_basket, total_spolu_var,
     if not sec:
         return
     prod = basket_tree.item(iid)["values"][0]
-    orig = original_basket.get(basket_tree.item(sec,'text'), {}).get(prod)
-    if not orig:
-        messagebox.showinfo("Chýba originál", "Pôvodné hodnoty nie sú k dispozícii.")
-        return
-    for k in ("koeficient_material", "nakup_materialu", "koeficient_prace", "cena_prace", "pocet_materialu", "pocet_prace", "sync_qty"):
-        basket_items[basket_tree.item(sec,'text')][prod][k] = copy.deepcopy(orig[k])
-
-    update_basket_table(basket_tree, basket_items)
-    recompute_total_spolu(basket_items, total_spolu_var)
+    section_name = basket_tree.item(sec, 'text')
+    basket.reset_item(section_name, prod)
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var)
     mark_modified()
 
-def add_custom_item(basket_tree, basket_items, original_basket,
+def add_custom_item(basket_tree, basket: Basket,
                     total_spolu_var, mark_modified):
     """
     Open a popup window to fill in a new item’s details, then add it into the basket.
@@ -904,8 +753,8 @@ def add_custom_item(basket_tree, basket_items, original_basket,
         else:
             section = basket_tree.item(parent, "text")
 
-    if section not in basket_items:
-        basket_items[section] = OrderedDict()
+    if section not in basket.items:
+        basket.items[section] = OrderedDict()
 
     popup = tk.Toplevel()
     popup.title("Nová položka")
@@ -959,27 +808,26 @@ def add_custom_item(basket_tree, basket_items, original_basket,
 
         name = prod_name
         counter = 1
-        while name in basket_items[section]:
+        while name in basket.items[section]:
             counter += 1
             name = f"{prod_name} ({counter})"
 
-        data = {
-            "jednotky":            jednotky,
-            "dodavatel":           dodavatel,
-            "odkaz":               odkaz,
-            "koeficient_material": koef_mat,
-            "nakup_materialu":     nakup_mat,
-            "koeficient_prace":    koef_pr,
-            "cena_prace":          cena_pr,
-            "pocet_materialu":     poc_mat,
-            "pocet_prace":         poc_pr,
-            "sync_qty":           False
-        }
-        basket_items[section][name] = data
-        original_basket.setdefault(section, OrderedDict())[name] = copy.deepcopy(data)
+        data = BasketItem(
+            jednotky=jednotky,
+            dodavatel=dodavatel,
+            odkaz=odkaz,
+            koeficient_material=koef_mat,
+            nakup_materialu=nakup_mat,
+            koeficient_prace=koef_pr,
+            cena_prace=cena_pr,
+            pocet_materialu=poc_mat,
+            pocet_prace=poc_pr,
+        )
+        basket.items[section][name] = data
+        basket.original.setdefault(section, OrderedDict())[name] = copy.deepcopy(data)
 
-        update_basket_table(basket_tree, basket_items)
-        recompute_total_spolu(basket_items, total_spolu_var)
+        basket.update_tree(basket_tree)
+        recompute_total_spolu(basket, total_spolu_var)
         mark_modified()
         popup.destroy()
 
@@ -1031,7 +879,7 @@ def fetch_recommendations_async(
     cursor,
     db_type,
     base_product_name,
-    basket_items,
+    basket: Basket,
     root,
     recom_tree,
     max_recs=3
@@ -1043,7 +891,7 @@ def fetch_recommendations_async(
        b) Runs a single JOIN + GROUP BY query on `recommendations → produkty → class` 
           to fetch up to `max_recs` distinct products (produkt, jednotky, dodavatel, odkaz, 
           koeficient_material, nakup_materialu, cena_prace, koeficient_prace, section_name).
-       c) Filters out any row whose (section_name, produkt) is already in `basket_items`.
+       c) Filters out any row whose (section_name, produkt) is already in `basket`.
        d) Calls `root.after(0, lambda: update_recommendation_tree(recom_tree, filtered_list))`.
     """
     # 1) Show “Loading…” placeholder in the Treeview
@@ -1165,7 +1013,7 @@ def fetch_recommendations_async(
             all_recs = []
 
         # ─────────────────────────────────────────────────────────────────────
-        # 2c) Filter out anything already in basket_items
+        # 2c) Filter out anything already in the basket
         filtered_recs = []
         for rec in all_recs:
             if len(rec) < 10:
@@ -1174,7 +1022,7 @@ def fetch_recommendations_async(
 
             produkt_name = rec[0]
             section_name = rec[9]
-            if section_name in basket_items and produkt_name in basket_items[section_name]:
+            if section_name in basket.items and produkt_name in basket.items[section_name]:
                 continue
             filtered_recs.append(rec)
 
