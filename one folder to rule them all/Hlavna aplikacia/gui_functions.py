@@ -18,10 +18,10 @@ from basket import Basket, BasketItem
 import threading
 
 from helpers import (
-    update_excel,
     create_filter_panel,
     create_notes_panel,
 )
+from excel_processing import update_excel
 
 # ─── Network / Database Helpers ─────────────────────────────────────────────
 
