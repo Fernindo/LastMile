@@ -12,7 +12,8 @@ from ttkbootstrap import Style
 from ttkbootstrap.widgets import Combobox
 import threading
 from helpers import show_praca_window, create_filter_panel
-from basket import Basket, load_basket
+from basket import Basket
+from basket_io import load_basket
 
 from gui_functions import (
     get_database_connection,

@@ -1,7 +1,6 @@
 # gui_functions.py
 
 import socket
-import json
 import os
 import sqlite3
 import psycopg2
@@ -9,12 +8,11 @@ import decimal
 import tkinter as tk
 from tkinter import messagebox, filedialog, simpledialog
 import unicodedata
-from datetime import datetime
-import glob
 from collections import OrderedDict
 import copy
 
 from basket import Basket, BasketItem
+from basket_io import save_basket, load_basket
 import threading
 
 from helpers import (
@@ -260,94 +258,6 @@ def log_recommendation_feedback(cursor, db_type, base_id, rec_id, action):
 
 # ─── Basket Persistence / I/O ────────────────────────────────────────────────
 
-def save_basket(project_path, project_name, basket_items, user_name=""):
-    """
-    Ask the user for a filename and save the basket JSON there.
-    Returns True on success, False if canceled or error.
-    """
-    os.makedirs(project_path, exist_ok=True)
-    default_name = f"basket_{datetime.now():%Y-%m-%d_%H-%M-%S}.json"
-
-    file_path = filedialog.asksaveasfilename(
-        title="Uložiť košík ako…",
-        initialdir=project_path,
-        initialfile=default_name,
-        defaultextension=".json",
-        filetypes=[("JSON súbory", "*.json")],
-    )
-    if not file_path:
-        return False  # user canceled dialog
-
-    out = {
-        "user_name": user_name,
-        "items": []
-    }
-    for section, prods in basket_items.items():
-        sec_obj = {"section": section, "products": []}
-        for pname, info in prods.items():
-            sec_obj["products"].append({
-                "produkt":             pname,
-                "jednotky":            info.get("jednotky", ""),
-                "dodavatel":           info.get("dodavatel", ""),
-                "odkaz":               info.get("odkaz", ""),
-                "koeficient_material": info.get("koeficient_material", 0),
-                "koeficient_prace":    info.get("koeficient_prace", 1),
-                "nakup_materialu":     info.get("nakup_materialu", 0),
-                "cena_prace":          info.get("cena_prace", 0),
-                "pocet_prace":         info.get("pocet_prace", 1),
-                "pocet_materialu":     info.get("pocet_materialu", 1),
-                "sync_qty":            info.get("sync_qty", False)
-            })
-        out["items"].append(sec_obj)
-
-    try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(out, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        messagebox.showerror("Chyba pri ukladaní", f"Nepodarilo sa uložiť súbor:\n{e}")
-        return False
-
-def load_basket(project_path, project_name, file_path=None):
-    """
-    Load the most recent basket JSON (or a specified file). Returns (OrderedDict, saved_user_name).
-    """
-    if file_path and os.path.isfile(file_path):
-        path = file_path
-    else:
-        candidates = glob.glob(os.path.join(project_path, "basket_*.json"))
-        if not candidates:
-            return OrderedDict(), ""
-        path = max(candidates, key=os.path.getmtime)
-
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except:
-        return OrderedDict(), ""
-
-    basket_items = OrderedDict()
-    for sec in data.get("items", []):
-        section = sec.get("section", "")
-        prods = OrderedDict()
-        for p in sec.get("products", []):
-            pname = p.get("produkt")
-            if not pname: continue
-            prods[pname] = {
-                "jednotky":            p.get("jednotky", ""),
-                "dodavatel":           p.get("dodavatel", ""),
-                "odkaz":               p.get("odkaz", ""),
-                "koeficient_material": float(p.get("koeficient_material", 0)),
-                "koeficient_prace":    float(p.get("koeficient_prace", 1)),
-                "nakup_materialu":     float(p.get("nakup_materialu", 0)),
-                "cena_prace":          float(p.get("cena_prace", 0)),
-                "pocet_prace":         int(p.get("pocet_prace", 1)),
-                "pocet_materialu":     int(p.get("pocet_materialu", 1)),
-                "sync_qty":           bool(p.get("sync_qty", False)),
-            }
-        basket_items[section] = prods
-
-    return basket_items, data.get("user_name","")
 
 def show_error(msg):
     """Utility to pop up an error and return an empty list so callers can bail."""
