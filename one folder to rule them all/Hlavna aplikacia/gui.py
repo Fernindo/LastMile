@@ -340,9 +340,7 @@ def start(project_dir, json_path):
 
     # Scrollbary
     basket_scroll_y = ttk.Scrollbar(basket_tree_container, orient="vertical")
-    basket_scroll_x = ttk.Scrollbar(basket_tree_container, orient="horizontal")
     basket_scroll_y.pack(side="right", fill="y")
-    basket_scroll_x.pack(side="bottom", fill="x")
     # -- Column Toggle Checkboxes (Basket) --
     # Reorder columns so material related fields are grouped together
     # followed by work/praca related fields. Columns are made wider via a
@@ -403,7 +401,6 @@ def start(project_dir, json_path):
         show="tree headings",
         displaycolumns=initial_display,
         yscrollcommand=basket_scroll_y.set,
-        xscrollcommand=basket_scroll_x.set,
         style="Basket.Treeview",
     )
     basket_tree.heading("#0", text="")
@@ -419,7 +416,6 @@ def start(project_dir, json_path):
         basket_tree.column(c, width=heading_width, anchor="center", stretch=True)
     basket_tree.pack(fill="both", expand=True)
     basket_scroll_y.config(command=basket_tree.yview)
-    basket_scroll_x.config(command=basket_tree.xview)
 
 
 
