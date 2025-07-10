@@ -79,8 +79,9 @@ def start(project_dir, json_path):
     root.option_add("*Font", ("Segoe UI", 10))
 
     root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=0)  # filter column
-    root.grid_columnconfigure(1, weight=1)
+    # Start with the filter hidden so the main area spans the full width
+    root.grid_columnconfigure(0, weight=1)  # main content
+    root.grid_columnconfigure(1, weight=0)  # placeholder for filter panel
 
     # ─── Track whether the basket has been modified ──────────────────────
     basket_modified = [False]  # use a list so nested functions can modify
@@ -146,10 +147,12 @@ def start(project_dir, json_path):
 
     def toggle_filter():
         if filter_visible[0]:
-            # hide filter, expand main into column 0
+            # hide filter, expand main into column 0 and reclaim full width
             filter_container.grid_forget()
             main_frame.grid(row=0, column=0, sticky="nsew")
             root.grid_columnconfigure(0, weight=1)
+            # remove extra column so main_frame truly stretches fullscreen
+            root.grid_columnconfigure(1, weight=0)
             filter_toggle_btn.config(text="▶")
         else:
             # show filter in column 0, push main to column 1
