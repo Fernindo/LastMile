@@ -79,8 +79,9 @@ def start(project_dir, json_path):
     root.option_add("*Font", ("Segoe UI", 10))
 
     root.grid_rowconfigure(0, weight=1)
-    root.grid_columnconfigure(0, weight=0)  # filter column
-    root.grid_columnconfigure(1, weight=1)
+    # Start with the filter hidden so the main area spans the full width
+    root.grid_columnconfigure(0, weight=1)  # main content
+    root.grid_columnconfigure(1, weight=0)  # placeholder for filter panel
 
     # ─── Track whether the basket has been modified ──────────────────────
     basket_modified = [False]  # use a list so nested functions can modify
