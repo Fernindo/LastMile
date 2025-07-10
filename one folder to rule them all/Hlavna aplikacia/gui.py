@@ -312,9 +312,11 @@ def start(project_dir, json_path):
         if total_pct == 0:
             total_pct = len(visible)
 
+        shrink = 0.75  # show DB columns a bit narrower
+
         for col in visible:
             pct = proportions.get(col, 1 / len(visible))
-            width = int(total * pct / total_pct)
+            width = int(total * pct / total_pct * shrink)
             tree.column(col, width=width, stretch=True)
 
     def update_displayed_db_columns():
