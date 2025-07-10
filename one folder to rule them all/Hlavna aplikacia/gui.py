@@ -136,7 +136,7 @@ def start(project_dir, json_path):
     # --- Filter panel (create + toggle) --------------------------------------
     filter_container, filter_frame, setup_cat_tree, category_vars, table_vars = create_filter_panel(
         root,
-        lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
+        lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, db_tree)
     )
     filter_container.config(width=350)
 
@@ -211,7 +211,7 @@ def start(project_dir, json_path):
     name_entry.pack(side="left")
     name_entry.bind(
         "<KeyRelease>",
-        lambda e: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
+        lambda e: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, db_tree)
     )
 
     tk.Label(top, text="Projekt:").pack(side="left", padx=(30, 5))
@@ -275,7 +275,7 @@ def start(project_dir, json_path):
         )
         chk.pack(side="left", padx=5)
     
-    tree = ttk.Treeview(
+    db_tree = ttk.Treeview(
         tree_frame,
         columns=db_columns,
         show="headings",
@@ -285,11 +285,12 @@ def start(project_dir, json_path):
         style="Main.Treeview",
     )
     for c in db_columns:
-        tree.heading(c, text=c.capitalize())
-        tree.column(c, anchor="center", stretch=True)
-    tree.pack(fill="both", expand=True)
-    tree_scroll_y.config(command=tree.yview)
-    tree_scroll_x.config(command=tree.xview)
+        db_tree.heading(c, text=c.capitalize())
+        db_tree.column(c, anchor="center", stretch=True)
+    db_tree.pack(fill="both", expand=True)
+    db_tree.config(height=15)
+    tree_scroll_y.config(command=db_tree.yview)
+    tree_scroll_x.config(command=db_tree.xview)
 
     def adjust_db_columns(event):
         """Resize visible DB columns proportionally to the widget width."""
@@ -305,7 +306,7 @@ def start(project_dir, json_path):
             "koeficient_prace":    0.08,
         }
 
-        visible = tree.cget("displaycolumns")
+        visible = db_tree.cget("displaycolumns")
         if isinstance(visible, str):
             visible = (visible,)
         total_pct = sum(proportions.get(col, 0) for col in visible)
@@ -317,19 +318,19 @@ def start(project_dir, json_path):
         for col in visible:
             pct = proportions.get(col, 1 / len(visible))
             width = int(total * pct / total_pct * shrink)
-            tree.column(col, width=width, stretch=True)
+            db_tree.column(col, width=width, stretch=True)
 
     def update_displayed_db_columns():
         visible = [col for col, var in db_column_vars.items() if var.get()]
         if not visible:
             visible = ["produkt"]
             db_column_vars["produkt"].set(True)
-        tree.config(displaycolumns=visible)
+        db_tree.config(displaycolumns=visible)
         event = tk.Event()
-        event.width = tree.winfo_width()
+        event.width = db_tree.winfo_width()
         adjust_db_columns(event)
 
-    tree.bind("<Configure>", adjust_db_columns)
+    db_tree.bind("<Configure>", adjust_db_columns)
 
     # ─── Basket Area ───────────────────────────────────────────────────────
     basket_frame = tb.Frame(main_frame, padding=5)
@@ -418,6 +419,7 @@ def start(project_dir, json_path):
         heading_width = max(150, len(c) * 8 + 30)
         basket_tree.column(c, width=heading_width, anchor="center", stretch=True)
     basket_tree.pack(fill="both", expand=True)
+    basket_tree.config(height=15)
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
 
@@ -577,14 +579,15 @@ def start(project_dir, json_path):
     right_btn_frame = tk.Frame(btn_container)
     right_btn_frame.pack(side="right")
 
+    def on_remove_click():
+        remove_from_basket(basket_tree, basket)
+        mark_modified()
+
     remove_btn = tb.Button(
         left_btn_frame,
         text="Odstrániť",
         bootstyle="danger-outline",
-        command=lambda: (
-            remove_from_basket(basket_tree, basket),
-            mark_modified()
-        )
+        command=on_remove_click,
     )
     remove_btn.pack(side="left", padx=(0, 10))
 
@@ -705,7 +708,7 @@ def start(project_dir, json_path):
     recompute_total_spolu(basket, total_spolu_var)
 
     # ─── Initial filtering of DB results ─────────────────────────────────
-    apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
+    apply_filters(cursor, db_type, table_vars, category_vars, name_entry, db_tree)
 
     # ─── Ensure basket columns display matches checkboxes ───
     def update_displayed_columns():
@@ -720,10 +723,10 @@ def start(project_dir, json_path):
     # ── REPLACE the old DB-double-click binding with this new one ─────────────
     def on_db_double_click(event):
         """
-        Called when the user double-clicks a row in the main DB Treeview (`tree`):
+        Called when the user double-clicks a row in the main DB Treeview (`db_tree`):
         it simply adds that product to the basket.
         """
-        selected = tree.item(tree.focus())
+        selected = db_tree.item(db_tree.focus())
         if not selected:
             return
         db_values = selected["values"]
@@ -739,7 +742,7 @@ def start(project_dir, json_path):
             rec_k=3
         )
 
-    tree.bind("<Double-1>", on_db_double_click)
+    db_tree.bind("<Double-1>", on_db_double_click)
     # ───────────────────────────────────────────────────────────────────────────
 
     # ─── Handle window close (“X”) ────────────────────────────────────────
