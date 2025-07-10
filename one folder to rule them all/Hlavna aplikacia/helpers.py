@@ -45,19 +45,12 @@ def create_filter_panel(parent, on_mousewheel_callback, width_fraction=0.2, min_
         if event.state & 0x0001:
             canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
 
-    def _update_wrap(event=None):
-        wrap = max(filter_container.winfo_width() - 40, 50)
-        for cb in _checkboxes:
-            cb.config(wraplength=wrap)
-
     filter_frame.bind("<Enter>", _on_enter)
     filter_frame.bind("<Leave>", _on_leave)
     filter_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-    filter_container.bind("<Configure>", _update_wrap)
 
     category_vars = {}
     table_vars = {}
-    _checkboxes = []
 
     def setup_category_tree(category_structure):
         tk.Label(filter_frame, text="Prehliadač databázových tabuliek", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=5)
@@ -79,31 +72,16 @@ def create_filter_panel(parent, on_mousewheel_callback, width_fraction=0.2, min_
             outer_frame.pack(anchor="w", fill="x", padx=5, pady=2)
 
             children_frame = tk.Frame(outer_frame, bg="white")
-            cat_checkbox = ttk.Checkbutton(
-                outer_frame,
-                text=category,
-                variable=category_vars[category],
-                justify="left",
-            )
+            cat_checkbox = ttk.Checkbutton(outer_frame, text=category, variable=category_vars[category])
             cat_checkbox.pack(anchor="w")
-            _checkboxes.append(cat_checkbox)
             category_vars[category].trace_add("write", toggle_category(category, children_frame, classes))
 
             for class_id, table_name in classes:
                 table_vars[class_id] = tk.BooleanVar(value=False)
-                chk = tk.Checkbutton(
-                    children_frame,
-                    text=table_name,
-                    variable=table_vars[class_id],
-                    command=on_mousewheel_callback,
-                    bg="white",
-                    justify="left",
-                )
+                chk = tk.Checkbutton(children_frame, text=table_name, variable=table_vars[class_id], command=on_mousewheel_callback, bg="white")
                 chk.pack(anchor="w", pady=1)
-                _checkboxes.append(chk)
 
         tk.Button(filter_frame, text="Resetovať filtre", command=lambda: reset_filters()).pack(anchor="w", pady=10, padx=5)
-        _update_wrap()
 
     def reset_filters():
         for var in table_vars.values():
