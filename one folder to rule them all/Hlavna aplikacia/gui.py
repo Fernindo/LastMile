@@ -337,12 +337,12 @@ def start(project_dir, json_path):
     tk.Label(basket_frame, text="Košík - vybraté položky:").pack(anchor="w")
     basket_tree_container = tb.Frame(basket_frame)
     basket_tree_container.pack(fill="both", expand=True)
+    basket_tree_container.grid_rowconfigure(0, weight=1)
+    basket_tree_container.grid_columnconfigure(0, weight=1)
 
     # Scrollbars
     basket_scroll_y = ttk.Scrollbar(basket_tree_container, orient="vertical")
-    basket_scroll_y.pack(side="right", fill="y")
     basket_scroll_x = ttk.Scrollbar(basket_tree_container, orient="horizontal")
-    basket_scroll_x.pack(side="bottom", fill="x")
     # -- Column Toggle Checkboxes (Basket) --
     # Reorder columns so material related fields are grouped together
     # followed by work/praca related fields. Columns are made wider via a
@@ -417,7 +417,10 @@ def start(project_dir, json_path):
         # bit more room so the heading text isn't truncated.
         heading_width = max(150, len(c) * 8 + 30)
         basket_tree.column(c, width=heading_width, anchor="center", stretch=True)
-    basket_tree.pack(fill="both", expand=True)
+
+    basket_tree.grid(row=0, column=0, sticky="nsew")
+    basket_scroll_y.grid(row=0, column=1, sticky="ns")
+    basket_scroll_x.grid(row=1, column=0, sticky="ew")
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
 
