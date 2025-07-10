@@ -424,6 +424,25 @@ def start(project_dir, json_path):
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
 
+    def adjust_basket_columns(event):
+        """Resize visible basket columns to fit within the widget width."""
+        total = event.width
+        section_width = 180  # width reserved for the "#0" section column
+        remaining = max(total - section_width, 0)
+
+        visible = basket_tree.cget("displaycolumns")
+        if isinstance(visible, str):
+            visible = (visible,)
+        if not visible:
+            return
+
+        per_col = int(remaining / len(visible)) if visible else remaining
+
+        for col in visible:
+            basket_tree.column(col, width=per_col, stretch=True)
+
+    basket_tree.bind("<Configure>", adjust_basket_columns)
+
 
 
 
@@ -717,6 +736,9 @@ def start(project_dir, json_path):
             visible = ["produkt"]
             column_vars["produkt"].set(True)
         basket_tree.config(displaycolumns=visible)
+        event = tk.Event()
+        event.width = basket_tree.winfo_width()
+        adjust_basket_columns(event)
 
     update_displayed_columns()
 
