@@ -365,19 +365,17 @@ def add_to_basket_full(
     base_product_id=None,
 ):
     """
-    Add a single product row (8 columns + optional section) into `basket_items`.
-    Also update co-occurrence and recommendations in the database,
-    but do NOT auto-add any recommended items to the basket.
+    Add a single product row (8 columns + optional section) into ``basket`` and
+    refresh ``basket_tree``.  All expensive database work (updating the
+    ``co_occurrence`` and ``recommendations`` tables) is performed on a separate
+    thread so that adding items stays responsive.
 
-    1) If the product (item) is not already in its section, insert it.
-    2) Update the co_occurrence table (count pairs with existing basket items).
-    3) Recompute the top‐K recommendations for this product and overwrite
-       the `recommendations` table. (But do not insert those recs here.)
-    4) Refresh the basket_tree and mark the basket as modified.
+    ``rec_k`` specifies how many recommendations to keep for the given product.
+    When ``from_recommendation`` is ``True`` the ``base_product_id`` of the
+    recommendation is logged as accepted.
     """
-    # Now item has length 9: last element is the “section” string
     produkt, jednotky, dodavatel, odkaz, \
-    koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
+        koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
     section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
 
     added = basket.add_item(item, section)
@@ -387,193 +385,195 @@ def add_to_basket_full(
 
     ensure_recommendation_schema(cursor, db_type)
 
-    # ─── Retrieve this product’s ID from the `produkty` table ─────────
-    try:
-        if db_type == "postgres":
-            cursor.execute(
-                "SELECT id FROM produkty WHERE produkt = %s",
-                (produkt,)
-            )
+    def _worker():
+        if db_type == "sqlite":
+            th_cursor = conn.cursor()
         else:
-            cursor.execute(
-                "SELECT id FROM produkty WHERE produkt = ?",
-                (produkt,)
-            )
-        base_id_row = cursor.fetchone()
-    except Exception:
-        base_id_row = None
+            th_cursor = conn.cursor()
 
-    if not base_id_row:
-        return  # product not found → skip co-occurrence & recommendations
-
-    base_id = base_id_row[0]
-
-    # ─── Update co-occurrence counts ───────────────────────────
-    other_product_names = [
-        p_name
-        for sec_name, prod_dict in basket.items.items()
-        for p_name in prod_dict.keys()
-        if p_name != produkt
-    ]
-    other_product_names = list(set(other_product_names))
-
-    for other_name in other_product_names:
         try:
             if db_type == "postgres":
-                cursor.execute(
+                th_cursor.execute(
                     "SELECT id FROM produkty WHERE produkt = %s",
-                    (other_name,)
+                    (produkt,),
                 )
             else:
-                cursor.execute(
+                th_cursor.execute(
                     "SELECT id FROM produkty WHERE produkt = ?",
-                    (other_name,)
+                    (produkt,),
                 )
-            other_id_row = cursor.fetchone()
+            row = th_cursor.fetchone()
         except Exception:
-            other_id_row = None
+            row = None
 
-        if not other_id_row:
-            continue
-        other_id = other_id_row[0]
+        if not row:
+            return
 
-        # Upsert for (base_id, other_id) and (other_id, base_id)
-        if db_type == "postgres":
-            cursor.execute(
-                """
-                INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
-                VALUES (%s, %s, 1, NOW())
-                ON CONFLICT (base_product_id, co_product_id)
-                DO UPDATE SET count = co_occurrence.count + 1, last_updated = NOW()
-                """,
-                (base_id, other_id)
-            )
-            cursor.execute(
-                """
-                INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
-                VALUES (%s, %s, 1, NOW())
-                ON CONFLICT (base_product_id, co_product_id)
-                DO UPDATE SET count = co_occurrence.count + 1, last_updated = NOW()
-                """,
-                (other_id, base_id)
-            )
-        else:
-            cursor.execute(
-                """
-                INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
-                VALUES (?, ?, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT(base_product_id, co_product_id)
-                DO UPDATE SET count = count + 1, last_updated = CURRENT_TIMESTAMP
-                """,
-                (base_id, other_id)
-            )
-            cursor.execute(
-                """
-                INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
-                VALUES (?, ?, 1, CURRENT_TIMESTAMP)
-                ON CONFLICT(base_product_id, co_product_id)
-                DO UPDATE SET count = count + 1, last_updated = CURRENT_TIMESTAMP
-                """,
-                (other_id, base_id)
-            )
+        base_id = row[0]
 
-    try:
-        conn.commit()
-    except Exception:
-        pass
+        other_product_names = [
+            p_name
+            for sec_name, prod_dict in basket.items.items()
+            for p_name in prod_dict.keys()
+            if p_name != produkt
+        ]
+        other_product_names = list(set(other_product_names))
 
-    # ─── Compute top-K recommendations ─────────────────────────────
-    K = rec_k
-    try:
-        if db_type == "postgres":
-            cursor.execute(
-                """
-                SELECT
-                  co_product_id,
-                  count * 1.0 / (1 + EXTRACT(EPOCH FROM (now() - last_updated))/86400) AS score
-                FROM co_occurrence
-                WHERE base_product_id = %s
-                ORDER BY score DESC
-                LIMIT %s
-                """,
-                (base_id, K)
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT
-                  co_product_id,
-                  count * 1.0 / (1 + (strftime('%s','now') - strftime('%s', last_updated))/86400.0) AS score
-                FROM co_occurrence
-                WHERE base_product_id = ?
-                ORDER BY score DESC
-                LIMIT ?
-                """,
-                (base_id, K)
-            )
-        top_co = cursor.fetchall()
-    except Exception:
-        top_co = []
+        for other_name in other_product_names:
+            try:
+                if db_type == "postgres":
+                    th_cursor.execute(
+                        "SELECT id FROM produkty WHERE produkt = %s",
+                        (other_name,),
+                    )
+                else:
+                    th_cursor.execute(
+                        "SELECT id FROM produkty WHERE produkt = ?",
+                        (other_name,),
+                    )
+                o_row = th_cursor.fetchone()
+            except Exception:
+                o_row = None
 
-    # ─── Overwrite recommendations for this base_id ─────────────────
-    try:
-        if db_type == "postgres":
-            cursor.execute(
-                "DELETE FROM recommendations WHERE base_product_id = %s",
-                (base_id,)
-            )
-        else:
-            cursor.execute(
-                "DELETE FROM recommendations WHERE base_product_id = ?",
-                (base_id,)
-            )
-    except Exception:
-        pass
+            if not o_row:
+                continue
+            other_id = o_row[0]
 
-    for rec_id, score in top_co:
-        try:
             if db_type == "postgres":
-                cursor.execute(
+                th_cursor.execute(
                     """
-                    INSERT INTO recommendations (
-                        base_product_id,
-                        recommended_product_id,
-                        priority
-                    ) VALUES (%s, %s, %s)
-                    ON CONFLICT (base_product_id, recommended_product_id)
-                    DO UPDATE SET priority = EXCLUDED.priority
+                    INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
+                    VALUES (%s, %s, 1, NOW())
+                    ON CONFLICT (base_product_id, co_product_id)
+                    DO UPDATE SET count = co_occurrence.count + 1, last_updated = NOW()
                     """,
-                    (base_id, rec_id, score)
+                    (base_id, other_id),
+                )
+                th_cursor.execute(
+                    """
+                    INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
+                    VALUES (%s, %s, 1, NOW())
+                    ON CONFLICT (base_product_id, co_product_id)
+                    DO UPDATE SET count = co_occurrence.count + 1, last_updated = NOW()
+                    """,
+                    (other_id, base_id),
                 )
             else:
-                cursor.execute(
+                th_cursor.execute(
                     """
-                    INSERT INTO recommendations (
-                        base_product_id,
-                        recommended_product_id,
-                        priority
-                    ) VALUES (?, ?, ?)
-                    ON CONFLICT(base_product_id, recommended_product_id)
-                    DO UPDATE SET priority = excluded.priority
+                    INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
+                    VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+                    ON CONFLICT(base_product_id, co_product_id)
+                    DO UPDATE SET count = count + 1, last_updated = CURRENT_TIMESTAMP
                     """,
-                    (base_id, rec_id, score)
+                    (base_id, other_id),
                 )
-        except Exception:
-            pass
+                th_cursor.execute(
+                    """
+                    INSERT INTO co_occurrence (base_product_id, co_product_id, count, last_updated)
+                    VALUES (?, ?, 1, CURRENT_TIMESTAMP)
+                    ON CONFLICT(base_product_id, co_product_id)
+                    DO UPDATE SET count = count + 1, last_updated = CURRENT_TIMESTAMP
+                    """,
+                    (other_id, base_id),
+                )
 
-    try:
-        conn.commit()
-    except Exception:
-        pass
-
-    if from_recommendation and base_product_id is not None:
         try:
-            log_recommendation_feedback(cursor, db_type, base_product_id, base_id, "accepted")
             conn.commit()
         except Exception:
             pass
 
-    return
+        K = rec_k
+        try:
+            if db_type == "postgres":
+                th_cursor.execute(
+                    """
+                    SELECT
+                      co_product_id,
+                      count * 1.0 / (1 + EXTRACT(EPOCH FROM (now() - last_updated))/86400) AS score
+                    FROM co_occurrence
+                    WHERE base_product_id = %s
+                    ORDER BY score DESC
+                    LIMIT %s
+                    """,
+                    (base_id, K),
+                )
+            else:
+                th_cursor.execute(
+                    """
+                    SELECT
+                      co_product_id,
+                      count * 1.0 / (1 + (strftime('%s','now') - strftime('%s', last_updated))/86400.0) AS score
+                    FROM co_occurrence
+                    WHERE base_product_id = ?
+                    ORDER BY score DESC
+                    LIMIT ?
+                    """,
+                    (base_id, K),
+                )
+            top_co = th_cursor.fetchall()
+        except Exception:
+            top_co = []
+
+        try:
+            if db_type == "postgres":
+                th_cursor.execute(
+                    "DELETE FROM recommendations WHERE base_product_id = %s",
+                    (base_id,),
+                )
+            else:
+                th_cursor.execute(
+                    "DELETE FROM recommendations WHERE base_product_id = ?",
+                    (base_id,),
+                )
+        except Exception:
+            pass
+
+        for rec_id, score in top_co:
+            try:
+                if db_type == "postgres":
+                    th_cursor.execute(
+                        """
+                        INSERT INTO recommendations (
+                            base_product_id,
+                            recommended_product_id,
+                            priority
+                        ) VALUES (%s, %s, %s)
+                        ON CONFLICT (base_product_id, recommended_product_id)
+                        DO UPDATE SET priority = EXCLUDED.priority
+                        """,
+                        (base_id, rec_id, score),
+                    )
+                else:
+                    th_cursor.execute(
+                        """
+                        INSERT INTO recommendations (
+                            base_product_id,
+                            recommended_product_id,
+                            priority
+                        ) VALUES (?, ?, ?)
+                        ON CONFLICT(base_product_id, recommended_product_id)
+                        DO UPDATE SET priority = excluded.priority
+                        """,
+                        (base_id, rec_id, score),
+                    )
+            except Exception:
+                pass
+
+        try:
+            conn.commit()
+        except Exception:
+            pass
+
+        if from_recommendation and base_product_id is not None:
+            try:
+                log_recommendation_feedback(th_cursor, db_type, base_product_id, base_id, "accepted")
+                conn.commit()
+            except Exception:
+                pass
+
+    threading.Thread(target=_worker, daemon=True).start()
+
 
 def reorder_basket_data(basket_tree, basket: Basket):
     """Pull edits from the Treeview back into the Basket object."""
