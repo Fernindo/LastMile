@@ -4,6 +4,7 @@ import sys
 from tkinter import filedialog
 
 import xlwings as xw
+from xlwings.constants import BordersIndex as BI, BorderWeight as BW, LineStyle, HAlign
 
 
 def update_excel(selected_items, project_name, notes_text="", definicia_text="", praca_data=None):
@@ -49,6 +50,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         counter = 1
         prev_section = None
         section_start_row = None
+        header_row = None
 
         for idx, item in enumerate(selected_items):
             section = item[0]
@@ -60,6 +62,9 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 sheet.cells(insert_position, 2).value = section
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
+                row_range.api.Font.Size = 12
+                row_range.api.HorizontalAlignment = HAlign.xlHAlignLeft
+                header_row = insert_position
 
                 insert_position += 1
                 section_start_row = insert_position
@@ -84,6 +89,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = False
 
             sheet.cells(insert_position, 2).value = counter
+            sheet.cells(insert_position, 2).api.HorizontalAlignment = HAlign.xlHAlignLeft
             sheet.cells(insert_position, 3).value = produkt
             sheet.cells(insert_position, 4).value = jednotky
             sheet.cells(insert_position, 5).value = pocet_materialu
@@ -115,13 +121,20 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 sheet.cells(insert_position, 2).value = section + "spolu"
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
+                row_range.api.Font.Size = 12
+                row_range.api.HorizontalAlignment = HAlign.xlHAlignLeft
 
                 sheet.cells(insert_position, 6).value = "Materiál"
+                sheet.cells(insert_position, 6).api.Font.Size = 12
                 last_item_row = insert_position - 1
                 sheet.cells(insert_position, 7).value = f"=SUM(G{section_start_row}:G{last_item_row})"
+                sheet.cells(insert_position, 7).api.Font.Size = 10
                 sheet.cells(insert_position, 9).value = "Práca"
+                sheet.cells(insert_position, 9).api.Font.Size = 12
                 sheet.cells(insert_position, 10).value = f"=SUM(J{section_start_row}:J{last_item_row})"
+                sheet.cells(insert_position, 10).api.Font.Size = 10
                 sheet.cells(insert_position, 11).value = f"=ROUNDUP(SUM(K{section_start_row}:K{last_item_row}),0)"
+                sheet.cells(insert_position, 11).api.Font.Size = 10
                 insert_position += 1
 
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
@@ -130,6 +143,17 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 dst.api.PasteSpecial(Paste=-4122)
                 sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = False
                 insert_position += 1
+
+                section_end_row = insert_position - 2
+                rng = sheet.range(f"B{header_row}:K{section_end_row}")
+                for edge in (BI.xlEdgeLeft, BI.xlEdgeTop, BI.xlEdgeBottom, BI.xlEdgeRight):
+                    br = rng.api.Borders(edge)
+                    br.LineStyle = LineStyle.xlContinuous
+                    br.Weight = BW.xlMedium
+                for inner in (BI.xlInsideVertical, BI.xlInsideHorizontal):
+                    br = rng.api.Borders(inner)
+                    br.LineStyle = LineStyle.xlContinuous
+                    br.Weight = BW.xlThin
 
         if notes_text:
             try:
