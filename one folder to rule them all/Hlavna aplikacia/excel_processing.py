@@ -93,27 +93,44 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
 
             sheet.cells(insert_position, 2).value = counter
             sheet.cells(insert_position, 2).api.HorizontalAlignment = HAlign.xlHAlignLeft
+            sheet.cells(insert_position, 2).api.Font.Size = 9
             sheet.cells(insert_position, 3).value = produkt
+            sheet.cells(insert_position, 3).api.Font.Size = 9
             sheet.cells(insert_position, 4).value = jednotky
+            sheet.cells(insert_position, 4).api.Font.Size = 9
             sheet.cells(insert_position, 5).value = pocet_materialu
+            sheet.cells(insert_position, 5).api.Font.Size = 9
             sheet.cells(insert_position, 6).value = f"=N{insert_position}*M{insert_position}"
+            sheet.cells(insert_position, 6).api.Font.Size = 9
             sheet.cells(insert_position, 7).value = f"=F{insert_position}*E{insert_position}"
+            sheet.cells(insert_position, 7).api.Font.Size = 9
             sheet.cells(insert_position, 8).value = pocet_materialu
+            sheet.cells(insert_position, 8).api.Font.Size = 9
             sheet.cells(insert_position, 9).value = nakup_materialu
+            sheet.cells(insert_position, 9).api.Font.Size = 9
             sheet.cells(insert_position, 10).value = f"=I{insert_position}*H{insert_position}"
+            sheet.cells(insert_position, 10).api.Font.Size = 9
             sheet.cells(insert_position, 11).value = f"=G{insert_position}+J{insert_position}"
+            sheet.cells(insert_position, 11).api.Font.Size = 9
             sheet.cells(insert_position, 13).value = koef_material
+            sheet.cells(insert_position, 13).api.Font.Size = 9
             sheet.cells(insert_position, 14).value = nakup_materialu
+            sheet.cells(insert_position, 14).api.Font.Size = 9
             sheet.cells(insert_position, 15).value = f"=N{insert_position}*E{insert_position}"
+            sheet.cells(insert_position, 15).api.Font.Size = 9
             sheet.cells(insert_position, 16).value = f"=G{insert_position}-O{insert_position}"
+            sheet.cells(insert_position, 16).api.Font.Size = 9
             sheet.cells(insert_position, 17).value = f"=P{insert_position}+G{insert_position}"
+            sheet.cells(insert_position, 17).api.Font.Size = 9
             sheet.cells(insert_position, 19).value = dodavatel
+            sheet.cells(insert_position, 19).api.Font.Size = 9
             if odkaz:
                 sheet.cells(insert_position, 19).api.Hyperlinks.Add(
                     Anchor=sheet.cells(insert_position, 19).api,
                     Address=odkaz,
                     TextToDisplay="Link",
                 )
+            
 
             counter += 1
             insert_position += 1
