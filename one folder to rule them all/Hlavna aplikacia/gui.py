@@ -377,7 +377,7 @@ def start(project_dir, json_path):
 
         # --- Summary / misc -------------------------------------------
         "predaj_spolu",
-        "sync_qty",
+        "sync",
     )
     column_vars = {}
     checkbox_frame = tb.LabelFrame(basket_frame, text="Zobraziť stĺpce:", padding=5)
@@ -483,20 +483,20 @@ def start(project_dir, json_path):
             "pocet_materialu",
             "pocet_prace",
         }
-        if col_name not in editable_cols and col_name != "sync_qty" and col_name not in {"pocet_materialu", "pocet_prace"}:
+        if col_name not in editable_cols and col_name != "sync" and col_name not in {"pocet_materialu", "pocet_prace"}:
             # Computed columns
             return
 
         old = basket_tree.set(row, col_name)
         section_name = basket_tree.item(sec, "text")
-        if col_name == "sync_qty":
-            new_val = not basket.items[section_name][prod].sync_qty
-            basket.items[section_name][prod].sync_qty = new_val
+        if col_name == "sync":
+            new_val = not basket.items[section_name][prod].sync
+            basket.items[section_name][prod].sync = new_val
             if new_val:
                 mat_count = basket.items[section_name][prod].pocet_materialu
                 basket.items[section_name][prod].pocet_prace = mat_count
         elif col_name in ("pocet_materialu", "pocet_prace"):
-            if col_name == "pocet_prace" and basket.items[section_name][prod].sync_qty:
+            if col_name == "pocet_prace" and basket.items[section_name][prod].sync:
                 return
             new = simpledialog.askinteger(
                 "Upraviť bunku",
@@ -511,9 +511,10 @@ def start(project_dir, json_path):
                 initialvalue=float(old),
                 parent=root
             )
-        if col_name == "sync_qty":
+        if col_name == "sync":
             update_basket_table(basket_tree, basket)
-            recompute_total_spolu(basket, total_spolu_var)
+            recompute_total_spolu(basket, total_spolu_var,
+                                total_praca_var, total_material_var)
             mark_modified()
             return
         if new is None:
@@ -529,12 +530,13 @@ def start(project_dir, json_path):
             if attr == "koeficient_praca":
                 attr = "koeficient_prace"
             setattr(basket.items[section_name][prod], attr, new)
-            if basket.items[section_name][prod].sync_qty and col_name == "pocet_materialu":
+            if basket.items[section_name][prod].sync and col_name == "pocet_materialu":
                 basket.items[section_name][prod].pocet_prace = new
 
         mark_modified()
         update_basket_table(basket_tree, basket)
-        recompute_total_spolu(basket, total_spolu_var)
+        recompute_total_spolu(basket, total_spolu_var,
+                            total_praca_var, total_material_var)
 
     basket_tree.bind("<Double-1>", on_basket_double_click)
 
@@ -551,7 +553,9 @@ def start(project_dir, json_path):
                 basket_tree,
                 basket,
                 total_spolu_var,
-                mark_modified
+                mark_modified,
+                total_praca_var,
+                total_material_var
             )
         )
         menu.post(event.x_root, event.y_root)
@@ -587,7 +591,15 @@ def start(project_dir, json_path):
     total_frame = tk.Frame(basket_frame)
     total_frame.pack(fill="x", pady=(2, 0))
     total_spolu_var = tk.StringVar(value="Spolu: 0.00")
+    total_praca_var = tk.StringVar(value="Spolu práca: 0.00")
+    total_material_var = tk.StringVar(value="Spolu materiál: 0.00")
     tk.Label(total_frame, textvariable=total_spolu_var, anchor="e").pack(
+        side="right", padx=10
+    )
+    tk.Label(total_frame, textvariable=total_praca_var, anchor="e").pack(
+        side="right", padx=10
+    )
+    tk.Label(total_frame, textvariable=total_material_var, anchor="e").pack(
         side="right", padx=10
     )
 
@@ -622,7 +634,9 @@ def start(project_dir, json_path):
             basket_tree,
             basket,
             total_spolu_var,
-            mark_modified
+            mark_modified,
+            total_praca_var,
+            total_material_var
         )
     )
     add_custom_btn.pack(side="left", padx=(0, 10))
@@ -647,6 +661,9 @@ def start(project_dir, json_path):
             db_type,
             basket_tree,
             mark_modified,
+            total_spolu_var,
+            total_praca_var,
+            total_material_var,
         )
     )
     recom_window_btn.pack(side="left", padx=(0, 10))
@@ -689,7 +706,9 @@ def start(project_dir, json_path):
             basket,
             basket_tree,
             total_spolu_var,
-            mark_modified
+            mark_modified,
+            total_praca_var,
+            total_material_var
         )
     )
     coeff_set_btn.pack(side="left", padx=(0, 10))
@@ -702,7 +721,9 @@ def start(project_dir, json_path):
             basket,
             basket_tree,
             total_spolu_var,
-            mark_modified
+            mark_modified,
+            total_praca_var,
+            total_material_var
         )
     )
     coeff_revert_btn.pack(side="left")
@@ -728,7 +749,8 @@ def start(project_dir, json_path):
                 section=sec,
             )
     update_basket_table(basket_tree, basket)
-    recompute_total_spolu(basket, total_spolu_var)
+    recompute_total_spolu(basket, total_spolu_var,
+                          total_praca_var, total_material_var)
 
     # ─── Initial filtering of DB results ─────────────────────────────────
     apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
@@ -765,6 +787,9 @@ def start(project_dir, json_path):
             conn, cursor, db_type,
             basket_tree,
             mark_modified,
+            total_spolu_var,
+            total_praca_var,
+            total_material_var,
             rec_k=3
         )
 
