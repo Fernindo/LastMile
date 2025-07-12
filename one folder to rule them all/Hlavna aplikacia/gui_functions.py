@@ -359,6 +359,9 @@ def add_to_basket_full(
     db_type,
     basket_tree,
     mark_modified,
+    total_spolu_var,
+    total_praca_var=None,
+    total_material_var=None,
     *,
     rec_k=3,
     from_recommendation=False,
@@ -381,6 +384,8 @@ def add_to_basket_full(
     added = basket.add_item(item, section)
     if added:
         basket.update_tree(basket_tree)
+        recompute_total_spolu(basket, total_spolu_var,
+                              total_praca_var, total_material_var)
         mark_modified()
 
     ensure_recommendation_schema(cursor, db_type)
@@ -607,12 +612,19 @@ def update_excel_from_basket(basket: Basket, project_name, definicia_text=""):
     update_excel(excel_data, project_name, definicia_text=definicia_text)
 
 
-def recompute_total_spolu(basket: Basket, total_spolu_var):
-    """Recalculate the basket total and update ``total_spolu_var``."""
-    total = basket.recompute_total()
+def recompute_total_spolu(basket: Basket, total_spolu_var,
+                          total_praca_var=None, total_material_var=None):
+    """Recalculate totals and update the provided StringVars."""
+    mat_total, praca_total, total = basket.recompute_totals()
     total_spolu_var.set(f"Spolu: {total:.2f}")
+    if total_praca_var is not None:
+        total_praca_var.set(f"Spolu práca: {praca_total:.2f}")
+    if total_material_var is not None:
+        total_material_var.set(f"Spolu materiál: {mat_total:.2f}")
 
-def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var, mark_modified):
+def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var,
+                             mark_modified,
+                             total_praca_var=None, total_material_var=None):
     """
     Prompt for a new coefficient value, then override every item's
     koeficient_material and koeficient_prace to exactly that value.
@@ -640,10 +652,13 @@ def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var, mark_
 
     basket.apply_global_coefficient(factor)
     basket.update_tree(basket_tree)
-    recompute_total_spolu(basket, total_spolu_var)
+    recompute_total_spolu(basket, total_spolu_var,
+                          total_praca_var, total_material_var)
     mark_modified()
 
-def revert_coefficient(basket: Basket, basket_tree, total_spolu_var, mark_modified):
+def revert_coefficient(basket: Basket, basket_tree, total_spolu_var,
+                       mark_modified,
+                       total_praca_var=None, total_material_var=None):
     """
     Revert all coefficients to their originals from base_coeffs, then clear base_coeffs.
     """
@@ -653,10 +668,13 @@ def revert_coefficient(basket: Basket, basket_tree, total_spolu_var, mark_modifi
 
     basket.revert_coefficient()
     basket.update_tree(basket_tree)
-    recompute_total_spolu(basket, total_spolu_var)
+    recompute_total_spolu(basket, total_spolu_var,
+                          total_praca_var, total_material_var)
     mark_modified()
 
-def reset_item(iid, basket_tree, basket: Basket, total_spolu_var, mark_modified):
+def reset_item(iid, basket_tree, basket: Basket,
+               total_spolu_var, mark_modified,
+               total_praca_var=None, total_material_var=None):
     """
     Reset a single item’s numeric fields back to their original values.
     """
@@ -667,11 +685,13 @@ def reset_item(iid, basket_tree, basket: Basket, total_spolu_var, mark_modified)
     section_name = basket_tree.item(sec, 'text')
     basket.reset_item(section_name, prod)
     basket.update_tree(basket_tree)
-    recompute_total_spolu(basket, total_spolu_var)
+    recompute_total_spolu(basket, total_spolu_var,
+                          total_praca_var, total_material_var)
     mark_modified()
 
 def add_custom_item(basket_tree, basket: Basket,
-                    total_spolu_var, mark_modified):
+                    total_spolu_var, mark_modified,
+                    total_praca_var=None, total_material_var=None):
     """
     Open a popup window to fill in a new item’s details, then add it into the basket.
     """
@@ -759,7 +779,8 @@ def add_custom_item(basket_tree, basket: Basket,
         basket.original.setdefault(section, OrderedDict())[name] = copy.deepcopy(data)
 
         basket.update_tree(basket_tree)
-        recompute_total_spolu(basket, total_spolu_var)
+        recompute_total_spolu(basket, total_spolu_var,
+                              total_praca_var, total_material_var)
         mark_modified()
         popup.destroy()
 
@@ -992,7 +1013,9 @@ def update_recommendation_tree(recom_tree, rec_list):
 
 
 def show_all_recommendations_popup(root, basket: Basket, conn, cursor, db_type,
-                                   basket_tree, mark_modified, max_recs=20):
+                                   basket_tree, mark_modified,
+                                   total_spolu_var, total_praca_var,
+                                   total_material_var, max_recs=20):
     """Open a window listing aggregated recommendations for all basket items."""
     ensure_recommendation_schema(cursor, db_type)
 
@@ -1111,6 +1134,9 @@ def show_all_recommendations_popup(root, basket: Basket, conn, cursor, db_type,
             db_type,
             basket_tree,
             mark_modified,
+            total_spolu_var,
+            total_praca_var,
+            total_material_var,
             from_recommendation=True,
         ),
     )

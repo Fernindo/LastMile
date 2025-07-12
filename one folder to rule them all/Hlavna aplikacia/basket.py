@@ -16,7 +16,7 @@ class BasketItem:
     koeficient_prace: float
     pocet_materialu: int = 1
     pocet_prace: int = 1
-    sync_qty: bool = False
+    sync: bool = False
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -95,7 +95,7 @@ class Basket:
                 nakup_praca_spolu = cena_pr * poc_pr
                 zisk_pr = predaj_praca_spolu - nakup_praca_spolu
                 marza_pr = (zisk_pr / predaj_praca_spolu * 100) if predaj_praca_spolu else 0
-                sync = "\u2713" if d.sync_qty else ""
+                sync = "\u2713" if d.sync else ""
                 tree.insert(
                     sec_id,
                     "end",
@@ -125,20 +125,23 @@ class Basket:
                 )
 
 
-    def recompute_total(self) -> float:
-        total = 0.0
+    def recompute_totals(self) -> Tuple[float, float, float]:
+        """Return (material_total, work_total, overall_total)."""
+        total_material = 0.0
+        total_work = 0.0
         for section, products in self.items.items():
             for _, info in products.items():
                 koef_mat = float(info.koeficient_material)
                 nakup_mat = float(info.nakup_materialu)
                 poc_mat = int(info.pocet_materialu)
-                predaj_mat = nakup_mat * koef_mat * poc_mat
+                total_material += nakup_mat * koef_mat * poc_mat
+
                 koef_pr = float(info.koeficient_prace)
                 cena_pr = float(info.cena_prace)
                 poc_pr = int(info.pocet_prace)
-                predaj_pr = cena_pr * koef_pr * poc_pr
-                total += predaj_mat + predaj_pr
-        return total
+                total_work += cena_pr * koef_pr * poc_pr
+
+        return total_material, total_work, total_material + total_work
 
     def reorder_from_tree(self, tree) -> None:
         new_items: OrderedDict[str, OrderedDict[str, BasketItem]] = OrderedDict()
@@ -157,7 +160,7 @@ class Basket:
                     pocet_prace=int(float(vals[10])),
                     dodavatel="",
                     odkaz="",
-                    sync_qty=(vals[19] == "✓"),
+                    sync=(vals[19] == "✓"),
                 )
             new_items[sec_name] = prods
         self.items.clear()

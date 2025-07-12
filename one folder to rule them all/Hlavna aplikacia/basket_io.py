@@ -42,7 +42,7 @@ def save_basket(project_path: str, project_name: str, basket_items, user_name: s
                 "cena_prace": info_dict.get("cena_prace", 0),
                 "pocet_prace": info_dict.get("pocet_prace", 1),
                 "pocet_materialu": info_dict.get("pocet_materialu", 1),
-                "sync_qty": info_dict.get("sync_qty", False),
+                "sync": info_dict.get("sync", False),
             })
         out["items"].append(sec_obj)
 
@@ -87,7 +87,7 @@ def load_basket(project_path: str, project_name: str, file_path: Optional[str] =
                 "cena_prace": float(p.get("cena_prace", 0)),
                 "pocet_prace": int(p.get("pocet_prace", 1)),
                 "pocet_materialu": int(p.get("pocet_materialu", 1)),
-                "sync_qty": bool(p.get("sync_qty", False)),
+                "sync": bool(p.get("sync", p.get("sync_qty", False))),
             }
         basket_items[section] = prods
     return basket_items, data.get("user_name", "")
