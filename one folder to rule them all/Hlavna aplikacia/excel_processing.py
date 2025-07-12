@@ -44,11 +44,6 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         sheet.range("B9:K9").value = [[project_name] * 10]
         sheet.range("B10:K10").value = [[definicia_text] * 10]
 
-        # Global formatting tweaks
-        sheet.range("C:C").column_width = 30
-        sheet.range("D:D").column_width = 12
-        sheet.cells.api.Font.Size = 10
-
         TEMPLATE_ROW = 18
         insert_position = TEMPLATE_ROW
         counter = 1
@@ -62,15 +57,8 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                     sheet.range(f"{insert_position}:{insert_position}").insert('down')
                     insert_position += 1
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-
-                hdr_range = sheet.range(f"C{insert_position}:K{insert_position}")
-                hdr_range.merge()
-                hdr_range.value = section
-                hdr_range.api.HorizontalAlignment = -4108  # xlCenter
-                hdr_range.api.Font.Bold = True
-                hdr_range.api.Font.Size = 12
-                hdr_range.color = (217, 217, 217)
-
+                sheet.cells(insert_position, 3).value = section
+                sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = True
                 insert_position += 1
                 section_start_row = insert_position
                 prev_section = section
@@ -121,23 +109,13 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             next_section = selected_items[idx + 1][0] if idx + 1 < len(selected_items) else None
             if next_section != section:
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                sum_row = insert_position
-                last_item_row = sum_row - 1
-
-                sheet.cells(sum_row, 3).value = section + " spolu"
-                sheet.cells(sum_row, 6).value = "Materiál:"
-                sheet.cells(sum_row, 7).value = f"=SUM(G{section_start_row}:G{last_item_row})"
-                sheet.cells(sum_row, 9).value = "Práca:"
-                sheet.cells(sum_row, 10).value = f"=SUM(J{section_start_row}:J{last_item_row})"
-                sheet.cells(sum_row, 11).value = f"=ROUNDUP(SUM(K{section_start_row}:K{last_item_row}),0)"
-
-                for col in [6, 7, 9, 10, 11]:
-                    cell = sheet.cells(sum_row, col)
-                    cell.api.Font.Bold = True
-                    cell.api.Font.Color = xw.utils.rgb(255, 255, 255)
-                    cell.color = (91, 155, 213)
-                    cell.number_format = "#,##0.00 €"
-
+                sheet.cells(insert_position, 3).value = section + "spolu"
+                sheet.cells(insert_position, 6).value = "Materiál"
+                last_item_row = insert_position - 1
+                sheet.cells(insert_position, 7).value = f"=SUM(G{section_start_row}:G{last_item_row})"
+                sheet.cells(insert_position, 9).value = "Práca"
+                sheet.cells(insert_position, 10).value = f"=SUM(J{section_start_row}:J{last_item_row})"
+                sheet.cells(insert_position, 11).value = f"=ROUNDUP(SUM(K{section_start_row}:K{last_item_row}),0)"
                 insert_position += 1
 
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
