@@ -57,8 +57,10 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                     sheet.range(f"{insert_position}:{insert_position}").insert('down')
                     insert_position += 1
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                sheet.cells(insert_position, 3).value = section
-                sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = True
+                sheet.cells(insert_position, 2).value = section
+                row_range = sheet.range(f"{insert_position}:{insert_position}")
+                row_range.api.Font.Bold = True
+                row_range.api.Font.Size = row_range.api.Font.Size + 2
                 insert_position += 1
                 section_start_row = insert_position
                 prev_section = section
@@ -79,6 +81,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             dst = sheet.range(f"{insert_position}:{insert_position}")
             src.api.Copy()
             dst.api.PasteSpecial(Paste=-4163)
+            sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = False
 
             sheet.cells(insert_position, 2).value = counter
             sheet.cells(insert_position, 3).value = produkt
@@ -109,7 +112,10 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             next_section = selected_items[idx + 1][0] if idx + 1 < len(selected_items) else None
             if next_section != section:
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                sheet.cells(insert_position, 3).value = section + "spolu"
+                sheet.cells(insert_position, 2).value = section + "spolu"
+                row_range = sheet.range(f"{insert_position}:{insert_position}")
+                row_range.api.Font.Bold = True
+                row_range.api.Font.Size = row_range.api.Font.Size + 2
                 sheet.cells(insert_position, 6).value = "Materiál"
                 last_item_row = insert_position - 1
                 sheet.cells(insert_position, 7).value = f"=SUM(G{section_start_row}:G{last_item_row})"
@@ -122,6 +128,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 src.api.Copy()
                 dst = sheet.range(f"{insert_position}:{insert_position}")
                 dst.api.PasteSpecial(Paste=-4122)
+                sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = False
                 insert_position += 1
 
         if notes_text:
