@@ -60,7 +60,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 sheet.cells(insert_position, 2).value = section
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
-                row_range.api.Font.Size = row_range.api.Font.Size + 2
+
                 insert_position += 1
                 section_start_row = insert_position
                 prev_section = section
@@ -115,7 +115,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 sheet.cells(insert_position, 2).value = section + "spolu"
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
-                row_range.api.Font.Size = row_range.api.Font.Size + 2
+
                 sheet.cells(insert_position, 6).value = "Materiál"
                 last_item_row = insert_position - 1
                 sheet.cells(insert_position, 7).value = f"=SUM(G{section_start_row}:G{last_item_row})"
