@@ -79,8 +79,7 @@ def start(project_dir, json_path):
     base_w = 1600
     scale = max(1.0, min(1.5, screen_w / base_w))
 
-    base_w = 1920  # reference width for which the UI was designed
-    scale = max(0.75, min(1.5, screen_w / base_w))
+    
 
     root.tk.call("tk", "scaling", scale)
 
