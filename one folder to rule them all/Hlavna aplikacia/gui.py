@@ -242,21 +242,14 @@ def start(project_dir, json_path):
     definition_entry.insert(0, "")
     definition_entry.pack(side="left")
 
-    # Theme selector
-    theme_var = tk.StringVar(value="litera")
-    theme_combo = Combobox(
+    # Settings button to configure basket visibility
+    settings_btn = tb.Button(
         top,
-        textvariable=theme_var,
-        values=style.theme_names(),
-        width=10,
-        state="readonly"
+        text="⚙️ Nastavenia",
+        bootstyle="secondary",
+        command=lambda: open_settings()
     )
-    theme_combo.pack(side="right", padx=(5, 10))
-
-    def change_theme(event=None):
-        style.theme_use(theme_var.get())
-
-    theme_combo.bind("<<ComboboxSelected>>", change_theme)
+    settings_btn.pack(side="right", padx=(5, 10))
 
     # ─── Database Treeview (DB results) ───────────────────────────────────
     tree_frame = tb.Frame(main_frame)
@@ -781,6 +774,49 @@ def start(project_dir, json_path):
         adjust_basket_columns(event)
 
     update_displayed_columns()
+
+    # ─── Settings window for basket visibility ────────────────────────────
+    def open_settings():
+        settings_win = tk.Toplevel(root)
+        settings_win.title("Nastavenia košíka")
+        settings_win.resizable(False, False)
+
+        sections = {
+            "Materiál": [
+                "pocet_materialu", "koeficient_material", "nakup_mat_jedn",
+                "predaj_mat_jedn", "nakup_mat_spolu", "predaj_mat_spolu",
+                "zisk_material", "marza_material",
+            ],
+            "Práca": [
+                "pocet_prace", "koeficient_praca", "cena_prace",
+                "nakup_praca_spolu", "predaj_praca_jedn", "predaj_praca_spolu",
+                "zisk_praca", "marza_praca",
+            ],
+            "Zhrnutie": ["predaj_spolu", "sync"],
+        }
+
+        section_vars = {}
+
+        def toggle_section(sec):
+            show = section_vars[sec].get()
+            for c in sections[sec]:
+                column_vars[c].set(show)
+            update_displayed_columns()
+
+        for i, (sec, cols) in enumerate(sections.items()):
+            var = tk.BooleanVar(value=any(column_vars[c].get() for c in cols))
+            section_vars[sec] = var
+            chk = tk.Checkbutton(
+                settings_win,
+                text=sec,
+                variable=var,
+                command=lambda s=sec: toggle_section(s)
+            )
+            chk.grid(row=i, column=0, sticky="w", padx=10, pady=5)
+
+        tb.Button(settings_win, text="Zavrieť", command=settings_win.destroy).grid(
+            row=len(sections), column=0, pady=(5, 10)
+        )
 
     # ── REPLACE the old DB-double-click binding with this new one ─────────────
     def on_db_double_click(event):
