@@ -271,11 +271,16 @@ def remove_accents(s):
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     """
-    Load products from 'produkty', filter by selected class_ids and search text.
-    Populate `tree` (a ttk.Treeview) with grouped rows.
+    Load all products from ``produkty`` and populate ``tree``.  The original
+    implementation filtered rows based on selected categories and the text in
+    ``name_entry``.  To remove the filter for the database table we simply ignore
+    these inputs and show every record.
     """
-    sel_ids = [cid for cid, var in table_vars.items() if var.get()]
-    name_f = remove_accents(name_entry.get().strip().lower())
+
+    # ``sel_ids`` and ``name_f`` used to control filtering.  They are retained
+    # for backwards compatibility but no longer influence the query.
+    sel_ids = []
+    name_f = ""
 
     query = """
     SELECT
@@ -291,13 +296,8 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     FROM produkty p
     LEFT JOIN produkt_class pc
       ON p.id = pc.produkt_id
-    WHERE 1=1
     """
     params = []
-    if sel_ids:
-        placeholder = ",".join("?" if db_type=="sqlite" else "%s" for _ in sel_ids)
-        query += f" AND pc.class_id IN ({placeholder})"
-        params.extend(sel_ids)
 
     try:
         cursor.execute(query, tuple(params))
@@ -309,10 +309,9 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     tree.delete(*tree.get_children())
     grouped = {}
     for r in rows:
-        prod = r[0]
-        if not name_f or name_f in remove_accents(prod.lower()):
-            cid = r[-1]
-            grouped.setdefault(cid, []).append(r[:-1])
+        # ``name_f`` filtering removed; every row is included
+        cid = r[-1]
+        grouped.setdefault(cid, []).append(r[:-1])
 
     cnames = {}
     try:
