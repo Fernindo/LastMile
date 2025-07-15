@@ -74,9 +74,14 @@ def start(project_dir, json_path):
 
     # --- Dynamic scaling based on screen size -----------------------------
     screen_w = root.winfo_screenwidth()
+
     # Use a slightly smaller reference width so laptops don't scale down
     base_w = 1600
     scale = max(1.0, min(1.5, screen_w / base_w))
+
+    base_w = 1920  # reference width for which the UI was designed
+    scale = max(0.75, min(1.5, screen_w / base_w))
+
     root.tk.call("tk", "scaling", scale)
 
     font_size = int(10 * scale)
