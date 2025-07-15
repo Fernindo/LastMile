@@ -72,12 +72,21 @@ def start(project_dir, json_path):
         relief="flat"
     )
 
-    style.configure("Main.Treeview", rowheight=24, font=("Segoe UI", 10))
-    style.configure("Basket.Treeview", rowheight=24, font=("Segoe UI", 10))
-    style.configure("Recom.Treeview", rowheight=24, font=("Segoe UI", 10))
+    # --- Dynamic scaling based on screen size -----------------------------
+    screen_w = root.winfo_screenwidth()
+    base_w = 1920  # reference width for which the UI was designed
+    scale = max(0.75, min(1.5, screen_w / base_w))
+    root.tk.call("tk", "scaling", scale)
+
+    font_size = int(10 * scale)
+    row_h = int(24 * scale)
+
+    style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size))
+    style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size))
+    style.configure("Recom.Treeview", rowheight=row_h, font=("Segoe UI", font_size))
     root.title(f"Project: {project_name}")
     root.state("zoomed")
-    root.option_add("*Font", ("Segoe UI", 10))
+    root.option_add("*Font", ("Segoe UI", font_size))
 
     root.grid_rowconfigure(0, weight=1)
     # Start with the filter hidden so the main area spans the full width
@@ -171,7 +180,7 @@ def start(project_dir, json_path):
     filter_toggle_btn = tk.Button(
         toggle_filter_container,
         text="▶",
-        font=("Segoe UI", 12, "bold"),
+        font=("Segoe UI", int(12 * scale), "bold"),
         width=2,
         height=1,
         bg="#e0e0e0",
