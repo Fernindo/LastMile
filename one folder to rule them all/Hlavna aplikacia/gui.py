@@ -797,7 +797,11 @@ def start(project_dir, json_path):
                 command=update_displayed_db_columns,
                 bg="white"
             )
+
+            chk.pack(side="left", padx=5)
+
             chk.pack(anchor="w")
+
 
         # --- Basket section visibility ----------------------------------
         tk.Label(inner, text="Ko\u0161\u00edk", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(10, 0))
@@ -824,17 +828,29 @@ def start(project_dir, json_path):
                 column_vars[c].set(show)
             update_displayed_columns()
 
+
+        basket_chk_frame = tk.Frame(inner, bg="white")
+        basket_chk_frame.pack(anchor="w", padx=20)
+
         for sec, cols in sections.items():
             var = tk.BooleanVar(value=any(column_vars[c].get() for c in cols))
             section_vars[sec] = var
             chk = tk.Checkbutton(
+
+                basket_chk_frame,
+
                 inner,
+
                 text=sec,
                 variable=var,
                 command=lambda s=sec: toggle_section(s),
                 bg="white"
             )
+
+            chk.pack(side="left", padx=5)
+
             chk.pack(anchor="w", padx=20)
+
 
         tk.Button(inner, text="Zavrie\u0165", command=settings_win.destroy).pack(pady=10)
 
