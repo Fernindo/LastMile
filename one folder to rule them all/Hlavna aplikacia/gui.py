@@ -795,12 +795,10 @@ def start(project_dir, json_path):
                 text=col.capitalize(),
                 variable=db_column_vars[col],
                 command=update_displayed_db_columns,
-                bg="white"
+                bg="white",
             )
 
             chk.pack(side="left", padx=5)
-
-            chk.pack(anchor="w")
 
 
         # --- Basket section visibility ----------------------------------
@@ -836,20 +834,14 @@ def start(project_dir, json_path):
             var = tk.BooleanVar(value=any(column_vars[c].get() for c in cols))
             section_vars[sec] = var
             chk = tk.Checkbutton(
-
                 basket_chk_frame,
-
-                inner,
-
                 text=sec,
                 variable=var,
                 command=lambda s=sec: toggle_section(s),
-                bg="white"
+                bg="white",
             )
 
             chk.pack(side="left", padx=5)
-
-            chk.pack(anchor="w", padx=20)
 
 
         tk.Button(inner, text="Zavrie\u0165", command=settings_win.destroy).pack(pady=10)
