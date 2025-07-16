@@ -273,18 +273,9 @@ def start(project_dir, json_path):
     db_column_vars = {}
     initial_db_display = [c for c in db_columns]
 
-    db_checkbox_frame = tb.LabelFrame(tree_frame, text="Zobraziť stĺpce:", padding=5)
-    db_checkbox_frame.pack(fill="x", pady=(0, 5))
     for col in db_columns:
         var = tk.BooleanVar(value=True)
         db_column_vars[col] = var
-        chk = tk.Checkbutton(
-            db_checkbox_frame,
-            text=col.capitalize(),
-            variable=var,
-            command=lambda: update_displayed_db_columns()
-        )
-        chk.pack(side="left", padx=5)
     
     tree = ttk.Treeview(
         tree_frame,
@@ -387,24 +378,8 @@ def start(project_dir, json_path):
         "sync",
     )
     column_vars = {}
-    checkbox_frame = tb.LabelFrame(basket_frame, text="Zobraziť stĺpce:", padding=5)
-    checkbox_frame.pack(fill="x", pady=(3, 8))
-
-    # Arrange the checkbox filters in two rows so long column names remain fully
-    # visible without requiring a horizontal scrollbar.
-    per_row = (len(basket_columns) + 1) // 2
-    for idx, col in enumerate(basket_columns):
-        var = tk.BooleanVar(value=True)
-        column_vars[col] = var
-        chk = tk.Checkbutton(
-            checkbox_frame,
-            text=col.capitalize(),
-            variable=var,
-            command=lambda: update_displayed_columns()
-        )
-        r = idx // per_row
-        c = idx % per_row
-        chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
+    for col in basket_columns:
+        column_vars[col] = tk.BooleanVar(value=True)
 
     # -- Basket Treeview --
     initial_display = [c for c in basket_columns]
@@ -778,16 +753,62 @@ def start(project_dir, json_path):
     # ─── Settings window for basket visibility ────────────────────────────
     def open_settings():
         settings_win = tk.Toplevel(root)
-        settings_win.title("Nastavenia košíka")
+        settings_win.title("Nastavenia")
         settings_win.resizable(False, False)
+        settings_win.geometry("800x320")
+        settings_win.configure(bg="white")
+
+        container = tk.Frame(settings_win, bg="white")
+        container.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(container, bg="white", highlightthickness=0)
+        h_scroll = tk.Scrollbar(container, orient="horizontal", command=canvas.xview)
+        canvas.configure(xscrollcommand=h_scroll.set)
+
+        inner = tk.Frame(canvas, bg="white")
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.pack(fill="both", expand=True)
+        h_scroll.pack(side="bottom", fill="x")
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        # --- Database column visibility ---------------------------------
+        tk.Label(inner, text="St\u013flpce datab\u00e1zy", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(5, 0))
+        db_chk_frame = tk.Frame(inner, bg="white")
+        db_chk_frame.pack(anchor="w", padx=20)
+        for col in db_columns:
+            chk = tk.Checkbutton(
+                db_chk_frame,
+                text=col.capitalize(),
+                variable=db_column_vars[col],
+                command=update_displayed_db_columns,
+                bg="white"
+            )
+            chk.pack(side="left", padx=5)
+
+        # --- Basket column visibility ----------------------------------
+        tk.Label(inner, text="St\u013flpce ko\u0161\u00edka", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        basket_col_frame = tk.Frame(inner, bg="white")
+        basket_col_frame.pack(anchor="w", padx=20)
+        for col in basket_columns:
+            chk = tk.Checkbutton(
+                basket_col_frame,
+                text=col.capitalize(),
+                variable=column_vars[col],
+                command=update_displayed_columns,
+                bg="white"
+            )
+            chk.pack(side="left", padx=5)
+
+        # --- Basket section visibility ----------------------------------
+        tk.Label(inner, text="Ko\u0161\u00edk", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(10, 0))
 
         sections = {
-            "Materiál": [
+            "Materi\u00e1l": [
                 "pocet_materialu", "koeficient_material", "nakup_mat_jedn",
                 "predaj_mat_jedn", "nakup_mat_spolu", "predaj_mat_spolu",
                 "zisk_material", "marza_material",
             ],
-            "Práca": [
+            "Pr\u00e1ca": [
                 "pocet_prace", "koeficient_praca", "cena_prace",
                 "nakup_praca_spolu", "predaj_praca_jedn", "predaj_praca_spolu",
                 "zisk_praca", "marza_praca",
@@ -803,20 +824,21 @@ def start(project_dir, json_path):
                 column_vars[c].set(show)
             update_displayed_columns()
 
-        for i, (sec, cols) in enumerate(sections.items()):
+        basket_chk_frame = tk.Frame(inner, bg="white")
+        basket_chk_frame.pack(anchor="w", padx=20)
+        for sec, cols in sections.items():
             var = tk.BooleanVar(value=any(column_vars[c].get() for c in cols))
             section_vars[sec] = var
             chk = tk.Checkbutton(
-                settings_win,
+                basket_chk_frame,
                 text=sec,
                 variable=var,
-                command=lambda s=sec: toggle_section(s)
+                command=lambda s=sec: toggle_section(s),
+                bg="white"
             )
-            chk.grid(row=i, column=0, sticky="w", padx=10, pady=5)
+            chk.pack(side="left", padx=5)
 
-        tb.Button(settings_win, text="Zavrieť", command=settings_win.destroy).grid(
-            row=len(sections), column=0, pady=(5, 10)
-        )
+        tk.Button(inner, text="Zavrie\u0165", command=settings_win.destroy).pack(pady=10)
 
     # ── REPLACE the old DB-double-click binding with this new one ─────────────
     def on_db_double_click(event):
