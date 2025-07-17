@@ -305,6 +305,7 @@ def start(project_dir, json_path):
         yscrollcommand=tree_scroll_y.set,
         xscrollcommand=tree_scroll_x.set,
         style="Main.Treeview",
+        selectmode="extended"  # allow Ctrl/Shift multi-select
     )
     for c in db_columns:
         tree.heading(c, text=c.capitalize())
@@ -434,6 +435,7 @@ def start(project_dir, json_path):
         yscrollcommand=basket_scroll_y.set,
         xscrollcommand=basket_scroll_x.set,
         style="Basket.Treeview",
+        selectmode="extended",  # enable multi-select with Ctrl
     )
     basket_tree.heading("#0", text="")
     # Provide ample space for section headers so the section name is always
@@ -488,9 +490,15 @@ def start(project_dir, json_path):
 
         basket.snapshot()
 
+        # Use all currently selected rows (excluding section headers)
+        selected = [
+            r for r in basket_tree.selection()
+            if basket_tree.parent(r) != ""
+        ]
+        if not selected:
+            selected = [row]
 
-
-        # Otherwise, do the normal inline-edit (float/int prompt):
+        # Determine which column is being edited
         idx_visible = int(col.replace("#", "")) - 1
         visible_cols = basket_tree.cget("displaycolumns")
         if isinstance(visible_cols, str):
@@ -518,10 +526,18 @@ def start(project_dir, json_path):
         section_name = basket_tree.item(sec, "text")
         if col_name == "sync":
             new_val = not basket.items[section_name][prod].sync
-            basket.items[section_name][prod].sync = new_val
-            if new_val:
-                mat_count = basket.items[section_name][prod].pocet_materialu
-                basket.items[section_name][prod].pocet_prace = mat_count
+            for iid in selected:
+                sec_name = basket_tree.item(basket_tree.parent(iid), "text")
+                prod_name = basket_tree.item(iid)["values"][0]
+                basket.items[sec_name][prod_name].sync = new_val
+                if new_val:
+                    mat_c = basket.items[sec_name][prod_name].pocet_materialu
+                    basket.items[sec_name][prod_name].pocet_prace = mat_c
+            update_basket_table(basket_tree, basket)
+            recompute_total_spolu(basket, total_spolu_var,
+                                total_praca_var, total_material_var)
+            mark_modified()
+            return
         elif col_name in ("pocet_materialu", "pocet_prace"):
             if col_name == "pocet_prace" and basket.items[section_name][prod].sync:
                 messagebox.showinfo(
@@ -542,27 +558,22 @@ def start(project_dir, json_path):
                 initialvalue=old,
                 parent=root
             )
-        if col_name == "sync":
-            update_basket_table(basket_tree, basket)
-            recompute_total_spolu(basket, total_spolu_var,
-                                total_praca_var, total_material_var)
-            mark_modified()
-            return
         if new is None:
             return
 
-        basket_tree.set(row, col_name, new)
-        sec = basket_tree.parent(row)
-        prod = basket_tree.item(row)["values"][0]
-        if col_name in editable_cols:
-            attr = col_name
-            if attr == "nakup_mat_jedn":
-                attr = "nakup_materialu"
-            if attr == "koeficient_praca":
-                attr = "koeficient_prace"
-            setattr(basket.items[section_name][prod], attr, new)
-            if basket.items[section_name][prod].sync and col_name == "pocet_materialu":
-                basket.items[section_name][prod].pocet_prace = new
+        for iid in selected:
+            sec_i = basket_tree.item(basket_tree.parent(iid), "text")
+            prod_i = basket_tree.item(iid)["values"][0]
+            basket_tree.set(iid, col_name, new)
+            if col_name in editable_cols:
+                attr = col_name
+                if attr == "nakup_mat_jedn":
+                    attr = "nakup_materialu"
+                if attr == "koeficient_praca":
+                    attr = "koeficient_prace"
+                setattr(basket.items[sec_i][prod_i], attr, new)
+                if basket.items[sec_i][prod_i].sync and col_name == "pocet_materialu":
+                    basket.items[sec_i][prod_i].pocet_prace = new
 
         mark_modified()
         update_basket_table(basket_tree, basket)
