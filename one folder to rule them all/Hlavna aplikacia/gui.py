@@ -754,7 +754,7 @@ def start(project_dir, json_path):
     def open_settings():
         settings_win = tk.Toplevel(root)
         settings_win.title("Nastavenia")
-        settings_win.geometry("600x400")
+        settings_win.geometry("1450x400")
         settings_win.resizable(False, False)
 
         container = tk.Frame(settings_win, bg="white")
@@ -808,7 +808,7 @@ def start(project_dir, json_path):
         btn_frame = tk.Frame(inner, bg="white")
         btn_frame.pack(pady=10)
         tk.Button(btn_frame, text="Uložiť", command=lambda: (update_displayed_columns(), settings_win.destroy())).pack(side="left", padx=5)
-        tk.Button(btn_frame, text="Zavrieť", command=settings_win.destroy).pack(side="left", padx=5)
+        
 
     # ── REPLACE the old DB-double-click binding with this new one ─────────────
     def on_db_double_click(event):
