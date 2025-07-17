@@ -848,17 +848,20 @@ def fetch_recommendations_async(
     basket: Basket,
     root,
     recom_tree,
-    max_recs=3
+    max_recs=3,
+    *,
+    filter_in_basket=True
 ):
     """
     1) Immediately clear `recom_tree` and insert a “Loading…” row.
     2) Spawn a background thread that:
        a) Looks up `base_id` from `produkty` WHERE `produkt = base_product_name`.
-       b) Runs a single JOIN + GROUP BY query on `recommendations → produkty → class` 
-          to fetch up to `max_recs` distinct products (produkt, jednotky, dodavatel, odkaz, 
+       b) Runs a single JOIN + GROUP BY query on `recommendations → produkty → class`
+          to fetch up to `max_recs` distinct products (produkt, jednotky, dodavatel, odkaz,
           koeficient_material, nakup_materialu, cena_prace, koeficient_prace, section_name).
-       c) Filters out any row whose (section_name, produkt) is already in `basket`.
-       d) Calls `root.after(0, lambda: update_recommendation_tree(recom_tree, filtered_list))`.
+       c) Optionally filters out any row already present in ``basket`` when
+          ``filter_in_basket`` is True.
+       d) Calls ``root.after(0, lambda: update_recommendation_tree(recom_tree, filtered_list))``.
     """
     # 1) Show “Loading…” placeholder in the Treeview
     recom_tree.delete(*recom_tree.get_children())
@@ -979,7 +982,7 @@ def fetch_recommendations_async(
             all_recs = []
 
         # ─────────────────────────────────────────────────────────────────────
-        # 2c) Filter out anything already in the basket
+        # 2c) Optionally filter out anything already in the basket
         filtered_recs = []
         for rec in all_recs:
             if len(rec) < 10:
@@ -988,7 +991,7 @@ def fetch_recommendations_async(
 
             produkt_name = rec[0]
             section_name = rec[9]
-            if section_name in basket.items and produkt_name in basket.items[section_name]:
+            if filter_in_basket and section_name in basket.items and produkt_name in basket.items[section_name]:
                 continue
             filtered_recs.append(rec)
 
@@ -1028,8 +1031,13 @@ def update_recommendation_tree(recom_tree, rec_list):
 def show_all_recommendations_popup(root, basket: Basket, conn, cursor, db_type,
                                    basket_tree, mark_modified,
                                    total_spolu_var, total_praca_var,
-                                   total_material_var, max_recs=20):
-    """Open a window listing aggregated recommendations for all basket items."""
+                                   total_material_var, max_recs=20,
+                                   *, filter_in_basket=True):
+    """Open a window listing aggregated recommendations for all basket items.
+
+    When ``filter_in_basket`` is True, any product already present in
+    ``basket`` is omitted from the list.
+    """
     ensure_recommendation_schema(cursor, db_type)
 
     product_names = [
@@ -1094,7 +1102,7 @@ def show_all_recommendations_popup(root, basket: Basket, conn, cursor, db_type,
             continue
         pname = rec[0]
         section = rec[9]
-        if section in basket.items and pname in basket.items[section]:
+        if filter_in_basket and section in basket.items and pname in basket.items[section]:
             continue
         filtered.append(rec)
 
