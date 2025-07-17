@@ -567,6 +567,34 @@ def show_notes_popup(project_name, json_dir):
         chk.pack(anchor="w", fill="x", pady=2)
         vars_items.append((var, text))
 
+    # Entry field to allow adding custom notes
+    add_frame = tk.Frame(notes_window)
+    add_frame.pack(fill="x", padx=10, pady=(0, 10))
+
+    new_note_var = tk.StringVar()
+    new_note_entry = tk.Entry(add_frame, textvariable=new_note_var)
+    new_note_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+
+    def add_custom_note():
+        text = new_note_var.get().strip()
+        if not text:
+            return
+        var = tk.IntVar(value=1)
+        chk = tk.Checkbutton(
+            frame,
+            text=text,
+            variable=var,
+            anchor="w",
+            justify="left",
+            wraplength=380,
+        )
+        chk.pack(anchor="w", fill="x", pady=2)
+        vars_items.append((var, text))
+        new_note_var.set("")
+
+    add_btn = tk.Button(add_frame, text="Pridať", command=add_custom_note)
+    add_btn.pack(side="left")
+
     def save_notes():
         try:
             with open(notes_path, "w", encoding="utf-8") as f:

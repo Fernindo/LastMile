@@ -368,7 +368,6 @@ def start(project_dir, json_path):
         bootstyle="secondary",
         command=undo_action
     )
-    undo_btn.pack(side="right", padx=(0, 5))
 
     redo_btn = tb.Button(
         basket_header,
@@ -376,7 +375,10 @@ def start(project_dir, json_path):
         bootstyle="secondary",
         command=redo_action
     )
+
+    # Pack redo button first so it appears to the right of the undo button
     redo_btn.pack(side="right", padx=(0, 10))
+    undo_btn.pack(side="right", padx=(0, 5))
 
     basket_tree_container = tb.Frame(basket_frame)
     basket_tree_container.pack(fill="both", expand=True)
