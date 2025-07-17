@@ -19,6 +19,8 @@ import threading
 from helpers import (
     create_filter_panel,
     create_notes_panel,
+    parse_float,
+    askfloat_locale,
 )
 from excel_processing import update_excel
 
@@ -342,7 +344,7 @@ def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var,
         messagebox.showinfo("Info", "Košík je prázdny.")
         return
 
-    factor = simpledialog.askfloat(
+    factor = askfloat_locale(
         "Nastaviť koeficient",
         "Zadaj novú hodnotu koeficientu (napr. 1.25):",
         minvalue=0.0
@@ -463,10 +465,10 @@ def add_custom_item(basket_tree, basket: Basket,
             jednotky = entries["Jednotky"].get().strip()
             dodavatel = entries["Dodavatel"].get().strip()
             odkaz = entries["Odkaz"].get().strip()
-            koef_mat = float(entries["Koeficient materiál"].get())
-            nakup_mat = float(entries["Nákup mater."].get())
-            koef_pr = float(entries["Koeficient práca"].get())
-            cena_pr = float(entries["Cena práca"].get())
+            koef_mat = parse_float(entries["Koeficient materiál"].get())
+            nakup_mat = parse_float(entries["Nákup mater."].get())
+            koef_pr = parse_float(entries["Koeficient práca"].get())
+            cena_pr = parse_float(entries["Cena práca"].get())
             poc_mat = int(entries["Pocet materiálu"].get())
             poc_pr = int(entries["Pocet práce"].get())
         except ValueError:
