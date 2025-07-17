@@ -698,6 +698,7 @@ def add_custom_item(basket_tree, basket: Basket,
                     total_praca_var=None, total_material_var=None):
     """
     Open a popup window to fill in a new item’s details, then add it into the basket.
+    Styled with a warning (orange) theme.
     """
     sel = basket_tree.focus()
     if not sel:
@@ -713,9 +714,14 @@ def add_custom_item(basket_tree, basket: Basket,
         basket.items[section] = OrderedDict()
 
     popup = tk.Toplevel()
-    popup.title("Nová položka")
+    popup.title("⚠️ Nová položka (UPOZORNENIE)")
     popup.transient()
     popup.grab_set()
+    popup.configure(bg="#FFF4E5")  # svetlá oranžová
+
+    header = tk.Label(popup, text="⚠️ Zadajte údaje o novej položke", font=("Arial", 14, "bold"),
+                      bg="#FFD580", fg="#663300", pady=10)
+    header.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
 
     labels = [
         "Produkt",
@@ -730,8 +736,8 @@ def add_custom_item(basket_tree, basket: Basket,
         "Pocet práce"
     ]
     entries = {}
-    for i, lbl in enumerate(labels):
-        tk.Label(popup, text=lbl).grid(row=i, column=0, sticky="e", padx=5, pady=2)
+    for i, lbl in enumerate(labels, start=1):
+        tk.Label(popup, text=lbl + ":", bg="#FFF4E5", anchor="e", width=20).grid(row=i, column=0, sticky="e", padx=5, pady=2)
         ent = tk.Entry(popup, width=30)
         ent.grid(row=i, column=1, sticky="w", padx=5, pady=2)
         entries[lbl] = ent
@@ -791,10 +797,13 @@ def add_custom_item(basket_tree, basket: Basket,
     def on_cancel():
         popup.destroy()
 
-    btn_frame = tk.Frame(popup)
-    btn_frame.grid(row=len(labels), column=0, columnspan=2, pady=10)
-    tk.Button(btn_frame, text="OK", width=10, command=on_ok).pack(side="left", padx=5)
-    tk.Button(btn_frame, text="Zrušiť", width=10, command=on_cancel).pack(side="left", padx=5)
+    btn_frame = tk.Frame(popup, bg="#FFF4E5")
+    btn_frame.grid(row=len(labels) + 1, column=0, columnspan=2, pady=10)
+
+    tk.Button(btn_frame, text="✅ OK", bg="#FFA500", fg="white", font=("Arial", 10, "bold"),
+              width=12, command=on_ok).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="❌ Zrušiť", bg="#CC6600", fg="white", font=("Arial", 10, "bold"),
+              width=12, command=on_cancel).pack(side="left", padx=5)
 
     popup.wait_window()
 

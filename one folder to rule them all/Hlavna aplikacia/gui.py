@@ -202,7 +202,7 @@ def start(project_dir, json_path):
     toggle_btn = tb.Button(
         top,
         text="🔽 Skryť databázu",
-        bootstyle="secondary",
+        bootstyle="seconwarningdary",
         command=toggle_db_view
     )
     toggle_btn.pack(side="left", padx=(10, 0))
@@ -210,7 +210,7 @@ def start(project_dir, json_path):
     toggle_basket_btn = tb.Button(
     top,
     text="🔽 Skryť košík",
-    bootstyle="secondary",
+    bootstyle="warning",
     command=toggle_basket_view
     )
     toggle_basket_btn.pack(side="left", padx=(10, 0))
@@ -770,6 +770,7 @@ def start(project_dir, json_path):
     def open_settings():
         settings_win = tk.Toplevel(root)
         settings_win.title("Nastavenia")
+        settings_win.geometry("600x400")
         settings_win.resizable(False, False)
 
         container = tk.Frame(settings_win, bg="white")
