@@ -28,10 +28,33 @@ class Basket:
         self.items: OrderedDict[str, OrderedDict[str, BasketItem]] = OrderedDict()
         self.original: OrderedDict[str, OrderedDict[str, BasketItem]] = OrderedDict()
         self.base_coeffs: Dict[Tuple[str, str], Tuple[float, float]] = {}
+        self._undo_stack: list[tuple[OrderedDict[str, OrderedDict[str, BasketItem]], Dict[Tuple[str, str], Tuple[float, float]]]] = []
+        self._redo_stack: list[tuple[OrderedDict[str, OrderedDict[str, BasketItem]], Dict[Tuple[str, str], Tuple[float, float]]]] = []
+
+    # ------------------------------------------------------------------
+    # Undo/Redo helpers
+    def snapshot(self) -> None:
+        self._undo_stack.append((copy.deepcopy(self.items), copy.deepcopy(self.base_coeffs)))
+        self._redo_stack.clear()
+
+    def undo(self) -> bool:
+        if not self._undo_stack:
+            return False
+        self._redo_stack.append((copy.deepcopy(self.items), copy.deepcopy(self.base_coeffs)))
+        self.items, self.base_coeffs = self._undo_stack.pop()
+        return True
+
+    def redo(self) -> bool:
+        if not self._redo_stack:
+            return False
+        self._undo_stack.append((copy.deepcopy(self.items), copy.deepcopy(self.base_coeffs)))
+        self.items, self.base_coeffs = self._redo_stack.pop()
+        return True
 
     # ------------------------------------------------------------------
     # Basic modifications
     def add_item(self, item: Tuple, section: Optional[str] = None) -> bool:
+        self.snapshot()
         produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, koef_pr = item[:8]
         if section is None:
             section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
@@ -54,11 +77,13 @@ class Basket:
 
     def remove(self, section: str, produkt: str) -> None:
         if section in self.items and produkt in self.items[section]:
+            self.snapshot()
             del self.items[section][produkt]
             if not self.items[section]:
                 del self.items[section]
 
     def remove_selection(self, tree) -> None:
+        self.snapshot()
         for iid in tree.selection():
             parent = tree.parent(iid)
             if parent == "":
@@ -144,6 +169,7 @@ class Basket:
         return total_material, total_work, total_material + total_work
 
     def reorder_from_tree(self, tree) -> None:
+        self.snapshot()
         new_items: OrderedDict[str, OrderedDict[str, BasketItem]] = OrderedDict()
         for sec in tree.get_children(""):
             sec_name = tree.item(sec, "text")
@@ -170,6 +196,7 @@ class Basket:
     def apply_global_coefficient(self, factor: float) -> None:
         if not self.items:
             return
+        self.snapshot()
         for section, products in self.items.items():
             for pname, info in products.items():
                 key = (section, pname)
@@ -182,6 +209,7 @@ class Basket:
                 info.koeficient_prace = factor
 
     def revert_coefficient(self) -> None:
+        self.snapshot()
         for (section, pname), (orig_mat, orig_pr) in self.base_coeffs.items():
             if section in self.items and pname in self.items[section]:
                 self.items[section][pname].koeficient_material = orig_mat
@@ -192,6 +220,7 @@ class Basket:
         orig = self.original.get(section, {}).get(produkt)
         if not orig:
             return
+        self.snapshot()
         self.items[section][produkt] = copy.deepcopy(orig)
 
 
