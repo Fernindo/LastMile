@@ -16,7 +16,9 @@ class BasketItem:
     koeficient_prace: float
     pocet_materialu: int = 1
     pocet_prace: int = 1
-    sync: bool = False
+    # Start with synchronization enabled so material and work quantities
+    # stay in sync until the user disables it.
+    sync: bool = True
 
     def to_dict(self) -> Dict:
         return asdict(self)
