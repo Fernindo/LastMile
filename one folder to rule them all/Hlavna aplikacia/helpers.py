@@ -243,6 +243,14 @@ def show_praca_window(cursor):
         row["predaj_var"] = tk.StringVar(value="0.00")
         tk.Entry(table_frame, textvariable=row["predaj_var"], width=10, justify="center").grid(row=idx, column=12, padx=4)
 
+        row["del_btn"] = tk.Button(
+            table_frame,
+            text="❌",
+            width=3,
+            command=lambda r=row: remove_specific_row(r)
+        )
+        row["del_btn"].grid(row=idx, column=13, padx=1)
+
         entries.append(row)
         recalculate()
 
@@ -250,15 +258,26 @@ def show_praca_window(cursor):
         row["hodiny_var"].trace_add("write", lambda *args: recalculate())
         row["koef_var"].trace_add("write", lambda *args: recalculate())
 
-    def remove_row():
+    def _remove_row_at(index: int):
         if len(entries) <= 1:
             messagebox.showwarning("Upozornenie", "Musí zostať aspoň jedna rola.")
             return
-        entries.pop()
+        entries.pop(index)
         for widget in table_frame.grid_slaves():
-            if int(widget.grid_info()["row"]) == len(entries) + 1:
+            row_num = int(widget.grid_info()["row"])
+            if row_num == index + 1:
                 widget.destroy()
+            elif row_num > index + 1:
+                widget.grid_configure(row=row_num - 1)
         recalculate()
+
+    def remove_row():
+        _remove_row_at(len(entries) - 1)
+
+    def remove_specific_row(row_dict):
+        if row_dict in entries:
+            idx = entries.index(row_dict)
+            _remove_row_at(idx)
 
     top_frame = tk.Frame(praca_window, bg="#f9f9f9")
     top_frame.pack(fill="x", padx=15, pady=15)
@@ -277,6 +296,7 @@ def show_praca_window(cursor):
         ("Spolu", 10),
         ("", 3), ("Koef.", 6), ("", 3),
         ("Predaj", 10),
+        ("", 4),  # remove button column
     ]
 
     for i, (text, width) in enumerate(headers):
