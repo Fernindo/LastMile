@@ -116,7 +116,23 @@ def start(project_dir, json_path):
             tree_frame.pack_forget()
             toggle_btn.config(text="🔼 Zobraziť databázu")
         else:
-            tree_frame.pack(in_=main_frame, before=basket_frame, fill="both", expand=True, padx=10, pady=10)
+            if basket_frame.winfo_manager():
+                tree_frame.pack(
+                    in_=main_frame,
+                    before=basket_frame,
+                    fill="both",
+                    expand=True,
+                    padx=10,
+                    pady=10,
+                )
+            else:
+                tree_frame.pack(
+                    in_=main_frame,
+                    fill="both",
+                    expand=True,
+                    padx=10,
+                    pady=10,
+                )
             toggle_btn.config(text="🔽 Skryť databázu")
         db_visible[0] = not db_visible[0]
 
