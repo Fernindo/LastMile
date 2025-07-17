@@ -104,6 +104,18 @@ def start(project_dir, json_path):
     def mark_modified():
         basket_modified[0] = True
 
+    def undo_action():
+        if basket.undo():
+            update_basket_table(basket_tree, basket)
+            recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+            mark_modified()
+
+    def redo_action():
+        if basket.redo():
+            update_basket_table(basket_tree, basket)
+            recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+            mark_modified()
+
     # ─── Top-Level Frames ─────────────────────────────────────────────────
     
     main_frame   = tb.Frame(root, padding=10)
@@ -459,6 +471,8 @@ def start(project_dir, json_path):
         if basket_tree.parent(row) == "":
             return
 
+        basket.snapshot()
+
 
 
         # Otherwise, do the normal inline-edit (float/int prompt):
@@ -624,6 +638,22 @@ def start(project_dir, json_path):
     )
     remove_btn.pack(side="left", padx=(0, 10))
 
+    undo_btn = tb.Button(
+        left_btn_frame,
+        text="Krok späť",
+        bootstyle="secondary",
+        command=undo_action
+    )
+    undo_btn.pack(side="left", padx=(0, 10))
+
+    redo_btn = tb.Button(
+        left_btn_frame,
+        text="Krok vpred",
+        bootstyle="secondary",
+        command=redo_action
+    )
+    redo_btn.pack(side="left", padx=(0, 10))
+
     add_custom_btn = tb.Button(
         left_btn_frame,
         text="Pridať",
@@ -749,6 +779,8 @@ def start(project_dir, json_path):
     update_basket_table(basket_tree, basket)
     recompute_total_spolu(basket, total_spolu_var,
                           total_praca_var, total_material_var)
+    basket._undo_stack.clear()
+    basket._redo_stack.clear()
 
     # ─── Initial filtering of DB results ─────────────────────────────────
     apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)

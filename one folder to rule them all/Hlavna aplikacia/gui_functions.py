@@ -711,6 +711,7 @@ def add_custom_item(basket_tree, basket: Basket,
             section = basket_tree.item(parent, "text")
 
     if section not in basket.items:
+        basket.snapshot()
         basket.items[section] = OrderedDict()
 
     popup = tk.Toplevel()
@@ -773,6 +774,8 @@ def add_custom_item(basket_tree, basket: Basket,
         while name in basket.items[section]:
             counter += 1
             name = f"{prod_name} ({counter})"
+
+        basket.snapshot()
 
         data = BasketItem(
             jednotky=jednotky,
