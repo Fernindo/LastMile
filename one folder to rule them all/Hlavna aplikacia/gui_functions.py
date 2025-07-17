@@ -5,7 +5,6 @@ import os
 import sqlite3
 import psycopg2
 import decimal
-import json
 import tkinter as tk
 from tkinter import messagebox, filedialog, simpledialog
 import unicodedata
@@ -498,38 +497,11 @@ def show_notes_popup(project_name, json_dir):
     Create (and place) a notes popup. Loading/saving from notes_<project>.txt.
     """
     notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
-    checkpoints_path = os.path.join(json_dir, f"checkpoints_{project_name}.json")
-
     notes_window = tk.Toplevel()
     notes_window.title("Poznámky")
-    notes_window.geometry("400x400")
-
+    notes_window.geometry("400x300")
     notes_text = tk.Text(notes_window, wrap="word")
     notes_text.pack(fill="both", expand=True)
-
-    chk_frame = tk.Frame(notes_window)
-    chk_frame.pack(fill="x", pady=5)
-
-    checkpoints = []
-    if os.path.exists(checkpoints_path):
-        try:
-            with open(checkpoints_path, "r", encoding="utf-8") as f:
-                checkpoints = json.load(f)
-        except Exception:
-            checkpoints = []
-
-    if not checkpoints:
-        checkpoints = [
-            {"text": "test1", "done": False},
-            {"text": "test2", "done": False},
-        ]
-
-    chk_vars = []
-    for cp in checkpoints:
-        var = tk.BooleanVar(value=cp.get("done", False))
-        cb = tk.Checkbutton(chk_frame, text=cp.get("text", ""), variable=var)
-        cb.pack(anchor="w")
-        chk_vars.append((cp.get("text", ""), var))
 
     if os.path.exists(notes_path):
         try:
@@ -542,10 +514,6 @@ def show_notes_popup(project_name, json_dir):
         try:
             with open(notes_path, "w", encoding="utf-8") as f:
                 f.write(notes_text.get("1.0", "end-1c"))
-
-            out = [{"text": text, "done": var.get()} for text, var in chk_vars]
-            with open(checkpoints_path, "w", encoding="utf-8") as f:
-                json.dump(out, f, ensure_ascii=False, indent=2)
         except Exception as e:
             messagebox.showerror("Chyba pri ukladaní", f"Nepodarilo sa uložiť poznámky:{e}")
         notes_window.destroy()
