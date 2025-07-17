@@ -2,7 +2,6 @@
 import os
 import shutil
 import sys
-import json
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -159,7 +158,7 @@ def create_notes_panel(parent, project_name):
 # ---------------------------------------------------------------------------
 # Work estimation window (from praca.py)
 # ---------------------------------------------------------------------------
-def show_praca_window(cursor, project_name, json_dir, on_close_callback=None):
+def show_praca_window(cursor):
     """Display a popup window for work/role estimation."""
     cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly")
     roles = cursor.fetchall()
@@ -174,7 +173,6 @@ def show_praca_window(cursor, project_name, json_dir, on_close_callback=None):
 
     entries = []
     celkovy_predaj_var = tk.StringVar(value="0.00")
-    praca_file = os.path.join(json_dir, f"praca_{project_name}.json")
 
     def recalculate():
         for row in entries:
@@ -214,19 +212,19 @@ def show_praca_window(cursor, project_name, json_dir, on_close_callback=None):
         except Exception:
             var.set(f"{minimum:.1f}")
 
-    def add_row(role_id=None, rola="", plat=0.0, osoby=1, hodiny=8, koef=1.0):
+    def add_row(role_id=None, rola="", plat=0.0):
         row = {}
         idx = len(entries) + 1
 
         row["rola_var"] = tk.StringVar(value=rola)
         tk.Entry(table_frame, textvariable=row["rola_var"], width=25, justify="center").grid(row=idx, column=0, padx=4, pady=4)
 
-        row["osoby_var"] = tk.StringVar(value=str(osoby))
+        row["osoby_var"] = tk.StringVar(value="1")
         tk.Button(table_frame, text="-", width=3, command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1, padx=1)
         tk.Entry(table_frame, textvariable=row["osoby_var"], width=6, justify="center").grid(row=idx, column=2, padx=1)
         tk.Button(table_frame, text="+", width=3, command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3, padx=1)
 
-        row["hodiny_var"] = tk.StringVar(value=str(hodiny))
+        row["hodiny_var"] = tk.StringVar(value="8")
         tk.Button(table_frame, text="-", width=3, command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4, padx=1)
         tk.Entry(table_frame, textvariable=row["hodiny_var"], width=6, justify="center").grid(row=idx, column=5, padx=1)
         tk.Button(table_frame, text="+", width=3, command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6, padx=1)
@@ -237,7 +235,7 @@ def show_praca_window(cursor, project_name, json_dir, on_close_callback=None):
         row["spolu_label"] = tk.Label(table_frame, text="0.00", width=10, relief="sunken", anchor="center", bg="#f0f0f0")
         row["spolu_label"].grid(row=idx, column=8, padx=4)
 
-        row["koef_var"] = tk.StringVar(value=f"{koef:.1f}")
+        row["koef_var"] = tk.StringVar(value="1.0")
         tk.Button(table_frame, text="-", width=3, command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9, padx=1)
         tk.Entry(table_frame, textvariable=row["koef_var"], width=6, justify="center").grid(row=idx, column=10, padx=1)
         tk.Button(table_frame, text="+", width=3, command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11, padx=1)
@@ -304,50 +302,13 @@ def show_praca_window(cursor, project_name, json_dir, on_close_callback=None):
     for i, (text, width) in enumerate(headers):
         tk.Label(table_frame, text=text, font=("Segoe UI", 10, "bold"), width=width, bg="#e6e6fa", relief="ridge").grid(row=0, column=i, padx=2, pady=2)
 
-    if os.path.exists(praca_file):
-        try:
-            with open(praca_file, "r", encoding="utf-8") as f:
-                saved_rows = json.load(f)
-            for rola, osoby, hodiny, plat, koef in saved_rows:
-                add_row(rola=rola, plat=float(plat), osoby=int(osoby), hodiny=int(hodiny), koef=float(koef))
-        except Exception as e:
-            print("⚠ Failed to load praca data:", e)
-            for role in roles:
-                _, rola, plat = role
-                add_row(role_id=role[0], rola=rola, plat=plat)
-    else:
-        for role in roles:
-            _, rola, plat = role
-            add_row(role_id=role[0], rola=rola, plat=plat)
+    for role in roles:
+        _, rola, plat = role
+        add_row(role_id=role[0], rola=rola, plat=plat)
 
     summary_frame = tk.Frame(praca_window, bg="#f9f9f9")
     summary_frame.pack(fill="x", padx=15, pady=(0, 15))
     tk.Label(summary_frame, text="Celkový predaj:", font=("Segoe UI", 15, "bold"), bg="#f9f9f9").pack(side="left")
     tk.Label(summary_frame, textvariable=celkovy_predaj_var, font=("Segoe UI", 15), bg="#f9f9f9").pack(side="left", padx=(5, 0))
-    def save_to_file():
-        rows = []
-        for row in entries:
-            try:
-                rola = row["rola_var"].get()
-                osoby = int(row["osoby_var"].get())
-                hodiny = int(row["hodiny_var"].get())
-                plat = parse_float(row["plat_label"].cget("text"))
-                koef = parse_float(row["koef_var"].get())
-                rows.append([rola, osoby, hodiny, plat, koef])
-            except Exception:
-                continue
-        try:
-            with open(praca_file, "w", encoding="utf-8") as f:
-                json.dump(rows, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print("❌ Failed to save praca data:", e)
 
-    def on_close():
-        save_to_file()
-        if on_close_callback:
-            on_close_callback()
-        praca_window.destroy()
-
-    praca_window.protocol("WM_DELETE_WINDOW", on_close)
     praca_window.grab_set()
-    return save_to_file
