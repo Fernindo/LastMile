@@ -763,6 +763,12 @@ def start(project_dir, json_path):
                 ),
                 section=sec,
             )
+            # Restore additional fields that are not handled by add_item
+            basket.items[sec][pname].pocet_materialu = int(data.get("pocet_materialu", 1))
+            basket.items[sec][pname].pocet_prace = int(data.get("pocet_prace", 1))
+            basket.original[sec][pname].pocet_materialu = int(data.get("pocet_materialu", 1))
+            basket.original[sec][pname].pocet_prace = int(data.get("pocet_prace", 1))
+
             sync_state = data.get("sync", data.get("sync_qty", True))
             basket.items[sec][pname].sync = sync_state
             basket.original[sec][pname].sync = sync_state
