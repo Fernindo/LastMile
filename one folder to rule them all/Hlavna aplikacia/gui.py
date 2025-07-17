@@ -28,6 +28,7 @@ from gui_functions import (
     apply_global_coefficient,
     revert_coefficient,
     reset_item,
+    reset_items,
     add_custom_item,
     show_notes_popup
 )
@@ -588,17 +589,27 @@ def start(project_dir, json_path):
         if not iid or not basket_tree.parent(iid):
             return
         menu = tk.Menu(root, tearoff=0)
-        menu.add_command(
-            label="Reset položky",
-            command=lambda: reset_item(
-                iid,
+
+        def do_reset():
+            selected = [
+                r for r in basket_tree.selection()
+                if basket_tree.parent(r)
+            ]
+            if iid not in selected:
+                selected = [iid]
+            reset_items(
+                selected,
                 basket_tree,
                 basket,
                 total_spolu_var,
                 mark_modified,
                 total_praca_var,
-                total_material_var
+                total_material_var,
             )
+
+        menu.add_command(
+            label="Reset položky",
+            command=do_reset,
         )
         menu.post(event.x_root, event.y_root)
 
@@ -606,10 +617,17 @@ def start(project_dir, json_path):
 
     # -- Drag-drop reordering in basket (just moves items within same parent) --
     _drag = {"item": None}
-    basket_tree.bind(
-        "<ButtonPress-1>",
-        lambda e: _drag.update({"item": basket_tree.identify_row(e.y)})
-    )
+
+    def on_basket_press(event):
+        iid = basket_tree.identify_row(event.y)
+        _drag["item"] = iid
+        if event.state & 0x4:  # Ctrl held
+            if iid and iid not in basket_tree.selection():
+                basket_tree.selection_add(iid)
+            basket_tree.focus(iid)
+            return "break"
+
+    basket_tree.bind("<ButtonPress-1>", on_basket_press)
     basket_tree.bind(
         "<B1-Motion>",
         lambda e: (
