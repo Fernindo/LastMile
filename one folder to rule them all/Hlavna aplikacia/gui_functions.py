@@ -388,16 +388,39 @@ def reset_item(iid, basket_tree, basket: Basket,
     """
     Reset a single item’s numeric fields back to their original values.
     """
-    sec = basket_tree.parent(iid)
-    if not sec:
-        return
-    prod = basket_tree.item(iid)["values"][0]
-    section_name = basket_tree.item(sec, 'text')
-    basket.reset_item(section_name, prod)
-    basket.update_tree(basket_tree)
-    recompute_total_spolu(basket, total_spolu_var,
-                          total_praca_var, total_material_var)
-    mark_modified()
+    reset_items(
+        [iid],
+        basket_tree,
+        basket,
+        total_spolu_var,
+        mark_modified,
+        total_praca_var,
+        total_material_var,
+    )
+
+
+def reset_items(iids, basket_tree, basket: Basket,
+                total_spolu_var, mark_modified,
+                total_praca_var=None, total_material_var=None):
+    """Reset multiple items back to their original values."""
+    changed = False
+    for iid in iids:
+        sec = basket_tree.parent(iid)
+        if not sec:
+            continue
+        prod = basket_tree.item(iid)["values"][0]
+        section_name = basket_tree.item(sec, "text")
+        basket.reset_item(section_name, prod)
+        changed = True
+    if changed:
+        basket.update_tree(basket_tree)
+        recompute_total_spolu(
+            basket,
+            total_spolu_var,
+            total_praca_var,
+            total_material_var,
+        )
+        mark_modified()
 
 def add_custom_item(basket_tree, basket: Basket,
                     total_spolu_var, mark_modified,
