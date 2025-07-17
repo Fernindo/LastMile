@@ -763,6 +763,9 @@ def start(project_dir, json_path):
                 ),
                 section=sec,
             )
+            sync_state = data.get("sync", data.get("sync_qty", True))
+            basket.items[sec][pname].sync = sync_state
+            basket.original[sec][pname].sync = sync_state
     update_basket_table(basket_tree, basket)
     recompute_total_spolu(basket, total_spolu_var,
                           total_praca_var, total_material_var)
