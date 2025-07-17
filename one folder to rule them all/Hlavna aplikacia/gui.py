@@ -378,24 +378,8 @@ def start(project_dir, json_path):
         "sync",
     )
     column_vars = {}
-    checkbox_frame = tb.LabelFrame(basket_frame, text="Zobraziť stĺpce:", padding=5)
-    checkbox_frame.pack(fill="x", pady=(3, 8))
-
-    # Arrange the checkbox filters in two rows so long column names remain fully
-    # visible without requiring a horizontal scrollbar.
-    per_row = (len(basket_columns) + 1) // 2
-    for idx, col in enumerate(basket_columns):
-        var = tk.BooleanVar(value=True)
-        column_vars[col] = var
-        chk = tk.Checkbutton(
-            checkbox_frame,
-            text=col.capitalize(),
-            variable=var,
-            command=lambda: update_displayed_columns()
-        )
-        r = idx // per_row
-        c = idx % per_row
-        chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
+    for col in basket_columns:
+        column_vars[col] = tk.BooleanVar(value=True)
 
     # -- Basket Treeview --
     initial_display = [c for c in basket_columns]
@@ -802,50 +786,29 @@ def start(project_dir, json_path):
             chk.pack(side="left", padx=5)
 
 
-        # --- Basket section visibility ----------------------------------
-        tk.Label(inner, text="Ko\u0161\u00edk", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(10, 0))
-
-        sections = {
-            "Materi\u00e1l": [
-                "pocet_materialu", "koeficient_material", "nakup_mat_jedn",
-                "predaj_mat_jedn", "nakup_mat_spolu", "predaj_mat_spolu",
-                "zisk_material", "marza_material",
-            ],
-            "Pr\u00e1ca": [
-                "pocet_prace", "koeficient_praca", "cena_prace",
-                "nakup_praca_spolu", "predaj_praca_jedn", "predaj_praca_spolu",
-                "zisk_praca", "marza_praca",
-            ],
-            "Zhrnutie": ["predaj_spolu", "sync"],
-        }
-
-        section_vars = {}
-
-        def toggle_section(sec):
-            show = section_vars[sec].get()
-            for c in sections[sec]:
-                column_vars[c].set(show)
-            update_displayed_columns()
-
+        # --- Basket column visibility -----------------------------------
+        tk.Label(inner, text="Zobraziť stĺpce:", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(10, 0))
 
         basket_chk_frame = tk.Frame(inner, bg="white")
         basket_chk_frame.pack(anchor="w", padx=20)
 
-        for sec, cols in sections.items():
-            var = tk.BooleanVar(value=any(column_vars[c].get() for c in cols))
-            section_vars[sec] = var
+        per_row = (len(basket_columns) + 1) // 2
+        for idx, col in enumerate(basket_columns):
             chk = tk.Checkbutton(
                 basket_chk_frame,
-                text=sec,
-                variable=var,
-                command=lambda s=sec: toggle_section(s),
+                text=col.capitalize(),
+                variable=column_vars[col],
+                command=update_displayed_columns,
                 bg="white",
             )
+            r = idx // per_row
+            c = idx % per_row
+            chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
-            chk.pack(side="left", padx=5)
-
-
-        tk.Button(inner, text="Zavrie\u0165", command=settings_win.destroy).pack(pady=10)
+        btn_frame = tk.Frame(inner, bg="white")
+        btn_frame.pack(pady=10)
+        tk.Button(btn_frame, text="Uložiť", command=lambda: (update_displayed_columns(), settings_win.destroy())).pack(side="left", padx=5)
+        tk.Button(btn_frame, text="Zavrieť", command=settings_win.destroy).pack(side="left", padx=5)
 
     # ── REPLACE the old DB-double-click binding with this new one ─────────────
     def on_db_double_click(event):
