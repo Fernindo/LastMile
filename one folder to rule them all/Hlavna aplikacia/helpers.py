@@ -10,6 +10,33 @@ from ttkbootstrap import Button
 from excel_processing import update_excel
 
 
+def parse_float(text: str) -> float:
+    """Parse a float allowing comma as decimal separator."""
+    return float(text.replace(",", ".").strip())
+
+
+def askfloat_locale(title, prompt, **kwargs):
+    """Prompt user for a float, accepting comma decimal separator."""
+    while True:
+        value = tk.simpledialog.askstring(title, prompt, **kwargs)
+        if value is None:
+            return None
+        try:
+            num = parse_float(value)
+        except ValueError:
+            messagebox.showerror("Chyba", "Neplatné číslo.", parent=kwargs.get("parent"))
+            continue
+        minv = kwargs.get("minvalue")
+        maxv = kwargs.get("maxvalue")
+        if minv is not None and num < minv:
+            messagebox.showerror("Chyba", f"Hodnota musí byť aspoň {minv}.", parent=kwargs.get("parent"))
+            continue
+        if maxv is not None and num > maxv:
+            messagebox.showerror("Chyba", f"Hodnota musí byť najviac {maxv}.", parent=kwargs.get("parent"))
+            continue
+        return num
+
+
 
 # ---------------------------------------------------------------------------
 # Filter panel UI (from filter_panel.py)
@@ -152,8 +179,8 @@ def show_praca_window(cursor):
             try:
                 osoby = int(row["osoby_var"].get())
                 hodiny = int(row["hodiny_var"].get())
-                plat = float(row["plat_label"].cget("text"))
-                koef = float(row["koef_var"].get())
+                plat = parse_float(row["plat_label"].cget("text"))
+                koef = parse_float(row["koef_var"].get())
                 spolu = osoby * hodiny * plat
                 predaj = spolu * koef
                 row["spolu_label"].config(text=f"{spolu:.2f}")
@@ -162,7 +189,7 @@ def show_praca_window(cursor):
                 continue
 
         try:
-            suma = sum(float(r["predaj_var"].get()) for r in entries)
+            suma = sum(parse_float(r["predaj_var"].get()) for r in entries)
         except Exception:
             suma = 0.0
         celkovy_predaj_var.set(f"{suma:.2f}")
@@ -178,7 +205,7 @@ def show_praca_window(cursor):
 
     def change_float(var, delta, minimum=0.1):
         try:
-            val = float(var.get()) + delta
+            val = parse_float(var.get()) + delta
             if val < minimum:
                 val = minimum
             var.set(f"{val:.1f}")

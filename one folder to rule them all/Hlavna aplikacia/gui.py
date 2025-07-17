@@ -11,7 +11,7 @@ import tkinter.simpledialog
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Combobox
 import threading
-from helpers import show_praca_window, create_filter_panel
+from helpers import show_praca_window, create_filter_panel, askfloat_locale
 from basket import Basket
 from basket_io import load_basket
 
@@ -536,10 +536,10 @@ def start(project_dir, json_path):
                 parent=root
             )
         else:
-            new = simpledialog.askfloat(
+            new = askfloat_locale(
                 "Upraviť bunku",
                 f"Nová hodnota pre '{col_name}'",
-                initialvalue=float(old),
+                initialvalue=old,
                 parent=root
             )
         if col_name == "sync":
