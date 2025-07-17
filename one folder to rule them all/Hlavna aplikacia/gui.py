@@ -45,17 +45,6 @@ def start(project_dir, json_path):
     json_dir     = os.path.join(project_dir, "projects")
     commit_file  = json_path
 
-    settings_path = os.path.join(os.path.dirname(__file__), "settings.json")
-    if os.path.exists(settings_path):
-        with open(settings_path, "r", encoding="utf-8") as f:
-            settings = json.load(f)
-    else:
-        settings = {"filter_recommendations": True}
-
-    def save_settings():
-        with open(settings_path, "w", encoding="utf-8") as f:
-            json.dump(settings, f, indent=2)
-
     conn, db_type = get_database_connection()
     cursor = conn.cursor()
     if db_type == "postgres":
@@ -673,7 +662,6 @@ def start(project_dir, json_path):
             total_spolu_var,
             total_praca_var,
             total_material_var,
-            filter_in_basket=filter_recom_var.get(),
         )
     )
     recom_window_btn.pack(side="left", padx=(0, 10))
@@ -778,8 +766,6 @@ def start(project_dir, json_path):
 
     update_displayed_columns()
 
-    filter_recom_var = tk.BooleanVar(value=settings.get("filter_recommendations", True))
-
     # ─── Settings window for basket visibility ────────────────────────────
     def open_settings():
         settings_win = tk.Toplevel(root)
@@ -858,16 +844,6 @@ def start(project_dir, json_path):
 
             chk.pack(side="left", padx=5)
 
-        tk.Checkbutton(
-            inner,
-            text="Filtrovať odporu\u010dania podľa ko\u0161\u00edka",
-            variable=filter_recom_var,
-            command=lambda: (
-                settings.__setitem__("filter_recommendations", filter_recom_var.get()),
-                save_settings()
-            ),
-            bg="white",
-        ).pack(anchor="w", padx=5, pady=(10, 0))
 
         tk.Button(inner, text="Zavrie\u0165", command=settings_win.destroy).pack(pady=10)
 
