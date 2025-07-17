@@ -364,7 +364,28 @@ def start(project_dir, json_path):
     # ─── Basket Area ───────────────────────────────────────────────────────
     basket_frame = tb.Frame(main_frame, padding=5)
     basket_frame.pack(fill="both", expand=True, padx=10, pady=10)
-    tk.Label(basket_frame, text="Košík - vybraté položky:").pack(anchor="w")
+
+    basket_header = tk.Frame(basket_frame)
+    basket_header.pack(fill="x")
+
+    tk.Label(basket_header, text="Košík - vybraté položky:").pack(side="left")
+
+    undo_btn = tb.Button(
+        basket_header,
+        text="Krok späť",
+        bootstyle="secondary",
+        command=undo_action
+    )
+    undo_btn.pack(side="right", padx=(0, 5))
+
+    redo_btn = tb.Button(
+        basket_header,
+        text="Krok vpred",
+        bootstyle="secondary",
+        command=redo_action
+    )
+    redo_btn.pack(side="right", padx=(0, 10))
+
     basket_tree_container = tb.Frame(basket_frame)
     basket_tree_container.pack(fill="both", expand=True)
     basket_tree_container.grid_rowconfigure(0, weight=1)
@@ -638,21 +659,6 @@ def start(project_dir, json_path):
     )
     remove_btn.pack(side="left", padx=(0, 10))
 
-    undo_btn = tb.Button(
-        left_btn_frame,
-        text="Krok späť",
-        bootstyle="secondary",
-        command=undo_action
-    )
-    undo_btn.pack(side="left", padx=(0, 10))
-
-    redo_btn = tb.Button(
-        left_btn_frame,
-        text="Krok vpred",
-        bootstyle="secondary",
-        command=redo_action
-    )
-    redo_btn.pack(side="left", padx=(0, 10))
 
     add_custom_btn = tb.Button(
         left_btn_frame,
