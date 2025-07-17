@@ -554,8 +554,9 @@ def show_notes_popup(project_name, json_dir):
     frame.pack(fill="both", expand=True, padx=10, pady=10)
 
     vars_items = []
-    for state, text in items:
-        var = tk.IntVar(value=state)
+
+    def create_note(text, checked=True):
+        var = tk.IntVar(value=1 if checked else 0)
         chk = tk.Checkbutton(
             frame,
             text=text,
@@ -566,6 +567,9 @@ def show_notes_popup(project_name, json_dir):
         )
         chk.pack(anchor="w", fill="x", pady=2)
         vars_items.append((var, text))
+
+    for state, text in items:
+        create_note(text, checked=bool(state))
 
     # Entry field to allow adding custom notes
     add_frame = tk.Frame(notes_window)
@@ -579,21 +583,23 @@ def show_notes_popup(project_name, json_dir):
         text = new_note_var.get().strip()
         if not text:
             return
-        var = tk.IntVar(value=1)
-        chk = tk.Checkbutton(
-            frame,
-            text=text,
-            variable=var,
-            anchor="w",
-            justify="left",
-            wraplength=380,
-        )
-        chk.pack(anchor="w", fill="x", pady=2)
-        vars_items.append((var, text))
+        create_note(text)
         new_note_var.set("")
+
+    def add_custom_note_dialog():
+        text = simpledialog.askstring(
+            "Add Custom Note",
+            "Enter note text:",
+            parent=notes_window,
+        )
+        if text:
+            create_note(text.strip())
 
     add_btn = tk.Button(add_frame, text="Pridať", command=add_custom_note)
     add_btn.pack(side="left")
+
+    add_popup_btn = tk.Button(add_frame, text="Add custom notes", command=add_custom_note_dialog)
+    add_popup_btn.pack(side="left", padx=(5, 0))
 
     def save_notes():
         try:
