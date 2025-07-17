@@ -1,3 +1,10 @@
-
-
-
+0|Záručná doba na pasívne časti systému (kabeláž, rozvádzače, konektory) je 60mesiacov.
+0|Záručná doba na aktívne zariadenia je 24mesiacov.
+0|Záručná doba na batérie a napájacie zdroje je 12mesiacov.
+0|Stavebná pripravenosť stien, stropov, podláh a iných stavebných konštrukcií nie je predmetom riešenia cenovej ponuky
+0|V cenovej ponuke je zahrnutá výhradne základná konfigurácia, test a oživenie zariadení. Dodatočné nastavenia špeciálnych požiadaviek budú spoplatnené sumou 50€/hod.
+0|Množstvo kabeláže a inštalačného materiálu je orientačné, faktúrovaná bude ich skutočná spotreba.
+0|Tento dokument je duševným vlastníctvom autorov a podlieha autorskému zákonu.
+0|O termíne ukončenia inštalačných prác je nutné informovať sa po záväznom objednaní (doba bude určena podľa aktuálne dostupných kapacít technikov).
+0|Pre uplatnenie si záruky je objednávateľ povinný vyzvať spol. LAST MILE spol. s r.o. k predloženiu plánu pravidelných servisných prehliadok.
+0|Platnosť cenovej ponuky: dd.mm.rrrr

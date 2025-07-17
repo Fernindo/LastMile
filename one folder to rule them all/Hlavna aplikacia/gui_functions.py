@@ -270,7 +270,7 @@ def reorder_basket_data(basket_tree, basket: Basket):
     """Pull edits from the Treeview back into the Basket object."""
     basket.reorder_from_tree(basket_tree)
 
-def update_excel_from_basket(basket: Basket, project_name, definicia_text=""):
+def update_excel_from_basket(basket: Basket, project_name, json_dir, definicia_text=""):
     """
     Otvorí dialógové okno na výber miesta uloženia a vytvorí Excel súbor.
     """
@@ -295,7 +295,29 @@ def update_excel_from_basket(basket: Basket, project_name, definicia_text=""):
                 v.pocet_prace,
             ))
 
-    update_excel(excel_data, project_name, definicia_text=definicia_text)
+    # Load checked notes if available
+    notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
+    notes_lines = []
+    if os.path.exists(notes_path):
+        try:
+            with open(notes_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.rstrip("\n")
+                    if "|" in line:
+                        state, text = line.split("|", 1)
+                        if state == "1":
+                            notes_lines.append(text)
+        except Exception:
+            pass
+
+    notes_text = "\n".join(notes_lines) if notes_lines else ""
+
+    update_excel(
+        excel_data,
+        project_name,
+        notes_text=notes_text,
+        definicia_text=definicia_text,
+    )
 
 
 def recompute_total_spolu(basket: Basket, total_spolu_var,
@@ -493,27 +515,63 @@ def add_custom_item(basket_tree, basket: Basket,
     popup.wait_window()
 
 def show_notes_popup(project_name, json_dir):
-    """
-    Create (and place) a notes popup. Loading/saving from notes_<project>.txt.
-    """
+    """Open a popup with checkable notes for the given project."""
     notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
-    notes_window = tk.Toplevel()
-    notes_window.title("Poznámky")
-    notes_window.geometry("400x300")
-    notes_text = tk.Text(notes_window, wrap="word")
-    notes_text.pack(fill="both", expand=True)
 
+    default_items = [
+        "Záručná doba na pasívne časti systému (kabeláž, rozvádzače, konektory) je 60mesiacov.",
+        "Záručná doba na aktívne zariadenia je 24mesiacov.",
+        "Záručná doba na batérie a napájacie zdroje je 12mesiacov.",
+        "Stavebná pripravenosť stien, stropov, podláh a iných stavebných konštrukcií nie je predmetom riešenia cenovej ponuky",
+        "V cenovej ponuke je zahrnutá výhradne základná konfigurácia, test a oživenie zariadení. Dodatočné nastavenia špeciálnych požiadaviek budú spoplatnené sumou 50€/hod.",
+        "Množstvo kabeláže a inštalačného materiálu je orientačné, faktúrovaná bude ich skutočná spotreba.",
+        "Tento dokument je duševným vlastníctvom autorov a podlieha autorskému zákonu.",
+        "O termíne ukončenia inštalačných prác je nutné informovať sa po záväznom objednaní (doba bude určena podľa aktuálne dostupných kapacít technikov).",
+        "Pre uplatnenie si záruky je objednávateľ povinný vyzvať spol. LAST MILE spol. s r.o. k predloženiu plánu pravidelných servisných prehliadok.",
+        "Platnosť cenovej ponuky: dd.mm.rrrr",
+    ]
+
+    items = []
     if os.path.exists(notes_path):
         try:
             with open(notes_path, "r", encoding="utf-8") as f:
-                notes_text.insert("1.0", f.read())
-        except Exception as e:
-            messagebox.showerror("Chyba pri načítaní", f"Nepodarilo sa načítať poznámky:{e}")
+                for line in f:
+                    line = line.rstrip("\n")
+                    if "|" in line:
+                        state, text = line.split("|", 1)
+                        items.append((int(state), text))
+        except Exception:
+            items = [(0, t) for t in default_items]
+
+    if not items:
+        items = [(0, t) for t in default_items]
+
+    notes_window = tk.Toplevel()
+    notes_window.title("Poznámky")
+    notes_window.geometry("420x340")
+
+    frame = tk.Frame(notes_window)
+    frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+    vars_items = []
+    for state, text in items:
+        var = tk.IntVar(value=state)
+        chk = tk.Checkbutton(
+            frame,
+            text=text,
+            variable=var,
+            anchor="w",
+            justify="left",
+            wraplength=380,
+        )
+        chk.pack(anchor="w", fill="x", pady=2)
+        vars_items.append((var, text))
 
     def save_notes():
         try:
             with open(notes_path, "w", encoding="utf-8") as f:
-                f.write(notes_text.get("1.0", "end-1c"))
+                for var, text in vars_items:
+                    f.write(f"{var.get()}|{text}\n")
         except Exception as e:
             messagebox.showerror("Chyba pri ukladaní", f"Nepodarilo sa uložiť poznámky:{e}")
         notes_window.destroy()

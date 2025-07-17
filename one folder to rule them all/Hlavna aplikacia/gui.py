@@ -690,6 +690,7 @@ def start(project_dir, json_path):
                 update_excel_from_basket(
                     basket,
                     project_entry.get(),
+                    json_dir,
                     definicia_text=definition_entry.get()
                 )
             finally:
