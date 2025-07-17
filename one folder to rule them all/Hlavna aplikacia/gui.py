@@ -93,6 +93,7 @@ def start(project_dir, json_path):
 
     # ─── Track whether the basket has been modified ──────────────────────
     basket_modified = [False]  # use a list so nested functions can modify
+    praca_save_cb = [None]
 
     def mark_modified():
         basket_modified[0] = True
@@ -237,11 +238,16 @@ def start(project_dir, json_path):
     toggle_basket_btn.pack(side="left", padx=(10, 0))
 
 
+    def open_praca_window():
+        def _clear():
+            praca_save_cb[0] = None
+        praca_save_cb[0] = show_praca_window(cursor, project_name, json_dir, on_close_callback=_clear)
+
     praca_btn = tb.Button(
         top,
         text="🛠️ Práca",
         bootstyle="light",
-        command=lambda: show_praca_window(cursor)
+        command=open_praca_window
     )
     praca_btn.pack(side="left", padx=(10, 0))
 
@@ -931,6 +937,8 @@ def start(project_dir, json_path):
         if resp is None:
             return  # Cancel → do nothing
         if resp is False:
+            if praca_save_cb[0]:
+                praca_save_cb[0]()
             root.destroy()
             return
 
@@ -987,6 +995,9 @@ def start(project_dir, json_path):
                 f"Nepodarilo sa uložiť súbor:\n{e}"
             )
             return
+
+        if praca_save_cb[0]:
+            praca_save_cb[0]()
 
         root.destroy()
 
