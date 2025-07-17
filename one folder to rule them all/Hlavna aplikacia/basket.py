@@ -16,7 +16,7 @@ class BasketItem:
     koeficient_prace: float
     pocet_materialu: int = 1
     pocet_prace: int = 1
-    sync: bool = False
+    sync: bool = True
 
     def to_dict(self) -> Dict:
         return asdict(self)
