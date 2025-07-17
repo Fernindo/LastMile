@@ -29,8 +29,7 @@ from gui_functions import (
     revert_coefficient,
     reset_item,
     add_custom_item,
-    show_notes_popup,
-    show_all_recommendations_popup
+    show_notes_popup
 )
 
 from tkinter import messagebox, simpledialog
@@ -65,12 +64,6 @@ def start(project_dir, json_path):
         foreground="#006064",
         relief="flat"
     )
-    style.configure(
-        "Recom.Treeview.Heading",
-        background="#e6e6fa",
-        foreground="#006064",
-        relief="flat"
-    )
 
     # --- Dynamic scaling based on screen size -----------------------------
     screen_w = root.winfo_screenwidth()
@@ -88,7 +81,6 @@ def start(project_dir, json_path):
 
     style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size))
     style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size))
-    style.configure("Recom.Treeview", rowheight=row_h, font=("Segoe UI", font_size))
     root.title(f"Project: {project_name}")
     root.state("zoomed")
     root.option_add("*Font", ("Segoe UI", font_size))
@@ -683,24 +675,6 @@ def start(project_dir, json_path):
     )
     notes_btn.pack(side="left", padx=(0, 10))
 
-    recom_window_btn = tb.Button(
-        left_btn_frame,
-        text="Odporučené",
-        bootstyle="secondary",
-        command=lambda: show_all_recommendations_popup(
-            root,
-            basket,
-            conn,
-            cursor,
-            db_type,
-            basket_tree,
-            mark_modified,
-            total_spolu_var,
-            total_praca_var,
-            total_material_var,
-        )
-    )
-    recom_window_btn.pack(side="left", padx=(0, 10))
 
     def export_with_progress():
         reorder_basket_data(basket_tree, basket)
@@ -885,8 +859,7 @@ def start(project_dir, json_path):
             mark_modified,
             total_spolu_var,
             total_praca_var,
-            total_material_var,
-            rec_k=3
+            total_material_var
         )
 
     tree.bind("<Double-1>", on_db_double_click)
