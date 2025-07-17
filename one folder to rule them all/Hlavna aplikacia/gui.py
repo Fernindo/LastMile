@@ -524,6 +524,10 @@ def start(project_dir, json_path):
                 basket.items[section_name][prod].pocet_prace = mat_count
         elif col_name in ("pocet_materialu", "pocet_prace"):
             if col_name == "pocet_prace" and basket.items[section_name][prod].sync:
+                messagebox.showinfo(
+                    "Synchronizácia",
+                    "Počet práce je synchronizovaný s počtom materiálu.\nVypnite Sync pre úpravu."
+                )
                 return
             new = simpledialog.askinteger(
                 "Upraviť bunku",
@@ -782,8 +786,14 @@ def start(project_dir, json_path):
     update_displayed_columns()
 
     # ─── Settings window for basket visibility ────────────────────────────
+    settings_window = [None]
+
     def open_settings():
+        if settings_window[0] and settings_window[0].winfo_exists():
+            settings_window[0].focus()
+            return
         settings_win = tk.Toplevel(root)
+        settings_window[0] = settings_win
         settings_win.title("Nastavenia")
         settings_win.geometry("1450x400")
         settings_win.resizable(False, False)
@@ -838,7 +848,13 @@ def start(project_dir, json_path):
 
         btn_frame = tk.Frame(inner, bg="white")
         btn_frame.pack(pady=10)
-        tk.Button(btn_frame, text="Uložiť", command=lambda: (update_displayed_columns(), settings_win.destroy())).pack(side="left", padx=5)
+        def close_settings():
+            update_displayed_columns()
+            settings_window[0] = None
+            settings_win.destroy()
+        tk.Button(btn_frame, text="Uložiť", command=close_settings).pack(side="left", padx=5)
+
+        settings_win.protocol("WM_DELETE_WINDOW", close_settings)
         
 
     # ── REPLACE the old DB-double-click binding with this new one ─────────────
@@ -920,6 +936,7 @@ def start(project_dir, json_path):
                     "cena_prace":          info.cena_prace,
                     "pocet_prace":         info.pocet_prace,
                     "pocet_materialu":     info.pocet_materialu,
+                    "sync":                info.sync,
                 })
             out["items"].append(sec_obj)
 
