@@ -576,6 +576,17 @@ def start(project_dir, json_path):
                     attr = "nakup_materialu"
                 if attr == "koeficient_praca":
                     attr = "koeficient_prace"
+
+                old_val = getattr(basket.items[sec_i][prod_i], attr)
+                if attr == "koeficient_material":
+                    key = (sec_i, prod_i)
+                    if key not in basket.base_coeffs_material:
+                        basket.base_coeffs_material[key] = old_val
+                if attr == "koeficient_prace":
+                    key = (sec_i, prod_i)
+                    if key not in basket.base_coeffs_work:
+                        basket.base_coeffs_work[key] = old_val
+
                 setattr(basket.items[sec_i][prod_i], attr, new)
                 if basket.items[sec_i][prod_i].sync and col_name == "pocet_materialu":
                     basket.items[sec_i][prod_i].pocet_prace = new
@@ -761,21 +772,6 @@ def start(project_dir, json_path):
     )
     coeff_set_mat_btn.pack(side="left", padx=(0, 10))
 
-    coeff_set_work_btn = tb.Button(
-        right_btn_frame,
-        text="Nastav koef. práca",
-        bootstyle="info-outline",
-        command=lambda: apply_work_coefficient(
-            basket,
-            basket_tree,
-            total_spolu_var,
-            mark_modified,
-            total_praca_var,
-            total_material_var,
-        ),
-    )
-    coeff_set_work_btn.pack(side="left", padx=(0, 10))
-
     coeff_rev_mat_btn = tb.Button(
         right_btn_frame,
         text="Revert koef. materiál",
@@ -790,6 +786,21 @@ def start(project_dir, json_path):
         ),
     )
     coeff_rev_mat_btn.pack(side="left", padx=(0, 10))
+
+    coeff_set_work_btn = tb.Button(
+        right_btn_frame,
+        text="Nastav koef. práca",
+        bootstyle="info-outline",
+        command=lambda: apply_work_coefficient(
+            basket,
+            basket_tree,
+            total_spolu_var,
+            mark_modified,
+            total_praca_var,
+            total_material_var,
+        ),
+    )
+    coeff_set_work_btn.pack(side="left", padx=(0, 10))
 
     coeff_rev_work_btn = tb.Button(
         right_btn_frame,
