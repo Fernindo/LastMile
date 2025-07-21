@@ -37,6 +37,12 @@ def askfloat_locale(title, prompt, **kwargs):
         return num
 
 
+def format_currency(value: float) -> str:
+    """Return the value formatted with space thousand separators and a trailing
+    euro sign."""
+    return f"{value:,.2f}".replace(",", " ") + " €"
+
+
 
 # ---------------------------------------------------------------------------
 # Filter panel UI (from filter_panel.py)
