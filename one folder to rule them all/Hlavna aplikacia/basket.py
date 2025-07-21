@@ -27,28 +27,59 @@ class Basket:
     def __init__(self) -> None:
         self.items: OrderedDict[str, OrderedDict[str, BasketItem]] = OrderedDict()
         self.original: OrderedDict[str, OrderedDict[str, BasketItem]] = OrderedDict()
-        self.base_coeffs: Dict[Tuple[str, str], Tuple[float, float]] = {}
-        self._undo_stack: list[tuple[OrderedDict[str, OrderedDict[str, BasketItem]], Dict[Tuple[str, str], Tuple[float, float]]]] = []
-        self._redo_stack: list[tuple[OrderedDict[str, OrderedDict[str, BasketItem]], Dict[Tuple[str, str], Tuple[float, float]]]] = []
+        self.base_coeffs_material: Dict[Tuple[str, str], float] = {}
+        self.base_coeffs_work: Dict[Tuple[str, str], float] = {}
+        self._undo_stack: list[
+            tuple[
+                OrderedDict[str, OrderedDict[str, BasketItem]],
+                Dict[Tuple[str, str], float],
+                Dict[Tuple[str, str], float],
+            ]
+        ] = []
+        self._redo_stack: list[
+            tuple[
+                OrderedDict[str, OrderedDict[str, BasketItem]],
+                Dict[Tuple[str, str], float],
+                Dict[Tuple[str, str], float],
+            ]
+        ] = []
 
     # ------------------------------------------------------------------
     # Undo/Redo helpers
     def snapshot(self) -> None:
-        self._undo_stack.append((copy.deepcopy(self.items), copy.deepcopy(self.base_coeffs)))
+        self._undo_stack.append(
+            (
+                copy.deepcopy(self.items),
+                copy.deepcopy(self.base_coeffs_material),
+                copy.deepcopy(self.base_coeffs_work),
+            )
+        )
         self._redo_stack.clear()
 
     def undo(self) -> bool:
         if not self._undo_stack:
             return False
-        self._redo_stack.append((copy.deepcopy(self.items), copy.deepcopy(self.base_coeffs)))
-        self.items, self.base_coeffs = self._undo_stack.pop()
+        self._redo_stack.append(
+            (
+                copy.deepcopy(self.items),
+                copy.deepcopy(self.base_coeffs_material),
+                copy.deepcopy(self.base_coeffs_work),
+            )
+        )
+        self.items, self.base_coeffs_material, self.base_coeffs_work = self._undo_stack.pop()
         return True
 
     def redo(self) -> bool:
         if not self._redo_stack:
             return False
-        self._undo_stack.append((copy.deepcopy(self.items), copy.deepcopy(self.base_coeffs)))
-        self.items, self.base_coeffs = self._redo_stack.pop()
+        self._undo_stack.append(
+            (
+                copy.deepcopy(self.items),
+                copy.deepcopy(self.base_coeffs_material),
+                copy.deepcopy(self.base_coeffs_work),
+            )
+        )
+        self.items, self.base_coeffs_material, self.base_coeffs_work = self._redo_stack.pop()
         return True
 
     # ------------------------------------------------------------------
@@ -194,27 +225,71 @@ class Basket:
 
     # ------------------------------------------------------------------
     def apply_global_coefficient(self, factor: float) -> None:
+        """Apply the same coefficient to material and work for all items."""
         if not self.items:
             return
         self.snapshot()
         for section, products in self.items.items():
             for pname, info in products.items():
                 key = (section, pname)
-                if key not in self.base_coeffs:
-                    self.base_coeffs[key] = (
-                        float(info.koeficient_material),
-                        float(info.koeficient_prace),
-                    )
+                if key not in self.base_coeffs_material:
+                    self.base_coeffs_material[key] = float(info.koeficient_material)
+                if key not in self.base_coeffs_work:
+                    self.base_coeffs_work[key] = float(info.koeficient_prace)
                 info.koeficient_material = factor
                 info.koeficient_prace = factor
 
-    def revert_coefficient(self) -> None:
+    def apply_material_coefficient(self, factor: float) -> None:
+        """Apply coefficient only to material prices for all items."""
+        if not self.items:
+            return
         self.snapshot()
-        for (section, pname), (orig_mat, orig_pr) in self.base_coeffs.items():
+        for section, products in self.items.items():
+            for pname, info in products.items():
+                key = (section, pname)
+                if key not in self.base_coeffs_material:
+                    self.base_coeffs_material[key] = float(info.koeficient_material)
+                info.koeficient_material = factor
+
+    def apply_work_coefficient(self, factor: float) -> None:
+        """Apply coefficient only to work prices for all items."""
+        if not self.items:
+            return
+        self.snapshot()
+        for section, products in self.items.items():
+            for pname, info in products.items():
+                key = (section, pname)
+                if key not in self.base_coeffs_work:
+                    self.base_coeffs_work[key] = float(info.koeficient_prace)
+                info.koeficient_prace = factor
+
+    def revert_coefficient(self) -> None:
+        """Revert both material and work coefficients to stored originals."""
+        self.snapshot()
+        for (section, pname), orig in self.base_coeffs_material.items():
             if section in self.items and pname in self.items[section]:
-                self.items[section][pname].koeficient_material = orig_mat
-                self.items[section][pname].koeficient_prace = orig_pr
-        self.base_coeffs.clear()
+                self.items[section][pname].koeficient_material = orig
+        for (section, pname), orig in self.base_coeffs_work.items():
+            if section in self.items and pname in self.items[section]:
+                self.items[section][pname].koeficient_prace = orig
+        self.base_coeffs_material.clear()
+        self.base_coeffs_work.clear()
+
+    def revert_material_coefficient(self) -> None:
+        """Revert only material coefficients to stored originals."""
+        self.snapshot()
+        for (section, pname), orig in self.base_coeffs_material.items():
+            if section in self.items and pname in self.items[section]:
+                self.items[section][pname].koeficient_material = orig
+        self.base_coeffs_material.clear()
+
+    def revert_work_coefficient(self) -> None:
+        """Revert only work coefficients to stored originals."""
+        self.snapshot()
+        for (section, pname), orig in self.base_coeffs_work.items():
+            if section in self.items and pname in self.items[section]:
+                self.items[section][pname].koeficient_prace = orig
+        self.base_coeffs_work.clear()
 
     def reset_item(self, section: str, produkt: str) -> None:
         orig = self.original.get(section, {}).get(produkt)

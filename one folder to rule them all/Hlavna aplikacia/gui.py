@@ -29,8 +29,10 @@ from gui_functions import (
     update_excel_from_basket,
     remove_from_basket,
     recompute_total_spolu,
-    apply_global_coefficient,
-    revert_coefficient,
+    apply_material_coefficient,
+    apply_work_coefficient,
+    revert_material_coefficient,
+    revert_work_coefficient,
     reset_items,
     add_custom_item,
     show_notes_popup
@@ -744,35 +746,65 @@ def start(project_dir, json_path):
     )
     export_btn.pack(side="left")
 
-    coeff_set_btn = tb.Button(
+    coeff_set_mat_btn = tb.Button(
         right_btn_frame,
-        text="Nastav koeficient",
+        text="Nastav koef. materiál",
         bootstyle="info-outline",
-        command=lambda: apply_global_coefficient(
+        command=lambda: apply_material_coefficient(
             basket,
             basket_tree,
             total_spolu_var,
             mark_modified,
             total_praca_var,
-            total_material_var
-        )
+            total_material_var,
+        ),
     )
-    coeff_set_btn.pack(side="left", padx=(0, 10))
+    coeff_set_mat_btn.pack(side="left", padx=(0, 10))
 
-    coeff_revert_btn = tb.Button(
+    coeff_set_work_btn = tb.Button(
         right_btn_frame,
-        text="Revert koeficient",
-        bootstyle="warning-outline",
-        command=lambda: revert_coefficient(
+        text="Nastav koef. práca",
+        bootstyle="info-outline",
+        command=lambda: apply_work_coefficient(
             basket,
             basket_tree,
             total_spolu_var,
             mark_modified,
             total_praca_var,
-            total_material_var
-        )
+            total_material_var,
+        ),
     )
-    coeff_revert_btn.pack(side="left")
+    coeff_set_work_btn.pack(side="left", padx=(0, 10))
+
+    coeff_rev_mat_btn = tb.Button(
+        right_btn_frame,
+        text="Revert koef. materiál",
+        bootstyle="warning-outline",
+        command=lambda: revert_material_coefficient(
+            basket,
+            basket_tree,
+            total_spolu_var,
+            mark_modified,
+            total_praca_var,
+            total_material_var,
+        ),
+    )
+    coeff_rev_mat_btn.pack(side="left", padx=(0, 10))
+
+    coeff_rev_work_btn = tb.Button(
+        right_btn_frame,
+        text="Revert koef. práca",
+        bootstyle="warning-outline",
+        command=lambda: revert_work_coefficient(
+            basket,
+            basket_tree,
+            total_spolu_var,
+            mark_modified,
+            total_praca_var,
+            total_material_var,
+        ),
+    )
+    coeff_rev_work_btn.pack(side="left")
     # ──────────────────────────────────────────────────────────────────────────
 
     # ─── Initialize basket state ──────────────────────────────────────────
