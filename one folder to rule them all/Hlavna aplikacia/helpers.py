@@ -14,7 +14,16 @@ def parse_float(text: str) -> float:
 def askfloat_locale(title, prompt, **kwargs):
     """Prompt user for a float, accepting comma decimal separator."""
     while True:
-        value = tk.simpledialog.askstring(title, prompt, **kwargs)
+        # Pass only supported options to askstring to avoid Tkinter's numeric
+        # validation which expects a float.  We perform our own validation
+        # below, so remove options like ``minvalue`` or ``maxvalue`` that would
+        # otherwise trigger ``_QueryDialog`` to compare a string with a float
+        # and raise a ``TypeError``.
+        dialog_kwargs = {
+            k: v for k, v in kwargs.items()
+            if k in ("parent", "initialvalue", "show")
+        }
+        value = tk.simpledialog.askstring(title, prompt, **dialog_kwargs)
         if value is None:
             return None
         try:
