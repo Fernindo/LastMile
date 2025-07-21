@@ -328,14 +328,15 @@ def recompute_total_spolu(basket: Basket, total_spolu_var,
     if total_material_var is not None:
         total_material_var.set(f"Spolu materiál: {format_currency(mat_total)}")
 
-def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var,
-                             mark_modified,
-                             total_praca_var=None, total_material_var=None):
-    """
-    Prompt for a new coefficient value, then override every item's
-    koeficient_material and koeficient_prace to exactly that value.
-    Store originals in base_coeffs on first use to allow revert.
-    """
+def apply_global_coefficient(
+    basket: Basket,
+    basket_tree,
+    total_spolu_var,
+    mark_modified,
+    total_praca_var=None,
+    total_material_var=None,
+):
+    """Prompt for a coefficient and apply it to both material and work."""
     if not basket.items:
         messagebox.showinfo("Info", "Košík je prázdny.")
         return
@@ -343,39 +344,120 @@ def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var,
     factor = askfloat_locale(
         "Nastaviť koeficient",
         "Zadaj novú hodnotu koeficientu (napr. 1.25):",
-        minvalue=0.0
+        minvalue=0.0,
     )
     if factor is None:
-        return  # user cancelled
-
-    if not basket.base_coeffs:
-        for section, products in basket.items.items():
-            for pname, info in products.items():
-                basket.base_coeffs[(section, pname)] = (
-                    float(info.koeficient_material),
-                    float(info.koeficient_prace)
-                )
+        return
 
     basket.apply_global_coefficient(factor)
     basket.update_tree(basket_tree)
-    recompute_total_spolu(basket, total_spolu_var,
-                          total_praca_var, total_material_var)
+    recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
     mark_modified()
 
-def revert_coefficient(basket: Basket, basket_tree, total_spolu_var,
-                       mark_modified,
-                       total_praca_var=None, total_material_var=None):
-    """
-    Revert all coefficients to their originals from base_coeffs, then clear base_coeffs.
-    """
-    if not basket.base_coeffs:
+def apply_material_coefficient(
+    basket: Basket,
+    basket_tree,
+    total_spolu_var,
+    mark_modified,
+    total_praca_var=None,
+    total_material_var=None,
+):
+    """Prompt for a coefficient and apply it only to material."""
+    if not basket.items:
+        messagebox.showinfo("Info", "Košík je prázdny.")
+        return
+
+    factor = askfloat_locale(
+        "Nastaviť koeficient materiál",
+        "Zadaj novú hodnotu koeficientu (napr. 1.25):",
+        minvalue=0.0,
+    )
+    if factor is None:
+        return
+
+    basket.apply_material_coefficient(factor)
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+    mark_modified()
+
+def apply_work_coefficient(
+    basket: Basket,
+    basket_tree,
+    total_spolu_var,
+    mark_modified,
+    total_praca_var=None,
+    total_material_var=None,
+):
+    """Prompt for a coefficient and apply it only to work."""
+    if not basket.items:
+        messagebox.showinfo("Info", "Košík je prázdny.")
+        return
+
+    factor = askfloat_locale(
+        "Nastaviť koeficient práca",
+        "Zadaj novú hodnotu koeficientu (napr. 1.25):",
+        minvalue=0.0,
+    )
+    if factor is None:
+        return
+
+    basket.apply_work_coefficient(factor)
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+    mark_modified()
+
+def revert_coefficient(
+    basket: Basket,
+    basket_tree,
+    total_spolu_var,
+    mark_modified,
+    total_praca_var=None,
+    total_material_var=None,
+):
+    """Revert both material and work coefficients to their originals."""
+    if not basket.base_coeffs_material and not basket.base_coeffs_work:
         messagebox.showinfo("Info", "Žiadne pôvodné koeficienty nie sú uložené.")
         return
 
     basket.revert_coefficient()
     basket.update_tree(basket_tree)
-    recompute_total_spolu(basket, total_spolu_var,
-                          total_praca_var, total_material_var)
+    recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+    mark_modified()
+
+def revert_material_coefficient(
+    basket: Basket,
+    basket_tree,
+    total_spolu_var,
+    mark_modified,
+    total_praca_var=None,
+    total_material_var=None,
+):
+    """Revert only material coefficients to stored originals."""
+    if not basket.base_coeffs_material:
+        messagebox.showinfo("Info", "Žiadne pôvodné koeficienty nie sú uložené.")
+        return
+
+    basket.revert_material_coefficient()
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+    mark_modified()
+
+def revert_work_coefficient(
+    basket: Basket,
+    basket_tree,
+    total_spolu_var,
+    mark_modified,
+    total_praca_var=None,
+    total_material_var=None,
+):
+    """Revert only work coefficients to stored originals."""
+    if not basket.base_coeffs_work:
+        messagebox.showinfo("Info", "Žiadne pôvodné koeficienty nie sú uložené.")
+        return
+
+    basket.revert_work_coefficient()
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
     mark_modified()
 
 def reset_item(iid, basket_tree, basket: Basket,
