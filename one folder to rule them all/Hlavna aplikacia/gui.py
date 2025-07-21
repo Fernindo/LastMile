@@ -15,9 +15,12 @@ from helpers import (
     create_filter_panel,
     askfloat_locale,
     format_currency,
+    
 )
 from basket import Basket
 from basket_io import load_basket
+from doprava import show_doprava_window
+
 
 from gui_functions import (
     get_database_connection,
@@ -249,6 +252,14 @@ def start(project_dir, json_path):
         command=lambda: show_praca_window(cursor)
     )
     praca_btn.pack(side="left", padx=(10, 0))
+
+    doprava_btn = tb.Button(
+        top,
+        text="🚗 Doprava",
+        bootstyle="light",
+        command=show_doprava_window
+    )
+    doprava_btn.pack(side="left", padx=(10, 0))
 
     tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20, 5))
     name_entry = tk.Entry(top, width=30)
