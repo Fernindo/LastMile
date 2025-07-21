@@ -362,6 +362,66 @@ def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var,
                           total_praca_var, total_material_var)
     mark_modified()
 
+def apply_material_coefficient(basket: Basket, basket_tree, total_spolu_var,
+                               mark_modified,
+                               total_praca_var=None, total_material_var=None):
+    """Prompt for and apply a material coefficient to all items."""
+    if not basket.items:
+        messagebox.showinfo("Info", "Košík je prázdny.")
+        return
+
+    factor = askfloat_locale(
+        "Nastaviť koeficient materiálu",
+        "Zadaj koeficient pre materiál (napr. 1.25):",
+        minvalue=0.0,
+    )
+    if factor is None:
+        return
+
+    if not basket.base_coeffs:
+        for section, products in basket.items.items():
+            for pname, info in products.items():
+                basket.base_coeffs[(section, pname)] = (
+                    float(info.koeficient_material),
+                    float(info.koeficient_prace),
+                )
+
+    basket.apply_material_coefficient(factor)
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var,
+                          total_praca_var, total_material_var)
+    mark_modified()
+
+def apply_prace_coefficient(basket: Basket, basket_tree, total_spolu_var,
+                            mark_modified,
+                            total_praca_var=None, total_material_var=None):
+    """Prompt for and apply a work coefficient to all items."""
+    if not basket.items:
+        messagebox.showinfo("Info", "Košík je prázdny.")
+        return
+
+    factor = askfloat_locale(
+        "Nastaviť koeficient práce",
+        "Zadaj koeficient pre prácu (napr. 1.25):",
+        minvalue=0.0,
+    )
+    if factor is None:
+        return
+
+    if not basket.base_coeffs:
+        for section, products in basket.items.items():
+            for pname, info in products.items():
+                basket.base_coeffs[(section, pname)] = (
+                    float(info.koeficient_material),
+                    float(info.koeficient_prace),
+                )
+
+    basket.apply_prace_coefficient(factor)
+    basket.update_tree(basket_tree)
+    recompute_total_spolu(basket, total_spolu_var,
+                          total_praca_var, total_material_var)
+    mark_modified()
+
 def revert_coefficient(basket: Basket, basket_tree, total_spolu_var,
                        mark_modified,
                        total_praca_var=None, total_material_var=None):
