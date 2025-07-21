@@ -193,42 +193,18 @@ class Basket:
         self.items.update(new_items)
 
     # ------------------------------------------------------------------
-    def _ensure_base_coeff(self, section: str, pname: str, info: BasketItem) -> None:
-        key = (section, pname)
-        if key not in self.base_coeffs:
-            self.base_coeffs[key] = (
-                float(info.koeficient_material),
-                float(info.koeficient_prace),
-            )
-
-    def apply_material_coefficient(self, factor: float) -> None:
-        """Apply a material coefficient to all items."""
-        if not self.items:
-            return
-        self.snapshot()
-        for section, products in self.items.items():
-            for pname, info in products.items():
-                self._ensure_base_coeff(section, pname, info)
-                info.koeficient_material = factor
-
-    def apply_prace_coefficient(self, factor: float) -> None:
-        """Apply a work coefficient to all items."""
-        if not self.items:
-            return
-        self.snapshot()
-        for section, products in self.items.items():
-            for pname, info in products.items():
-                self._ensure_base_coeff(section, pname, info)
-                info.koeficient_prace = factor
-
     def apply_global_coefficient(self, factor: float) -> None:
-        """Apply the same coefficient to both material and work."""
         if not self.items:
             return
         self.snapshot()
         for section, products in self.items.items():
             for pname, info in products.items():
-                self._ensure_base_coeff(section, pname, info)
+                key = (section, pname)
+                if key not in self.base_coeffs:
+                    self.base_coeffs[key] = (
+                        float(info.koeficient_material),
+                        float(info.koeficient_prace),
+                    )
                 info.koeficient_material = factor
                 info.koeficient_prace = factor
 
