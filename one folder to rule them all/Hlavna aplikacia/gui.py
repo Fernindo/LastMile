@@ -11,7 +11,12 @@ import tkinter.simpledialog
 from ttkbootstrap import Style
 from ttkbootstrap.widgets import Combobox
 import threading
-from helpers import show_praca_window, create_filter_panel, askfloat_locale
+from helpers import (
+    show_praca_window,
+    create_filter_panel,
+    askfloat_locale,
+    format_currency,
+)
 from basket import Basket
 from basket_io import load_basket
 
@@ -650,9 +655,9 @@ def start(project_dir, json_path):
     # ─── Grand Total Label (“Spolu: …”) ───────────────────────────────────
     total_frame = tk.Frame(basket_frame)
     total_frame.pack(fill="x", pady=(2, 0))
-    total_spolu_var = tk.StringVar(value="Spolu: 0.00")
-    total_praca_var = tk.StringVar(value="Spolu práca: 0.00")
-    total_material_var = tk.StringVar(value="Spolu materiál: 0.00")
+    total_spolu_var = tk.StringVar(value=f"Spolu: {format_currency(0)}")
+    total_praca_var = tk.StringVar(value=f"Spolu práca: {format_currency(0)}")
+    total_material_var = tk.StringVar(value=f"Spolu materiál: {format_currency(0)}")
     tk.Label(total_frame, textvariable=total_spolu_var, anchor="e").pack(
         side="right", padx=10
     )

@@ -21,6 +21,7 @@ from helpers import (
     create_notes_panel,
     parse_float,
     askfloat_locale,
+    format_currency,
 )
 from excel_processing import update_excel
 
@@ -326,11 +327,11 @@ def recompute_total_spolu(basket: Basket, total_spolu_var,
                           total_praca_var=None, total_material_var=None):
     """Recalculate totals and update the provided StringVars."""
     mat_total, praca_total, total = basket.recompute_totals()
-    total_spolu_var.set(f"Spolu: {total:.2f}")
+    total_spolu_var.set(f"Spolu: {format_currency(total)}")
     if total_praca_var is not None:
-        total_praca_var.set(f"Spolu práca: {praca_total:.2f}")
+        total_praca_var.set(f"Spolu práca: {format_currency(praca_total)}")
     if total_material_var is not None:
-        total_material_var.set(f"Spolu materiál: {mat_total:.2f}")
+        total_material_var.set(f"Spolu materiál: {format_currency(mat_total)}")
 
 def apply_global_coefficient(basket: Basket, basket_tree, total_spolu_var,
                              mark_modified,
