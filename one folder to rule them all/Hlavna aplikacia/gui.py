@@ -30,8 +30,6 @@ from gui_functions import (
     remove_from_basket,
     recompute_total_spolu,
     apply_global_coefficient,
-    apply_material_coefficient,
-    apply_prace_coefficient,
     revert_coefficient,
     reset_items,
     add_custom_item,
@@ -760,36 +758,6 @@ def start(project_dir, json_path):
         )
     )
     coeff_set_btn.pack(side="left", padx=(0, 10))
-
-    coeff_praca_btn = tb.Button(
-        right_btn_frame,
-        text="Koef. práca",
-        bootstyle="info-outline",
-        command=lambda: apply_prace_coefficient(
-            basket,
-            basket_tree,
-            total_spolu_var,
-            mark_modified,
-            total_praca_var,
-            total_material_var,
-        )
-    )
-    coeff_praca_btn.pack(side="left", padx=(0, 10))
-
-    coeff_material_btn = tb.Button(
-        right_btn_frame,
-        text="Koef. materiál",
-        bootstyle="info-outline",
-        command=lambda: apply_material_coefficient(
-            basket,
-            basket_tree,
-            total_spolu_var,
-            mark_modified,
-            total_praca_var,
-            total_material_var,
-        )
-    )
-    coeff_material_btn.pack(side="left", padx=(0, 10))
 
     coeff_revert_btn = tb.Button(
         right_btn_frame,
