@@ -78,11 +78,8 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             dodavatel = item[3]
             odkaz = item[4]
             koef_material = float(item[5])
-            koef_prace = float(item[6])
             nakup_materialu = float(item[7])
-            cena_prace = float(item[8])
             pocet_materialu = int(item[9]) if len(item) > 9 else 1
-            pocet_prace = int(item[10]) if len(item) > 10 else 1
 
             sheet.range(f"{insert_position}:{insert_position}").insert('down')
             src = sheet.range(f"{TEMPLATE_ROW+1}:{TEMPLATE_ROW+1}")

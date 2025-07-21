@@ -9,7 +9,6 @@ import json
 from datetime import datetime
 import tkinter.simpledialog
 from ttkbootstrap import Style
-from ttkbootstrap.widgets import Combobox
 import threading
 from helpers import (
     show_praca_window,
@@ -32,7 +31,6 @@ from gui_functions import (
     recompute_total_spolu,
     apply_global_coefficient,
     revert_coefficient,
-    reset_item,
     reset_items,
     add_custom_item,
     show_notes_popup
@@ -512,7 +510,6 @@ def start(project_dir, json_path):
         if idx_visible >= len(visible_cols):
             return
         col_name = visible_cols[idx_visible]
-        idx = basket_columns.index(col_name)
         sec = basket_tree.parent(row)
         prod = basket_tree.item(row)["values"][0]
         editable_cols = {
@@ -910,7 +907,6 @@ def start(project_dir, json_path):
         if not selected:
             return
         db_values = selected["values"]
-        base_name = db_values[0]
 
         # 1) Insert base product into the basket
         add_to_basket_full(

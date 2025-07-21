@@ -1,13 +1,9 @@
 # Consolidated helper functions and widgets
 import os
-import shutil
-import sys
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, messagebox
 
-import xlwings as xw
 from ttkbootstrap import Button
-from excel_processing import update_excel
 
 
 def parse_float(text: str) -> float:
