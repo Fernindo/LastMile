@@ -225,6 +225,5 @@ class Basket:
 
 
 # ----------------------------------------------------------------------
-# Persistence helpers
-from basket_io import save_basket, load_basket
+# Persistence helpers (not currently used)
 

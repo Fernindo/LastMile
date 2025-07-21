@@ -6,19 +6,14 @@ import sqlite3
 import psycopg2
 import decimal
 import tkinter as tk
-from tkinter import messagebox, filedialog, simpledialog
+from tkinter import messagebox, simpledialog
 import unicodedata
 from collections import OrderedDict
 import copy
-import tkinter.ttk as ttk
 
 from basket import Basket, BasketItem
-from basket_io import save_basket, load_basket
-import threading
 
 from helpers import (
-    create_filter_panel,
-    create_notes_panel,
     parse_float,
     askfloat_locale,
     format_currency,
