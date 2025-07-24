@@ -17,6 +17,7 @@ from helpers import (
     format_currency,
     
 )
+from exportVv import export_vv
 from exportCp import export_cp
 from basket import Basket
 from basket_io import load_basket
@@ -808,7 +809,28 @@ def start(project_dir, json_path):
         left_btn_frame,
         text="Exportovať Vv",
         bootstyle="success",
-        #command=
+        command=lambda: export_vv(
+            [
+                (
+                    section,
+                    produkt,
+                    v.jednotky,
+                    v.dodavatel,
+                    v.odkaz,
+                    v.koeficient_material,
+                    v.koeficient_prace,
+                    v.nakup_materialu,
+                    v.cena_prace,
+                    v.pocet_materialu,
+                    v.pocet_prace,
+                )
+                for section, products in basket.items.items()
+                for produkt, v in products.items()
+            ],
+            project_entry.get(),
+            "",  # poznámky
+            definition_entry.get()
+    )
     )
     exportVV_btn.pack(side="left", padx=(0, 10))
 
