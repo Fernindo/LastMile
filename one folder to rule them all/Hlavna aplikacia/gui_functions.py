@@ -626,11 +626,11 @@ def show_notes_popup(project_name, json_dir):
         "Záručná doba na aktívne zariadenia je 24mesiacov.",
         "Záručná doba na batérie a napájacie zdroje je 12mesiacov.",
         "Stavebná pripravenosť stien, stropov, podláh a iných stavebných konštrukcií nie je predmetom riešenia cenovej ponuky",
-        "V cenovej ponuke je zahrnutá výhradne základná konfigurácia, test a oživenie zariadení. Dodatočné nastavenia špeciálnych požiadaviek budú spoplatnené sumou 50€/hod.",
+        "V cenovej ponuke je zahrnutá výhradne základná konfigurácia, test a oživenie zariadení.",
         "Množstvo kabeláže a inštalačného materiálu je orientačné, faktúrovaná bude ich skutočná spotreba.",
         "Tento dokument je duševným vlastníctvom autorov a podlieha autorskému zákonu.",
-        "O termíne ukončenia inštalačných prác je nutné informovať sa po záväznom objednaní (doba bude určena podľa aktuálne dostupných kapacít technikov).",
-        "Pre uplatnenie si záruky je objednávateľ povinný vyzvať spol. LAST MILE spol. s r.o. k predloženiu plánu pravidelných servisných prehliadok.",
+        "O termíne ukončenia inštalačných prác je nutné informovať sa po záväznom objednaní.",
+        "Pre uplatnenie si záruky je objednávateľ povinný vyzvať spol. LAST MILE spol. s r.o. k servisu.",
         "Platnosť cenovej ponuky: dd.mm.rrrr",
     ]
 
@@ -651,72 +651,76 @@ def show_notes_popup(project_name, json_dir):
 
     notes_window = tk.Toplevel()
     notes_window.title("Poznámky")
-    notes_window.geometry("420x340")
+    notes_window.geometry("450x400")
 
-    frame = tk.Frame(notes_window)
-    frame.pack(fill="both", expand=True, padx=10, pady=10)
+    main_frame = tk.Frame(notes_window)
+    main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+    canvas = tk.Canvas(main_frame)
+    scrollbar = tk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+    scrollable_frame = tk.Frame(canvas)
+
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
 
     vars_items = []
 
-    def create_note(text, checked=True):
+    def create_note(text, checked=True, editable=False):
         var = tk.IntVar(value=1 if checked else 0)
-        chk = tk.Checkbutton(
-            frame,
-            text=text,
-            variable=var,
-            anchor="w",
-            justify="left",
-            wraplength=380,
-        )
-        chk.pack(anchor="w", fill="x", pady=2)
-        vars_items.append((var, text))
+        row = tk.Frame(scrollable_frame)
+        row.pack(fill="x", pady=2)
+
+        if editable:
+            entry = tk.Entry(row, width=50)
+            entry.insert(0, text)
+            entry.pack(side="left", fill="x", expand=True)
+            chk = tk.Checkbutton(row, variable=var)
+            chk.pack(side="left", padx=5)
+            vars_items.append((var, entry))
+        else:
+            chk = tk.Checkbutton(
+                row, text=text, variable=var,
+                anchor="w", justify="left", wraplength=400
+            )
+            chk.pack(anchor="w", fill="x", expand=True)
+            vars_items.append((var, text))
 
     for state, text in items:
         create_note(text, checked=bool(state))
 
-    # Entry field to allow adding custom notes
-    add_frame = tk.Frame(notes_window)
-    add_frame.pack(fill="x", padx=10, pady=(0, 10))
+    # Buttons
+    btn_frame = tk.Frame(notes_window)
+    btn_frame.pack(fill="x", padx=10, pady=(10, 5))
 
-    new_note_var = tk.StringVar()
-    new_note_entry = tk.Entry(add_frame, textvariable=new_note_var)
-    new_note_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
-
-    def add_custom_note():
-        text = new_note_var.get().strip()
-        if not text:
-            return
-        create_note(text)
-        new_note_var.set("")
-
-    def add_custom_note_dialog():
-        text = simpledialog.askstring(
-            "Add Custom Note",
-            "Enter note text:",
-            parent=notes_window,
-        )
-        if text:
-            create_note(text.strip())
-
-    add_btn = tk.Button(add_frame, text="Pridať", command=add_custom_note)
-    add_btn.pack(side="left")
-
-    add_popup_btn = tk.Button(add_frame, text="Add custom notes", command=add_custom_note_dialog)
-    add_popup_btn.pack(side="left", padx=(5, 0))
+    def add_empty_note():
+        create_note("", checked=True, editable=True)
 
     def save_notes():
         try:
             with open(notes_path, "w", encoding="utf-8") as f:
                 for var, text in vars_items:
-                    f.write(f"{var.get()}|{text}\n")
+                    if isinstance(text, tk.Entry):
+                        t = text.get().strip()
+                    else:
+                        t = text.strip()
+                    if t:
+                        f.write(f"{var.get()}|{t}\n")
         except Exception as e:
-            messagebox.showerror("Chyba pri ukladaní", f"Nepodarilo sa uložiť poznámky:{e}")
+            messagebox.showerror("Chyba", f"Nepodarilo sa uložiť poznámky: {e}")
         notes_window.destroy()
+
+    tk.Button(btn_frame, text="➕ Pridať prázdnu poznámku", command=add_empty_note).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="✅ Uložiť a zatvoriť", command=save_notes).pack(side="right", padx=5)
 
     notes_window.protocol("WM_DELETE_WINDOW", save_notes)
     notes_window.transient()
     notes_window.grab_set()
     notes_window.wait_window()
-
-
-
