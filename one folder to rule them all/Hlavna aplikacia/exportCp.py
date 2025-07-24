@@ -25,7 +25,7 @@ def export_cp(selected_items, project_name, notes_text="", definicia_text="", pr
         return
 
     base_dir = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-    template_file = os.path.join(base_dir, "CPINT.xlsx")
+    template_file = os.path.join(base_dir, "CP.xlsx")
     if not os.path.exists(template_file):
         print(f"❌ Template file not found at: {template_file}")
         return
@@ -109,25 +109,12 @@ def export_cp(selected_items, project_name, notes_text="", definicia_text="", pr
             sheet.cells(insert_position, 10).api.Font.Size = 9
             sheet.cells(insert_position, 11).value = f"=G{insert_position}+J{insert_position}"
             sheet.cells(insert_position, 11).api.Font.Size = 9
-            sheet.cells(insert_position, 13).value = koef_material
             sheet.cells(insert_position, 13).api.Font.Size = 9
-            sheet.cells(insert_position, 14).value = nakup_materialu
             sheet.cells(insert_position, 14).api.Font.Size = 9
-            sheet.cells(insert_position, 15).value = f"=N{insert_position}*E{insert_position}"
             sheet.cells(insert_position, 15).api.Font.Size = 9
-            sheet.cells(insert_position, 16).value = f"=G{insert_position}-O{insert_position}"
             sheet.cells(insert_position, 16).api.Font.Size = 9
-            sheet.cells(insert_position, 17).value = f"=P{insert_position}+G{insert_position}"
             sheet.cells(insert_position, 17).api.Font.Size = 9
-            sheet.cells(insert_position, 19).value = dodavatel
             sheet.cells(insert_position, 19).api.Font.Size = 9
-            if odkaz:
-                sheet.cells(insert_position, 19).api.Hyperlinks.Add(
-                    Anchor=sheet.cells(insert_position, 19).api,
-                    Address=odkaz,
-                    TextToDisplay="Link",
-                )
-            
 
             counter += 1
             insert_position += 1

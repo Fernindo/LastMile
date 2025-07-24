@@ -25,7 +25,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         return
 
     base_dir = sys._MEIPASS if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-    template_file = os.path.join(base_dir, "Vzorova_CP3.xlsx")
+    template_file = os.path.join(base_dir, "CPINT.xlsx")
     if not os.path.exists(template_file):
         print(f"❌ Template file not found at: {template_file}")
         return
