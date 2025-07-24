@@ -17,6 +17,7 @@ from helpers import (
     format_currency,
     
 )
+from exportCp import export_cp
 from basket import Basket
 from basket_io import load_basket
 from doprava import show_doprava_window
@@ -760,13 +761,56 @@ def start(project_dir, json_path):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    export_btn = tb.Button(
+    exportCPINT_btn = tb.Button(
         left_btn_frame,
-        text="Exportovať",
+        text="Exportovať CP INT",
         bootstyle="success",
         command=export_with_progress
     )
-    export_btn.pack(side="left")
+    exportCPINT_btn.pack(side="left", padx=(0, 10))
+    def export_simple_excel_from_basket(basket, project_name, definicia_text=""):
+        if not basket.items:
+            messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
+            return
+
+        excel_data = []
+        for section, products in basket.items.items():
+            for produkt, v in products.items():
+                excel_data.append((
+                    section,
+                    produkt,
+                    v.jednotky,
+                    v.dodavatel,
+                    v.odkaz,
+                    v.koeficient_material,
+                    v.koeficient_prace,
+                    v.nakup_materialu,
+                    v.cena_prace,
+                    v.pocet_materialu,
+                    v.pocet_prace,
+                ))
+
+        export_cp(excel_data, project_name, definicia_text)
+
+    exportCP_btn = tb.Button(
+        left_btn_frame,
+        text="Exportovať CP",
+        bootstyle="success",
+        command=lambda: export_simple_excel_from_basket(
+            basket,
+            project_entry.get(),
+            definition_entry.get()
+    )
+    )
+    exportCP_btn.pack(side="left", padx=(0, 10))
+
+    exportVV_btn = tb.Button(
+        left_btn_frame,
+        text="Exportovať Vv",
+        bootstyle="success",
+        #command=
+    )
+    exportVV_btn.pack(side="left", padx=(0, 10))
 
     coeff_set_mat_btn = tb.Button(
         right_btn_frame,
