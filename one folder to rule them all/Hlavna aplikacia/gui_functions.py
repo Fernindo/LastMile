@@ -11,7 +11,7 @@ import unicodedata
 from collections import OrderedDict
 import copy
 import json
-
+import tkinter.ttk as ttk
 from basket import Basket, BasketItem
 
 # Keep track of open notes widgets so we can grab the latest values
