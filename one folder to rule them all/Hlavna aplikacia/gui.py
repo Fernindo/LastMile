@@ -1147,10 +1147,23 @@ def start(project_dir, json_path):
 
         notes_list = get_current_notes(project_name, commit_file)
 
+        history_entry = {"timestamp": datetime.now().isoformat(), "notes": notes_list}
+        if os.path.exists(commit_file):
+            try:
+                with open(commit_file, "r", encoding="utf-8") as cf:
+                    prev = json.load(cf)
+                    notes_history = prev.get("notes_history", [])
+            except Exception:
+                notes_history = []
+        else:
+            notes_history = []
+        notes_history.append(history_entry)
+
         out = {
             "project": project_name,
             "items": [],
             "notes": notes_list,
+            "notes_history": notes_history,
         }
         for section, prods in basket.items.items():
             sec_obj = {"section": section, "products": []}

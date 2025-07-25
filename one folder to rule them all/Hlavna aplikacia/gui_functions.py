@@ -719,6 +719,22 @@ def show_notes_popup(project_name, json_path):
     vars_items = []
     NOTES_UI_STATE[project_name] = vars_items
 
+    def move_up(frame):
+        idx = next((i for i, (_, _, f) in enumerate(vars_items) if f is frame), None)
+        if idx is None or idx == 0:
+            return
+        vars_items[idx], vars_items[idx-1] = vars_items[idx-1], vars_items[idx]
+        frame.pack_forget()
+        frame.pack(before=vars_items[idx][2])
+
+    def move_down(frame):
+        idx = next((i for i, (_, _, f) in enumerate(vars_items) if f is frame), None)
+        if idx is None or idx == len(vars_items) - 1:
+            return
+        vars_items[idx], vars_items[idx+1] = vars_items[idx+1], vars_items[idx]
+        frame.pack_forget()
+        frame.pack(after=vars_items[idx][2])
+
     def create_note(text, checked=True, editable=False):
         var = tk.IntVar(value=1 if checked else 0)
         row = tk.Frame(scrollable_frame)
@@ -730,14 +746,19 @@ def show_notes_popup(project_name, json_path):
             entry.pack(side="left", fill="x", expand=True)
             chk = tk.Checkbutton(row, variable=var)
             chk.pack(side="left", padx=5)
-            vars_items.append((var, entry))
+            text_widget = entry
         else:
             chk = tk.Checkbutton(
                 row, text=text, variable=var,
                 anchor="w", justify="left", wraplength=400
             )
-            chk.pack(anchor="w", fill="x", expand=True)
-            vars_items.append((var, text))
+            chk.pack(side="left", fill="x", expand=True)
+            text_widget = text
+
+        tk.Button(row, text="↑", width=2, command=lambda f=row: move_up(f)).pack(side="left")
+        tk.Button(row, text="↓", width=2, command=lambda f=row: move_down(f)).pack(side="left")
+
+        vars_items.append((var, text_widget, row))
 
     for state, text in items:
         create_note(text, checked=bool(state))
@@ -751,7 +772,7 @@ def show_notes_popup(project_name, json_path):
 
     def _save_to_cache():
         notes_data = []
-        for var, text in vars_items:
+        for var, text, _ in vars_items:
             if isinstance(text, tk.Entry):
                 t = text.get().strip()
             else:
@@ -786,7 +807,7 @@ def get_current_notes(project_name, json_path):
     vars_items = NOTES_UI_STATE.get(project_name)
     if vars_items is not None:
         notes = []
-        for var, text in vars_items:
+        for var, text, _ in vars_items:
             if isinstance(text, tk.Entry):
                 t = text.get().strip()
             else:

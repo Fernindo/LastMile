@@ -3,6 +3,7 @@ import os
 import json
 import tkinter as tk
 from tkinter import ttk, messagebox
+from datetime import datetime
 
 from ttkbootstrap import Button
 
@@ -152,7 +153,17 @@ def create_notes_panel(parent, project_name, json_path):
                     data = json.load(jf)
             except Exception:
                 data = {}
-        data["notes_text"] = text_widget.get("1.0", tk.END).strip()
+
+        text = text_widget.get("1.0", tk.END).strip()
+        data["notes_text"] = text
+
+        history = data.get("history", [])
+        history.append({
+            "timestamp": datetime.now().isoformat(),
+            "notes_text": text,
+        })
+        data["history"] = history
+
         with open(json_path, "w", encoding="utf-8") as jf:
             json.dump(data, jf, ensure_ascii=False, indent=2)
         print(f"📝 Notes saved to {json_path}")
@@ -330,4 +341,4 @@ def show_praca_window(cursor):
     tk.Label(summary_frame, text="Celkový predaj:", font=("Segoe UI", 15, "bold"), bg="#f9f9f9").pack(side="left")
     tk.Label(summary_frame, textvariable=celkovy_predaj_var, font=("Segoe UI", 15), bg="#f9f9f9").pack(side="left", padx=(5, 0))
 
-    praca_window.grab_set()
+    # Allow the user to continue working while this window is open
