@@ -772,22 +772,8 @@ def show_notes_popup(project_name, json_path):
         NOTES_UI_STATE.pop(project_name, None)
 
     def on_close():
-        resp = messagebox.askyesnocancel(
-            "Uložiť poznámky?",
-            "Chceš uložiť zmeny v poznámkach pred zatvorením?",
-            parent=notes_window,
-        )
-        if resp is None:
-            return
-        if resp:
-            try:
-                _save_to_file()
-            except Exception as e:
-                messagebox.showerror(
-                    "Chyba", f"Nepodarilo sa uložiť poznámky: {e}", parent=notes_window
-                )
+        """Close notes window without saving."""
         notes_window.destroy()
-        NOTES_UI_STATE.pop(project_name, None)
 
     tk.Button(btn_frame, text="➕ Pridať prázdnu poznámku", command=add_empty_note).pack(side="left", padx=5)
     tk.Button(btn_frame, text="✅ Uložiť a zatvoriť", command=save_notes).pack(side="right", padx=5)
