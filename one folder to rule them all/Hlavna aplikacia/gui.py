@@ -289,13 +289,19 @@ def start(project_dir, json_path):
             sel_ids,
         )
 
-    rec_btn = tb.Button(
-        top,
-        text="⭐ Odporúčania",
-        bootstyle="light",
-        command=show_selected_recommendations,
-    )
-    rec_btn.pack(side="left", padx=(10, 0))
+    def on_db_right_click(event):
+        iid = tree.identify_row(event.y)
+        if not iid:
+            return
+        tree.selection_set(iid)
+        tree.focus(iid)
+        menu = tk.Menu(root, tearoff=0)
+        menu.add_command(
+            label="⭐ Odporúčania",
+            command=show_selected_recommendations,
+        )
+        menu.post(event.x_root, event.y_root)
+
 
     tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20, 5))
     name_entry = tk.Entry(top, width=30)
@@ -1075,6 +1081,7 @@ def start(project_dir, json_path):
         )
 
     tree.bind("<Double-1>", on_db_double_click)
+    tree.bind("<Button-3>", on_db_right_click)
     # ───────────────────────────────────────────────────────────────────────────
 
     # ─── Handle window close (“X”) ────────────────────────────────────────
