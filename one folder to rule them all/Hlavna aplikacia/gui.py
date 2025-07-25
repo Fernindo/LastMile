@@ -42,7 +42,8 @@ from gui_functions import (
     add_custom_item,
     show_notes_popup,
     get_current_notes,
-    show_recommendations_popup
+    show_recommendations_popup,
+    UNSAVED_NOTES
 )
 
 from tkinter import messagebox, simpledialog
@@ -1167,6 +1168,9 @@ def start(project_dir, json_path):
         try:
             with open(fullpath, "w", encoding="utf-8") as f:
                 json.dump(out, f, ensure_ascii=False, indent=2)
+            with open(commit_file, "w", encoding="utf-8") as cf:
+                json.dump(out, cf, ensure_ascii=False, indent=2)
+            UNSAVED_NOTES.pop(project_name, None)
         except Exception as e:
             messagebox.showerror(
                 "Chyba pri ukladaní",

@@ -17,6 +17,8 @@ from basket import Basket, BasketItem
 
 # Keep track of open notes widgets so we can grab the latest values
 NOTES_UI_STATE: dict[str, list[tuple[tk.IntVar, object]]] = {}
+# Cache of notes that were saved from the popup but not yet written to disk
+UNSAVED_NOTES: dict[str, list[dict[str, object]]] = {}
 
 from helpers import (
     parse_float,
@@ -636,7 +638,12 @@ def add_custom_item(basket_tree, basket: Basket,
 def show_notes_popup(project_name, json_path):
     """Open a popup with checkable notes for the given project."""
     items = []
-    if os.path.exists(json_path):
+    if project_name in UNSAVED_NOTES:
+        for n in UNSAVED_NOTES[project_name]:
+            text = n.get("text", "")
+            if text:
+                items.append((int(n.get("state", 0)), text))
+    elif os.path.exists(json_path):
         try:
             with open(json_path, "r", encoding="utf-8") as jf:
                 data = json.load(jf)
@@ -743,14 +750,7 @@ def show_notes_popup(project_name, json_path):
     def add_empty_note():
         create_note("", checked=True, editable=True)
 
-    def _save_to_file():
-        data = {}
-        if os.path.exists(json_path):
-            try:
-                with open(json_path, "r", encoding="utf-8") as jf:
-                    data = json.load(jf)
-            except Exception:
-                data = {}
+    def _save_to_cache():
         notes_data = []
         for var, text in vars_items:
             if isinstance(text, tk.Entry):
@@ -759,13 +759,11 @@ def show_notes_popup(project_name, json_path):
                 t = text.strip()
             if t:
                 notes_data.append({"state": int(var.get()), "text": t})
-        data["notes"] = notes_data
-        with open(json_path, "w", encoding="utf-8") as jf:
-            json.dump(data, jf, ensure_ascii=False, indent=2)
+        UNSAVED_NOTES[project_name] = notes_data
 
     def save_notes():
         try:
-            _save_to_file()
+            _save_to_cache()
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa uložiť poznámky: {e}")
         notes_window.destroy()
@@ -796,7 +794,11 @@ def get_current_notes(project_name, json_path):
                 t = text.strip()
             if t:
                 notes.append({"state": int(var.get()), "text": t})
+        UNSAVED_NOTES[project_name] = notes
         return notes
+
+    if project_name in UNSAVED_NOTES:
+        return UNSAVED_NOTES[project_name]
 
     notes = []
     if os.path.exists(json_path):
