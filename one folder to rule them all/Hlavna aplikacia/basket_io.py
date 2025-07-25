@@ -29,21 +29,7 @@ def save_basket(
     if not file_path:
         return False
 
-    notes_list = []
-    if notes is not None:
-        notes_list = notes
-    else:
-        notes_path = os.path.join(project_path, f"notes_{project_name}.txt")
-        if os.path.exists(notes_path):
-            try:
-                with open(notes_path, "r", encoding="utf-8") as nf:
-                    for line in nf:
-                        line = line.rstrip("\n")
-                        if "|" in line:
-                            state, text = line.split("|", 1)
-                            notes_list.append({"state": int(state), "text": text})
-            except Exception:
-                notes_list = []
+    notes_list = notes if notes is not None else []
 
     out = {"user_name": user_name, "items": [], "notes": notes_list}
     for section, prods in basket_items.items():
@@ -92,17 +78,6 @@ def load_basket(project_path: str, project_name: str, file_path: Optional[str] =
         return OrderedDict(), ""
 
     notes_list = data.get("notes", [])
-    notes_path = os.path.join(project_path, f"notes_{project_name}.txt")
-    if notes_list:
-        try:
-            with open(notes_path, "w", encoding="utf-8") as nf:
-                for n in notes_list:
-                    text = n.get("text", "").strip()
-                    if text:
-                        state = int(n.get("state", 0))
-                        nf.write(f"{state}|{text}\n")
-        except Exception:
-            pass
 
     basket_items = OrderedDict()
     for sec in data.get("items", []):
