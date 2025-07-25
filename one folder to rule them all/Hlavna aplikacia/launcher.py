@@ -1,5 +1,6 @@
 import sys
 import os
+import datetime
 import tkinter as tk
 from tkinter import messagebox, Listbox, Scrollbar, Frame, Label, Button
 
@@ -74,7 +75,20 @@ def main():
 
     # Load JSON files
     files = [f for f in os.listdir(projects_dir) if f.lower().endswith(".json")]
-    files.sort(key=lambda f: os.path.getmtime(os.path.join(projects_dir, f)), reverse=True)
+
+    def sort_key(fname: str) -> float:
+        """Return a timestamp to sort project files by newest first."""
+        name, _ = os.path.splitext(fname)
+        if "_" in name:
+            _, date_part = name.split("_", 1)
+            try:
+                dt = datetime.datetime.strptime(date_part, "%Y-%m-%d_%H-%M-%S")
+                return dt.timestamp()
+            except ValueError:
+                pass
+        return os.path.getmtime(os.path.join(projects_dir, fname))
+
+    files.sort(key=sort_key, reverse=True)
 
     for f in files:
         name, _ = os.path.splitext(f)
