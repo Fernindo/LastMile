@@ -718,6 +718,30 @@ def show_notes_popup(project_name, json_dir):
     scrollbar.pack(side="right", fill="y")
 
     vars_items = []
+    undo_stack = []
+    redo_stack = []
+
+    def current_state():
+        state = []
+        for var, item in vars_items:
+            if isinstance(item, tk.Entry):
+                t = item.get().strip()
+            else:
+                t = item.strip()
+            if t:
+                state.append((var.get(), t))
+        return state
+
+    def snapshot():
+        undo_stack.append(current_state())
+        redo_stack.clear()
+
+    def restore(state):
+        for child in scrollable_frame.winfo_children():
+            child.destroy()
+        vars_items.clear()
+        for checked, text in state:
+            create_note(text, checked=bool(checked))
 
     def create_note(text, checked=True, editable=False):
         var = tk.IntVar(value=1 if checked else 0)
@@ -728,40 +752,88 @@ def show_notes_popup(project_name, json_dir):
             entry = tk.Entry(row, width=50)
             entry.insert(0, text)
             entry.pack(side="left", fill="x", expand=True)
-            chk = tk.Checkbutton(row, variable=var)
+            entry.bind("<FocusOut>", lambda e: snapshot())
+            chk = tk.Checkbutton(row, variable=var, command=snapshot)
             chk.pack(side="left", padx=5)
             vars_items.append((var, entry))
         else:
             chk = tk.Checkbutton(
                 row, text=text, variable=var,
-                anchor="w", justify="left", wraplength=400
+                anchor="w", justify="left", wraplength=400,
+                command=snapshot,
             )
             chk.pack(anchor="w", fill="x", expand=True)
             vars_items.append((var, text))
 
     for state, text in items:
         create_note(text, checked=bool(state))
+    snapshot()
 
     # Buttons
     btn_frame = tk.Frame(notes_window)
     btn_frame.pack(fill="x", padx=10, pady=(10, 5))
 
     def add_empty_note():
+        snapshot()
         create_note("", checked=True, editable=True)
 
     def _save_to_file():
+        data_lines = []
+        for var, text in vars_items:
+            if isinstance(text, tk.Entry):
+                t = text.get().strip()
+            else:
+                t = text.strip()
+            if t:
+                data_lines.append(f"{var.get()}|{t}\n")
+
         with open(notes_path, "w", encoding="utf-8") as f:
-            for var, text in vars_items:
-                if isinstance(text, tk.Entry):
-                    t = text.get().strip()
-                else:
-                    t = text.strip()
-                if t:
-                    f.write(f"{var.get()}|{t}\n")
+            f.writelines(data_lines)
+
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        backup = os.path.join(json_dir, f"notes_{timestamp}.txt")
+        with open(backup, "w", encoding="utf-8") as bf:
+            bf.writelines(data_lines)
+
+    def load_previous():
+        path = filedialog.askopenfilename(
+            title="Načítať poznámky",
+            initialdir=json_dir,
+            filetypes=[("Text", "*.txt")],
+        )
+        if not path:
+            return
+        try:
+            loaded = []
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.rstrip("\n")
+                    if "|" in line:
+                        st, txt = line.split("|", 1)
+                        loaded.append((int(st), txt))
+            snapshot()
+            restore(loaded)
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Nepodarilo sa načítať poznámky: {e}")
+
+    def undo_action():
+        if len(undo_stack) < 2:
+            return
+        state = undo_stack.pop()
+        redo_stack.append(current_state())
+        restore(state)
+
+    def redo_action():
+        if not redo_stack:
+            return
+        undo_stack.append(current_state())
+        state = redo_stack.pop()
+        restore(state)
 
     def save_notes():
         try:
             _save_to_file()
+            snapshot()
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa uložiť poznámky: {e}")
         notes_window.destroy()
@@ -777,6 +849,7 @@ def show_notes_popup(project_name, json_dir):
         if resp:
             try:
                 _save_to_file()
+                snapshot()
             except Exception as e:
                 messagebox.showerror(
                     "Chyba", f"Nepodarilo sa uložiť poznámky: {e}", parent=notes_window
@@ -784,6 +857,9 @@ def show_notes_popup(project_name, json_dir):
         notes_window.destroy()
 
     tk.Button(btn_frame, text="➕ Pridať prázdnu poznámku", command=add_empty_note).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="⏪ Načítať verziu", command=load_previous).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="↩ Undo", command=undo_action).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="↪ Redo", command=redo_action).pack(side="left", padx=5)
     tk.Button(btn_frame, text="✅ Uložiť a zatvoriť", command=save_notes).pack(side="right", padx=5)
 
     notes_window.protocol("WM_DELETE_WINDOW", on_close)
