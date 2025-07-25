@@ -8,6 +8,3 @@
 0|O termíne ukončenia inštalačných prác je nutné informovať sa po záväznom objednaní (doba bude určena podľa aktuálne dostupných kapacít technikov).
 0|Pre uplatnenie si záruky je objednávateľ povinný vyzvať spol. LAST MILE spol. s r.o. k predloženiu plánu pravidelných servisných prehliadok.
 0|Platnosť cenovej ponuky: dd.mm.rrrr
-0|test
-0|test1
-0|test2
