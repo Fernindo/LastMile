@@ -791,11 +791,12 @@ def show_recommendations_popup(
         SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
                p.koeficient_material, p.nakup_materialu,
                p.cena_prace, p.koeficient_prace,
-               c.nazov_tabulky
+               MIN(c.nazov_tabulky)
         FROM produkty p
         LEFT JOIN produkt_class pc ON p.id = pc.produkt_id
         LEFT JOIN class c ON pc.class_id = c.id
         WHERE p.id IN ({ph})
+        GROUP BY p.id
     """
     if filter_ids:
         ph2 = ",".join([placeholder] * len(filter_ids))
@@ -811,7 +812,7 @@ def show_recommendations_popup(
     win = tk.Toplevel()
     win.title("Odporučené produkty")
 
-    # Store all product info but only display the most relevant columns
+    # Store all product info and display all columns
     cols = (
         "produkt",
         "jednotky",
@@ -823,7 +824,7 @@ def show_recommendations_popup(
         "koeficient_prace",
         "section",
     )
-    display_cols = ("produkt", "jednotky", "dodavatel")
+    display_cols = cols
     tree = ttk.Treeview(win, columns=cols, show="headings", displaycolumns=display_cols)
     for c in display_cols:
         tree.heading(c, text=c.capitalize())
@@ -867,13 +868,23 @@ def show_recommendations_popup(
 
     def adjust_cols(event):
         total = event.width
-        widths = {
-            "produkt": 0.55,
-            "jednotky": 0.15,
-            "dodavatel": 0.30,
+        proportions = {
+            "produkt":             0.22,
+            "jednotky":            0.15,
+            "dodavatel":           0.12,
+            "odkaz":               0.20,
+            "koeficient_material": 0.10,
+            "nakup_materialu":     0.13,
+            "cena_prace":          0.08,
+            "koeficient_prace":    0.08,
         }
+        total_pct = sum(proportions.get(c, 0) for c in display_cols)
+        if total_pct == 0:
+            total_pct = len(display_cols)
         for c in display_cols:
-            tree.column(c, width=int(total * widths[c]), stretch=True)
+            pct = proportions.get(c, 1 / len(display_cols))
+            width = int(total * pct / total_pct)
+            tree.column(c, width=width, stretch=True)
 
     tree.bind("<Configure>", adjust_cols)
 
