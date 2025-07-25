@@ -23,7 +23,20 @@ def save_basket(project_path: str, project_name: str, basket_items, user_name: s
     if not file_path:
         return False
 
-    out = {"user_name": user_name, "items": []}
+    notes_path = os.path.join(project_path, f"notes_{project_name}.txt")
+    notes_list = []
+    if os.path.exists(notes_path):
+        try:
+            with open(notes_path, "r", encoding="utf-8") as nf:
+                for line in nf:
+                    line = line.rstrip("\n")
+                    if "|" in line:
+                        state, text = line.split("|", 1)
+                        notes_list.append({"state": int(state), "text": text})
+        except Exception:
+            notes_list = []
+
+    out = {"user_name": user_name, "items": [], "notes": notes_list}
     for section, prods in basket_items.items():
         sec_obj = {"section": section, "products": []}
         for pname, info in prods.items():
@@ -69,6 +82,19 @@ def load_basket(project_path: str, project_name: str, file_path: Optional[str] =
     except Exception:
         return OrderedDict(), ""
 
+    notes_list = data.get("notes", [])
+    notes_path = os.path.join(project_path, f"notes_{project_name}.txt")
+    if notes_list:
+        try:
+            with open(notes_path, "w", encoding="utf-8") as nf:
+                for n in notes_list:
+                    text = n.get("text", "").strip()
+                    if text:
+                        state = int(n.get("state", 0))
+                        nf.write(f"{state}|{text}\n")
+        except Exception:
+            pass
+
     basket_items = OrderedDict()
     for sec in data.get("items", []):
         section = sec.get("section", "")
@@ -90,4 +116,4 @@ def load_basket(project_path: str, project_name: str, file_path: Optional[str] =
                 "sync": bool(p.get("sync", p.get("sync_qty", False))),
             }
         basket_items[section] = prods
-    return basket_items, data.get("user_name", "")
+    return basket_items, data.get("user_name", ""), notes_list
