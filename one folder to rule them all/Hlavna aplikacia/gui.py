@@ -274,7 +274,20 @@ def start(project_dir, json_path):
             messagebox.showwarning("Výber", "Najprv vyber produkt v databáze.")
             return
         produkt_name = vals[0]
-        show_recommendations_popup(cursor, db_type, produkt_name)
+        sel_ids = [cid for cid, var in table_vars.items() if var.get()]
+        show_recommendations_popup(
+            cursor,
+            db_type,
+            produkt_name,
+            basket,
+            conn,
+            basket_tree,
+            mark_modified,
+            total_spolu_var,
+            total_praca_var,
+            total_material_var,
+            sel_ids,
+        )
 
     rec_btn = tb.Button(
         top,

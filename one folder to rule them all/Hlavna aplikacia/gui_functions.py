@@ -746,8 +746,25 @@ def show_notes_popup(project_name, json_dir):
     notes_window.wait_window()
 
 
-def show_recommendations_popup(cursor, db_type, produkt_name):
-    """Display recommended products for the given produkt name."""
+def show_recommendations_popup(
+    cursor,
+    db_type,
+    produkt_name,
+    basket,
+    conn,
+    basket_tree,
+    mark_modified,
+    total_spolu_var,
+    total_praca_var=None,
+    total_material_var=None,
+    filter_ids=None,
+):
+    """Display recommended products for the given produkt name.
+
+    ``basket`` and related parameters are used so that a double-click on a row
+    immediately inserts the product into the basket. ``filter_ids`` can be a
+    sequence of selected class IDs to further filter the recommendations.
+    """
     placeholder = "?" if db_type == "sqlite" else "%s"
     try:
         cursor.execute(
@@ -757,7 +774,7 @@ def show_recommendations_popup(cursor, db_type, produkt_name):
             JOIN produkty p ON p.id = r.produkt_id
             WHERE p.produkt = {placeholder}
             """,
-            (produkt_name,)
+            (produkt_name,),
         )
         ids = [row[0] for row in cursor.fetchall()]
     except Exception as e:
@@ -769,15 +786,23 @@ def show_recommendations_popup(cursor, db_type, produkt_name):
         return
 
     ph = ",".join([placeholder] * len(ids))
+    params = list(ids)
+    query = f"""
+        SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
+               p.koeficient_material, p.nakup_materialu,
+               p.cena_prace, p.koeficient_prace,
+               c.nazov_tabulky
+        FROM produkty p
+        LEFT JOIN produkt_class pc ON p.id = pc.produkt_id
+        LEFT JOIN class c ON pc.class_id = c.id
+        WHERE p.id IN ({ph})
+    """
+    if filter_ids:
+        ph2 = ",".join([placeholder] * len(filter_ids))
+        query += f" AND pc.class_id IN ({ph2})"
+        params.extend(filter_ids)
     try:
-        cursor.execute(
-            f"""
-            SELECT produkt, jednotky, dodavatel
-            FROM produkty
-            WHERE id IN ({ph})
-            """,
-            tuple(ids),
-        )
+        cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
     except Exception as e:
         messagebox.showerror("Chyba", str(e))
@@ -785,16 +810,75 @@ def show_recommendations_popup(cursor, db_type, produkt_name):
 
     win = tk.Toplevel()
     win.title("Odporučené produkty")
-    cols = ("produkt", "jednotky", "dodavatel")
-    tree = ttk.Treeview(win, columns=cols, show="headings")
-    for c in cols:
+
+    # Store all product info but only display the most relevant columns
+    cols = (
+        "produkt",
+        "jednotky",
+        "dodavatel",
+        "odkaz",
+        "koeficient_material",
+        "nakup_materialu",
+        "cena_prace",
+        "koeficient_prace",
+        "section",
+    )
+    display_cols = ("produkt", "jednotky", "dodavatel")
+    tree = ttk.Treeview(win, columns=cols, show="headings", displaycolumns=display_cols)
+    for c in display_cols:
         tree.heading(c, text=c.capitalize())
         tree.column(c, anchor="center")
-    for row in rows:
-        tree.insert("", "end", values=row)
+
+    # Normalize rows to include the section name (last column)
+    normalized = [
+        row[:8] + (row[8] if row[8] else "Uncategorized",)
+        for row in rows
+    ]
+    for idx, row in enumerate(normalized):
+        tag = "even" if idx % 2 == 0 else "odd"
+        tree.insert("", "end", values=row, tags=(tag,))
+
+    tree.tag_configure("even", background="#f9f9f9")
+    tree.tag_configure("odd", background="#ffffff")
+
+    def on_double_click(event):
+        sel = tree.focus()
+        if not sel:
+            return
+        vals = tree.item(sel)["values"]
+        if not vals:
+            return
+        add_to_basket_full(
+            vals,
+            basket,
+            conn,
+            cursor,
+            db_type,
+            basket_tree,
+            mark_modified,
+            total_spolu_var,
+            total_praca_var,
+            total_material_var,
+        )
+
+    tree.bind("<Double-1>", on_double_click)
+
     tree.pack(fill="both", expand=True, padx=10, pady=10)
+
+    def adjust_cols(event):
+        total = event.width
+        widths = {
+            "produkt": 0.55,
+            "jednotky": 0.15,
+            "dodavatel": 0.30,
+        }
+        for c in display_cols:
+            tree.column(c, width=int(total * widths[c]), stretch=True)
+
+    tree.bind("<Configure>", adjust_cols)
+
     tk.Button(win, text="Zatvoriť", command=win.destroy).pack(pady=5)
-    win.geometry("500x300")
+    win.geometry("600x350")
     win.transient()
     win.grab_set()
     win.wait_window()
