@@ -1129,7 +1129,9 @@ def start(project_dir, json_path):
         if not fname:
             return  # user canceled → stay open
 
-        ts = datetime.now().strftime("_%Y-%m-%d")
+        # Include the current time in the filename so each save produces a
+        # unique archive even when multiple saves happen on the same day.
+        ts = datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
         filename = f"{fname}{ts}.json"
         fullpath = os.path.join(json_dir, filename)
 
