@@ -1,8 +1,4 @@
-import os
-import sys
-
-# Add application directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'one folder to rule them all', 'Hlavna aplikacia'))
+from math import isclose
 
 from basket import Basket
 
@@ -25,9 +21,9 @@ def test_add_and_recompute():
     b = Basket()
     assert b.add_item(make_item())
     mat, work, total = b.recompute_totals()
-    assert mat == 2.0 * 1.2
-    assert work == 3.0 * 1.5
-    assert total == mat + work
+    assert isclose(mat, 2.0 * 1.2, rel_tol=1e-9)
+    assert isclose(work, 3.0 * 1.5, rel_tol=1e-9)
+    assert isclose(total, mat + work, rel_tol=1e-9)
 
 
 def test_apply_and_revert_coefficients():
