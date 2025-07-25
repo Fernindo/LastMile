@@ -132,9 +132,29 @@ def sync_postgres_to_sqlite(pg_conn):
         pc_rows
     )
 
+    # ── 4) Sync recommendations ──────────────────────────────────────────
+    sqlite_cursor.execute("DROP TABLE IF EXISTS recommendations")
+    sqlite_cursor.execute(
+        """
+        CREATE TABLE recommendations (
+            produkt_id INTEGER,
+            recommended_id INTEGER
+        )
+        """
+    )
+    try:
+        pg_cursor.execute("SELECT produkt_id, recommended_id FROM recommendations")
+        rec_rows = pg_cursor.fetchall()
+        sqlite_cursor.executemany(
+            "INSERT INTO recommendations VALUES (?,?)",
+            rec_rows
+        )
+    except Exception as e:
+        print("Warning: failed to sync recommendations:", e)
+
     sqlite_conn.commit()
     sqlite_conn.close()
-    print("✔ Synced PostgreSQL → SQLite (produkty, class, produkt_class)")
+    print("✔ Synced PostgreSQL → SQLite (produkty, class, produkt_class, recommendations)")
 
 
 # ─── Basket Persistence / I/O ────────────────────────────────────────────────
@@ -724,3 +744,57 @@ def show_notes_popup(project_name, json_dir):
     notes_window.transient()
     notes_window.grab_set()
     notes_window.wait_window()
+
+
+def show_recommendations_popup(cursor, db_type, produkt_name):
+    """Display recommended products for the given produkt name."""
+    placeholder = "?" if db_type == "sqlite" else "%s"
+    try:
+        cursor.execute(
+            f"""
+            SELECT r.recommended_id
+            FROM recommendations r
+            JOIN produkty p ON p.id = r.produkt_id
+            WHERE p.produkt = {placeholder}
+            """,
+            (produkt_name,)
+        )
+        ids = [row[0] for row in cursor.fetchall()]
+    except Exception as e:
+        messagebox.showerror("Chyba", str(e))
+        return
+
+    if not ids:
+        messagebox.showinfo("Odporučené produkty", "Pre tento produkt nie sú odporúčania.")
+        return
+
+    ph = ",".join([placeholder] * len(ids))
+    try:
+        cursor.execute(
+            f"""
+            SELECT produkt, jednotky, dodavatel
+            FROM produkty
+            WHERE id IN ({ph})
+            """,
+            tuple(ids),
+        )
+        rows = cursor.fetchall()
+    except Exception as e:
+        messagebox.showerror("Chyba", str(e))
+        return
+
+    win = tk.Toplevel()
+    win.title("Odporučené produkty")
+    cols = ("produkt", "jednotky", "dodavatel")
+    tree = ttk.Treeview(win, columns=cols, show="headings")
+    for c in cols:
+        tree.heading(c, text=c.capitalize())
+        tree.column(c, anchor="center")
+    for row in rows:
+        tree.insert("", "end", values=row)
+    tree.pack(fill="both", expand=True, padx=10, pady=10)
+    tk.Button(win, text="Zatvoriť", command=win.destroy).pack(pady=5)
+    win.geometry("500x300")
+    win.transient()
+    win.grab_set()
+    win.wait_window()

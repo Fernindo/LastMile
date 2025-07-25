@@ -40,7 +40,8 @@ from gui_functions import (
     revert_work_coefficient,
     reset_items,
     add_custom_item,
-    show_notes_popup
+    show_notes_popup,
+    show_recommendations_popup
 )
 
 from tkinter import messagebox, simpledialog
@@ -262,6 +263,26 @@ def start(project_dir, json_path):
         command=show_doprava_window
     )
     doprava_btn.pack(side="left", padx=(10, 0))
+
+    def show_selected_recommendations():
+        sel = tree.focus()
+        if not sel:
+            messagebox.showwarning("Výber", "Najprv vyber produkt v databáze.")
+            return
+        vals = tree.item(sel).get("values")
+        if not vals:
+            messagebox.showwarning("Výber", "Najprv vyber produkt v databáze.")
+            return
+        produkt_name = vals[0]
+        show_recommendations_popup(cursor, db_type, produkt_name)
+
+    rec_btn = tb.Button(
+        top,
+        text="⭐ Odporúčania",
+        bootstyle="light",
+        command=show_selected_recommendations,
+    )
+    rec_btn.pack(side="left", padx=(10, 0))
 
     tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20, 5))
     name_entry = tk.Entry(top, width=30)
