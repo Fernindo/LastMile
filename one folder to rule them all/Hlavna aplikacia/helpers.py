@@ -158,12 +158,9 @@ def create_notes_panel(parent, project_name, json_path):
         print(f"📝 Notes saved to {json_path}")
 
     def on_text_change(event):
-        if text_widget.edit_modified():
-            save_notes()
-            text_widget.edit_modified(False)
+        text_widget.edit_modified(False)
 
     text_widget.bind("<<Modified>>", on_text_change)
-    text_widget.bind("<FocusOut>", lambda e: save_notes())
 
     if os.path.exists(json_path):
         try:
