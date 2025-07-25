@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+local_backup.db
+'et --hard dae458b'
+test_notes.txt
+projects/**/*.json
+one folder to rule them all/Hlavna aplikacia/projects/*.json
