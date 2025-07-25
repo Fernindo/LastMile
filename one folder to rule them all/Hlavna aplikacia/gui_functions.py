@@ -689,6 +689,31 @@ def show_notes_popup(project_name, json_dir):
     canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
     canvas.configure(yscrollcommand=scrollbar.set)
 
+    def _on_mousewheel(event):
+        if event.delta:
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        elif event.num == 4:
+            canvas.yview_scroll(-1, "units")
+        elif event.num == 5:
+            canvas.yview_scroll(1, "units")
+
+    scrollable_frame.bind(
+        "<Enter>",
+        lambda e: (
+            canvas.bind_all("<MouseWheel>", _on_mousewheel),
+            canvas.bind_all("<Button-4>", _on_mousewheel),
+            canvas.bind_all("<Button-5>", _on_mousewheel),
+        )
+    )
+    scrollable_frame.bind(
+        "<Leave>",
+        lambda e: (
+            canvas.unbind_all("<MouseWheel>"),
+            canvas.unbind_all("<Button-4>"),
+            canvas.unbind_all("<Button-5>"),
+        )
+    )
+
     canvas.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
 
@@ -724,24 +749,44 @@ def show_notes_popup(project_name, json_dir):
     def add_empty_note():
         create_note("", checked=True, editable=True)
 
+    def _save_to_file():
+        with open(notes_path, "w", encoding="utf-8") as f:
+            for var, text in vars_items:
+                if isinstance(text, tk.Entry):
+                    t = text.get().strip()
+                else:
+                    t = text.strip()
+                if t:
+                    f.write(f"{var.get()}|{t}\n")
+
     def save_notes():
         try:
-            with open(notes_path, "w", encoding="utf-8") as f:
-                for var, text in vars_items:
-                    if isinstance(text, tk.Entry):
-                        t = text.get().strip()
-                    else:
-                        t = text.strip()
-                    if t:
-                        f.write(f"{var.get()}|{t}\n")
+            _save_to_file()
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa uložiť poznámky: {e}")
+        notes_window.destroy()
+
+    def on_close():
+        resp = messagebox.askyesnocancel(
+            "Uložiť poznámky?",
+            "Chceš uložiť zmeny v poznámkach pred zatvorením?",
+            parent=notes_window,
+        )
+        if resp is None:
+            return
+        if resp:
+            try:
+                _save_to_file()
+            except Exception as e:
+                messagebox.showerror(
+                    "Chyba", f"Nepodarilo sa uložiť poznámky: {e}", parent=notes_window
+                )
         notes_window.destroy()
 
     tk.Button(btn_frame, text="➕ Pridať prázdnu poznámku", command=add_empty_note).pack(side="left", padx=5)
     tk.Button(btn_frame, text="✅ Uložiť a zatvoriť", command=save_notes).pack(side="right", padx=5)
 
-    notes_window.protocol("WM_DELETE_WINDOW", save_notes)
+    notes_window.protocol("WM_DELETE_WINDOW", on_close)
     notes_window.transient()
     notes_window.grab_set()
     notes_window.wait_window()
