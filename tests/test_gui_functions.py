@@ -1,6 +1,7 @@
 import os
 import sys
 import types
+from pathlib import Path
 
 # Stub external dependencies before importing application modules
 sys.modules.setdefault('psycopg2', types.ModuleType('psycopg2'))
@@ -22,7 +23,9 @@ sys.modules.setdefault('xlwings', xl_stub)
 sys.modules.setdefault('xlwings.constants', xl_stub.constants)
 
 # Add application directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'one folder to rule them all', 'Hlavna aplikacia'))
+ROOT_DIR = Path(__file__).resolve().parents[1]
+APP_DIR = ROOT_DIR / 'one folder to rule them all' / 'Hlavna aplikacia'
+sys.path.append(str(APP_DIR))
 
 from gui_functions import remove_accents
 

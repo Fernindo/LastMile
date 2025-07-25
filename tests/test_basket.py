@@ -1,8 +1,11 @@
 import os
 import sys
+from pathlib import Path
 
 # Add application directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'one folder to rule them all', 'Hlavna aplikacia'))
+ROOT_DIR = Path(__file__).resolve().parents[1]
+APP_DIR = ROOT_DIR / 'one folder to rule them all' / 'Hlavna aplikacia'
+sys.path.append(str(APP_DIR))
 
 from basket import Basket
 
