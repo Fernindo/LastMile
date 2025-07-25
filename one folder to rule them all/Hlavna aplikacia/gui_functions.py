@@ -6,7 +6,7 @@ import sqlite3
 import psycopg2
 import decimal
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 import unicodedata
 from collections import OrderedDict
 import copy
