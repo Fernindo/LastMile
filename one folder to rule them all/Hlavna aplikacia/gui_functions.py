@@ -14,6 +14,9 @@ import copy
 
 from basket import Basket, BasketItem
 
+# Keep track of open notes widgets so we can grab the latest values
+NOTES_UI_STATE: dict[str, list[tuple[tk.IntVar, object]]] = {}
+
 from helpers import (
     parse_float,
     askfloat_locale,
@@ -718,6 +721,7 @@ def show_notes_popup(project_name, json_dir):
     scrollbar.pack(side="right", fill="y")
 
     vars_items = []
+    NOTES_UI_STATE[project_name] = vars_items
 
     def create_note(text, checked=True, editable=False):
         var = tk.IntVar(value=1 if checked else 0)
@@ -765,6 +769,7 @@ def show_notes_popup(project_name, json_dir):
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa uložiť poznámky: {e}")
         notes_window.destroy()
+        NOTES_UI_STATE.pop(project_name, None)
 
     def on_close():
         resp = messagebox.askyesnocancel(
@@ -782,6 +787,7 @@ def show_notes_popup(project_name, json_dir):
                     "Chyba", f"Nepodarilo sa uložiť poznámky: {e}", parent=notes_window
                 )
         notes_window.destroy()
+        NOTES_UI_STATE.pop(project_name, None)
 
     tk.Button(btn_frame, text="➕ Pridať prázdnu poznámku", command=add_empty_note).pack(side="left", padx=5)
     tk.Button(btn_frame, text="✅ Uložiť a zatvoriť", command=save_notes).pack(side="right", padx=5)
@@ -790,6 +796,35 @@ def show_notes_popup(project_name, json_dir):
     notes_window.transient()
     notes_window.grab_set()
     notes_window.wait_window()
+
+
+def get_current_notes(project_name, json_dir):
+    """Return a list of note dictionaries currently in the UI or saved on disk."""
+    vars_items = NOTES_UI_STATE.get(project_name)
+    if vars_items is not None:
+        notes = []
+        for var, text in vars_items:
+            if isinstance(text, tk.Entry):
+                t = text.get().strip()
+            else:
+                t = text.strip()
+            if t:
+                notes.append({"state": int(var.get()), "text": t})
+        return notes
+
+    notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
+    notes = []
+    if os.path.exists(notes_path):
+        try:
+            with open(notes_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.rstrip("\n")
+                    if "|" in line:
+                        state, text = line.split("|", 1)
+                        notes.append({"state": int(state), "text": text})
+        except Exception:
+            notes = []
+    return notes
 
 
 def show_recommendations_popup(
