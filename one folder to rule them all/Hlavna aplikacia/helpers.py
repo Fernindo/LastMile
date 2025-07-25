@@ -1,5 +1,6 @@
 # Consolidated helper functions and widgets
 import os
+import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -134,8 +135,8 @@ def create_filter_panel(parent, on_mousewheel_callback, width_fraction=0.2, min_
 # ---------------------------------------------------------------------------
 # Notes panel UI (from notes_panel.py)
 # ---------------------------------------------------------------------------
-def create_notes_panel(parent, project_name):
-    """Create a simple note-taking panel bound to a text file."""
+def create_notes_panel(parent, project_name, json_path):
+    """Create a simple note-taking panel bound to a JSON file."""
     frame = tk.Frame(parent)
     frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
@@ -143,12 +144,18 @@ def create_notes_panel(parent, project_name):
     text_widget = tk.Text(frame, height=6, wrap=tk.WORD)
     text_widget.pack(fill=tk.BOTH, expand=True)
 
-    file_path = f"{project_name}_notes.txt"
-
     def save_notes():
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(text_widget.get("1.0", tk.END).strip())
-        print(f"📝 Notes saved to {file_path}")
+        data = {}
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as jf:
+                    data = json.load(jf)
+            except Exception:
+                data = {}
+        data["notes_text"] = text_widget.get("1.0", tk.END).strip()
+        with open(json_path, "w", encoding="utf-8") as jf:
+            json.dump(data, jf, ensure_ascii=False, indent=2)
+        print(f"📝 Notes saved to {json_path}")
 
     def on_text_change(event):
         if text_widget.edit_modified():
@@ -158,10 +165,14 @@ def create_notes_panel(parent, project_name):
     text_widget.bind("<<Modified>>", on_text_change)
     text_widget.bind("<FocusOut>", lambda e: save_notes())
 
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            text_widget.insert("1.0", f.read())
-        text_widget.edit_modified(False)
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r", encoding="utf-8") as jf:
+                data = json.load(jf)
+                text_widget.insert("1.0", data.get("notes_text", ""))
+            text_widget.edit_modified(False)
+        except Exception:
+            pass
 
     return frame
 

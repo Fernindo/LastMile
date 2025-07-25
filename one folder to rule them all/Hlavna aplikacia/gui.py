@@ -795,7 +795,7 @@ def start(project_dir, json_path):
         left_btn_frame,
         text="Poznámky",
         bootstyle="secondary",
-        command=lambda: show_notes_popup(project_name, json_dir)
+        command=lambda: show_notes_popup(project_name, commit_file)
     )
     notes_btn.pack(side="left", padx=(0, 10))
 
@@ -814,7 +814,7 @@ def start(project_dir, json_path):
                 update_excel_from_basket(
                     basket,
                     project_entry.get(),
-                    json_dir,
+                    commit_file,
                     definicia_text=definition_entry.get()
                 )
             finally:
@@ -1139,7 +1139,7 @@ def start(project_dir, json_path):
             ):
                 return
 
-        notes_list = get_current_notes(project_name, json_dir)
+        notes_list = get_current_notes(project_name, commit_file)
 
         out = {
             "project": project_name,

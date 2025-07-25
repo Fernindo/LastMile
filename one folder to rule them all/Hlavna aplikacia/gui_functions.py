@@ -11,6 +11,7 @@ from tkinter import messagebox, simpledialog
 import unicodedata
 from collections import OrderedDict
 import copy
+import json
 
 from basket import Basket, BasketItem
 
@@ -292,7 +293,7 @@ def reorder_basket_data(basket_tree, basket: Basket):
     """Pull edits from the Treeview back into the Basket object."""
     basket.reorder_from_tree(basket_tree)
 
-def update_excel_from_basket(basket: Basket, project_name, json_dir, definicia_text=""):
+def update_excel_from_basket(basket: Basket, project_name, json_path, definicia_text=""):
     """
     Otvorí dialógové okno na výber miesta uloženia a vytvorí Excel súbor.
     """
@@ -318,19 +319,10 @@ def update_excel_from_basket(basket: Basket, project_name, json_dir, definicia_t
             ))
 
     # Load checked notes if available
-    notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
     notes_lines = []
-    if os.path.exists(notes_path):
-        try:
-            with open(notes_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.rstrip("\n")
-                    if "|" in line:
-                        state, text = line.split("|", 1)
-                        if state == "1":
-                            notes_lines.append(text)
-        except Exception:
-            pass
+    for n in get_current_notes(project_name, json_path):
+        if int(n.get("state", 0)) == 1:
+            notes_lines.append(n.get("text", ""))
 
     notes_text = "\n".join(notes_lines) if notes_lines else ""
 
@@ -641,9 +633,19 @@ def add_custom_item(basket_tree, basket: Basket,
 
     popup.wait_window()
 
-def show_notes_popup(project_name, json_dir):
+def show_notes_popup(project_name, json_path):
     """Open a popup with checkable notes for the given project."""
-    notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
+    items = []
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r", encoding="utf-8") as jf:
+                data = json.load(jf)
+                for n in data.get("notes", []):
+                    text = n.get("text", "")
+                    if text:
+                        items.append((int(n.get("state", 0)), text))
+        except Exception:
+            items = []
 
     default_items = [
         "Záručná doba na pasívne časti systému (kabeláž, rozvádzače, konektory) je 60mesiacov.",
@@ -657,18 +659,6 @@ def show_notes_popup(project_name, json_dir):
         "Pre uplatnenie si záruky je objednávateľ povinný vyzvať spol. LAST MILE spol. s r.o. k servisu.",
         "Platnosť cenovej ponuky: dd.mm.rrrr",
     ]
-
-    items = []
-    if os.path.exists(notes_path):
-        try:
-            with open(notes_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.rstrip("\n")
-                    if "|" in line:
-                        state, text = line.split("|", 1)
-                        items.append((int(state), text))
-        except Exception:
-            items = [(0, t) for t in default_items]
 
     if not items:
         items = [(0, t) for t in default_items]
@@ -754,14 +744,24 @@ def show_notes_popup(project_name, json_dir):
         create_note("", checked=True, editable=True)
 
     def _save_to_file():
-        with open(notes_path, "w", encoding="utf-8") as f:
-            for var, text in vars_items:
-                if isinstance(text, tk.Entry):
-                    t = text.get().strip()
-                else:
-                    t = text.strip()
-                if t:
-                    f.write(f"{var.get()}|{t}\n")
+        data = {}
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, "r", encoding="utf-8") as jf:
+                    data = json.load(jf)
+            except Exception:
+                data = {}
+        notes_data = []
+        for var, text in vars_items:
+            if isinstance(text, tk.Entry):
+                t = text.get().strip()
+            else:
+                t = text.strip()
+            if t:
+                notes_data.append({"state": int(var.get()), "text": t})
+        data["notes"] = notes_data
+        with open(json_path, "w", encoding="utf-8") as jf:
+            json.dump(data, jf, ensure_ascii=False, indent=2)
 
     def save_notes():
         try:
@@ -798,7 +798,7 @@ def show_notes_popup(project_name, json_dir):
     notes_window.wait_window()
 
 
-def get_current_notes(project_name, json_dir):
+def get_current_notes(project_name, json_path):
     """Return a list of note dictionaries currently in the UI or saved on disk."""
     vars_items = NOTES_UI_STATE.get(project_name)
     if vars_items is not None:
@@ -812,16 +812,15 @@ def get_current_notes(project_name, json_dir):
                 notes.append({"state": int(var.get()), "text": t})
         return notes
 
-    notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
     notes = []
-    if os.path.exists(notes_path):
+    if os.path.exists(json_path):
         try:
-            with open(notes_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.rstrip("\n")
-                    if "|" in line:
-                        state, text = line.split("|", 1)
-                        notes.append({"state": int(state), "text": text})
+            with open(json_path, "r", encoding="utf-8") as jf:
+                data = json.load(jf)
+                for n in data.get("notes", []):
+                    text = n.get("text", "")
+                    if text:
+                        notes.append({"state": int(n.get("state", 0)), "text": text})
         except Exception:
             notes = []
     return notes
