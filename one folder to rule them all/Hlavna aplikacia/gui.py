@@ -957,7 +957,7 @@ def start(project_dir, json_path):
 
     # ─── Initialize basket state ──────────────────────────────────────────
     basket = Basket()
-    basket_items_loaded, saved = load_basket(json_dir, project_name, file_path=commit_file)
+    basket_items_loaded, saved, _ = load_basket(json_dir, project_name, file_path=commit_file)
     for sec, prods in basket_items_loaded.items():
         for pname, data in prods.items():
             basket.add_item(
@@ -1138,9 +1138,23 @@ def start(project_dir, json_path):
             ):
                 return
 
+        notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
+        notes_list = []
+        if os.path.exists(notes_path):
+            try:
+                with open(notes_path, "r", encoding="utf-8") as nf:
+                    for line in nf:
+                        line = line.rstrip("\n")
+                        if "|" in line:
+                            state, text = line.split("|", 1)
+                            notes_list.append({"state": int(state), "text": text})
+            except Exception:
+                notes_list = []
+
         out = {
             "project": project_name,
-            "items": []
+            "items": [],
+            "notes": notes_list,
         }
         for section, prods in basket.items.items():
             sec_obj = {"section": section, "products": []}
