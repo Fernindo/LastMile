@@ -41,6 +41,7 @@ from gui_functions import (
     reset_items,
     add_custom_item,
     show_notes_popup,
+    get_current_notes,
     show_recommendations_popup
 )
 
@@ -1138,18 +1139,7 @@ def start(project_dir, json_path):
             ):
                 return
 
-        notes_path = os.path.join(json_dir, f"notes_{project_name}.txt")
-        notes_list = []
-        if os.path.exists(notes_path):
-            try:
-                with open(notes_path, "r", encoding="utf-8") as nf:
-                    for line in nf:
-                        line = line.rstrip("\n")
-                        if "|" in line:
-                            state, text = line.split("|", 1)
-                            notes_list.append({"state": int(state), "text": text})
-            except Exception:
-                notes_list = []
+        notes_list = get_current_notes(project_name, json_dir)
 
         out = {
             "project": project_name,

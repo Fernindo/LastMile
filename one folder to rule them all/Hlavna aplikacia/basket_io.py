@@ -10,7 +10,13 @@ from typing import Optional
 from tkinter import filedialog, messagebox
 
 
-def save_basket(project_path: str, project_name: str, basket_items, user_name: str = "") -> bool:
+def save_basket(
+    project_path: str,
+    project_name: str,
+    basket_items,
+    user_name: str = "",
+    notes: list | None = None,
+) -> bool:
     os.makedirs(project_path, exist_ok=True)
     default_name = f"basket_{datetime.now():%Y-%m-%d_%H-%M-%S}.json"
     file_path = filedialog.asksaveasfilename(
@@ -23,18 +29,21 @@ def save_basket(project_path: str, project_name: str, basket_items, user_name: s
     if not file_path:
         return False
 
-    notes_path = os.path.join(project_path, f"notes_{project_name}.txt")
     notes_list = []
-    if os.path.exists(notes_path):
-        try:
-            with open(notes_path, "r", encoding="utf-8") as nf:
-                for line in nf:
-                    line = line.rstrip("\n")
-                    if "|" in line:
-                        state, text = line.split("|", 1)
-                        notes_list.append({"state": int(state), "text": text})
-        except Exception:
-            notes_list = []
+    if notes is not None:
+        notes_list = notes
+    else:
+        notes_path = os.path.join(project_path, f"notes_{project_name}.txt")
+        if os.path.exists(notes_path):
+            try:
+                with open(notes_path, "r", encoding="utf-8") as nf:
+                    for line in nf:
+                        line = line.rstrip("\n")
+                        if "|" in line:
+                            state, text = line.split("|", 1)
+                            notes_list.append({"state": int(state), "text": text})
+            except Exception:
+                notes_list = []
 
     out = {"user_name": user_name, "items": [], "notes": notes_list}
     for section, prods in basket_items.items():
