@@ -1089,6 +1089,9 @@ def start(project_dir, json_path):
         if not selected:
             return
         db_values = selected["values"]
+        # Skip header rows which only contain two values
+        if len(db_values) < 8:
+            return
 
         # 1) Insert base product into the basket
         add_to_basket_full(
