@@ -1,0 +1,53 @@
+{
+  "user_name": "",
+  "basket": {
+    "Rozvádzače": {
+      "produkt": {
+        "jednotky": "ks",
+        "dodavatel": "Feri2",
+        "odkaz": "bbbbb",
+        "koeficient": 1.1,
+        "nakup_materialu": 120.0,
+        "cena prace": 20.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      }
+    },
+    "Výbava rozvádzačov": {
+      "produkt 3": {
+        "jednotky": "ks",
+        "dodavatel": "ja",
+        "odkaz": "ne",
+        "koeficient": 1.1,
+        "nakup_materialu": 140.0,
+        "cena prace": 56.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      }
+    },
+    "Záložné zdroje – rozšírené": {
+      "Produkt 17": {
+        "jednotky": "ks",
+        "dodavatel": "Generic",
+        "odkaz": "https://example.com/zalozne_zdroje_extended/17",
+        "koeficient": 1.0,
+        "nakup_materialu": 100.0,
+        "cena prace": 15.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      }
+    },
+    "Záznamové zariadenia (NVR)": {
+      "NVR 4-kanál": {
+        "jednotky": "ks",
+        "dodavatel": "Hikvision",
+        "odkaz": "https://example.com/nvr/15",
+        "koeficient": 1.1,
+        "nakup_materialu": 180.0,
+        "cena prace": 35.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      }
+    }
+  }
+}

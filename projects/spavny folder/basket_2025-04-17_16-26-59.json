@@ -1,0 +1,17 @@
+{
+  "user_name": "",
+  "basket": {
+    "Rozvádzače": {
+      "produkt": {
+        "jednotky": "ks",
+        "dodavatel": "Feri2",
+        "odkaz": "bbbbb",
+        "koeficient": 1.1,
+        "nakup_materialu": 120.0,
+        "cena prace": 20.0,
+        "pocet_materialu": 1,
+        "pocet_prace": 1
+      }
+    }
+  }
+}
