@@ -675,9 +675,29 @@ def start(project_dir, json_path):
                 total_material_var,
             )
 
+        prod_name = basket_tree.item(iid)["values"][0]
+
+        def do_show_recs():
+            show_recommendations_popup(
+                cursor,
+                db_type,
+                prod_name,
+                basket,
+                conn,
+                basket_tree,
+                mark_modified,
+                total_spolu_var,
+                total_praca_var,
+                total_material_var,
+            )
+
         menu.add_command(
             label="Reset položky",
             command=do_reset,
+        )
+        menu.add_command(
+            label="⭐ Odporúčané",
+            command=do_show_recs,
         )
         menu.post(event.x_root, event.y_root)
 
