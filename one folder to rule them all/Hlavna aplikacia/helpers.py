@@ -198,8 +198,19 @@ def show_praca_window(cursor):
 
     praca_window = tk.Toplevel()
     praca_window.title("🛠️ Odhad pracovnej činnosti")
-    praca_window.geometry("1000x500")
+
+    # --- Dynamická veľkosť podľa rozlíšenia obrazovky
+    screen_width = praca_window.winfo_screenwidth()
+    screen_height = praca_window.winfo_screenheight()
+    width = int(screen_width * 0.6)   
+    height = int(screen_height * 0.4)  
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+    praca_window.geometry(f"{width}x{height}+{x}+{y}")
     praca_window.configure(bg="#f9f9f9")
+
+    praca_window.minsize(800, 400)  # minimálna veľkosť, ak sa používateľ pokúsi zmenšiť
+
 
     entries = []
     celkovy_predaj_var = tk.StringVar(value="0.00")
