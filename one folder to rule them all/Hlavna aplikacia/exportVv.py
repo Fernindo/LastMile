@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+import subprocess
 from tkinter import filedialog
 
 import xlwings as xw
@@ -149,6 +150,15 @@ def export_vv(selected_items, project_name, notes_text="", definicia_text="", pr
         wb.close()
         app.quit()
         print(f"✅ Výkaz výmer exportovaný do: {new_file}")
+        try:
+            if sys.platform.startswith("darwin"):
+                subprocess.Popen(["open", new_file])
+            elif os.name == "nt":
+                os.startfile(new_file)
+            else:
+                subprocess.Popen(["xdg-open", new_file])
+        except Exception as e:
+            print(f"⚠ Unable to open the file: {e}")
 
     except Exception as e:
         print("❌ Chyba počas exportu VV.")
