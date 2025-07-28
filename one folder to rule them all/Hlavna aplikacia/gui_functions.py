@@ -977,7 +977,7 @@ def show_recommendations_popup(
     tree.bind("<Configure>", adjust_cols)
 
     tk.Button(win, text="Zatvoriť", command=win.destroy).pack(pady=5)
-    win.geometry("800x450")
+    win.geometry("1000x450")
     win.transient()
     win.grab_set()
     win.wait_window()

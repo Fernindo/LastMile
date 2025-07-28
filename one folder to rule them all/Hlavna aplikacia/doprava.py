@@ -51,6 +51,15 @@ def show_doprava_window():
 
     vysledok_spolu_var = StringVar(value="0.00 €")
 
+    for var in (
+        cena_vyjazd_var,
+        pocet_vyjazdov_var,
+        cena_km_var,
+        vzdialenost_var,
+        pocet_ciest_var,
+    ):
+        var.trace_add("write", lambda *a: compute_and_update())
+
     # --- Bratislava sekcia
     frame_ba = tk.LabelFrame(win, text="🚗 V Bratislave", padx=10, pady=10)
     frame_ba.pack(fill="x", padx=10, pady=(10, 5))
@@ -61,7 +70,14 @@ def show_doprava_window():
     bind_all(entry_cena)
 
     tk.Label(frame_ba, text="Počet výjazdov:").pack(anchor="w")
-    spin_vyjazdy = tk.Spinbox(frame_ba, from_=0, to=100, increment=1, textvariable=pocet_vyjazdov_var)
+    spin_vyjazdy = tk.Spinbox(
+        frame_ba,
+        from_=0,
+        to=100,
+        increment=1,
+        textvariable=pocet_vyjazdov_var,
+        command=compute_and_update,
+    )
     spin_vyjazdy.pack(fill="x", expand=True)
     bind_all(spin_vyjazdy)
 
@@ -78,12 +94,26 @@ def show_doprava_window():
     bind_all(entry_km)
 
     tk.Label(frame_mimo, text="Vzdialenosť (km):").pack(anchor="w")
-    spin_km = tk.Spinbox(frame_mimo, from_=0, to=1000, increment=1, textvariable=vzdialenost_var)
+    spin_km = tk.Spinbox(
+        frame_mimo,
+        from_=0,
+        to=1000,
+        increment=1,
+        textvariable=vzdialenost_var,
+        command=compute_and_update,
+    )
     spin_km.pack(fill="x", expand=True)
     bind_all(spin_km)
 
     tk.Label(frame_mimo, text="Počet ciest (tam a späť):").pack(anchor="w")
-    spin_cesty = tk.Spinbox(frame_mimo, from_=0, to=100, increment=1, textvariable=pocet_ciest_var)
+    spin_cesty = tk.Spinbox(
+        frame_mimo,
+        from_=0,
+        to=100,
+        increment=1,
+        textvariable=pocet_ciest_var,
+        command=compute_and_update,
+    )
     spin_cesty.pack(fill="x", expand=True)
     bind_all(spin_cesty)
 
