@@ -82,9 +82,11 @@ def start(project_dir, json_path):
     # --- Dynamic scaling based on screen size -----------------------------
     screen_w = root.winfo_screenwidth()
 
-    # Use a slightly smaller reference width so laptops don't scale down
+    # Enlarge fonts when the screen is narrower than ``base_w`` so the UI
+    # remains readable on small displays. Wider screens keep the default
+    # size without scaling down.
     base_w = 1600
-    scale = max(1.0, min(1.5, screen_w / base_w))
+    scale = max(1.0, min(1.5, base_w / screen_w))
 
     
 
