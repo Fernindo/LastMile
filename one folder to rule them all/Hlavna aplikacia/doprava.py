@@ -20,12 +20,20 @@ def show_doprava_window():
     def bind_all(widget):
         widget.bind("<KeyRelease>", compute_and_update)
         widget.bind("<FocusOut>", compute_and_update)
-        widget.bind("<ButtonRelease>", compute_and_update)  # šípky v Spinboxe
+        widget.bind("<ButtonRelease>", compute_and_update)
 
     win = tk.Toplevel()
     win.title("Výpočet dopravy")
-    win.geometry("340x440")
-    win.resizable(False, False)
+
+    # Dynamická veľkosť okna podľa rozlíšenia obrazovky
+    screen_width = win.winfo_screenwidth()
+    screen_height = win.winfo_screenheight()
+    width = int(screen_width * 0.2)
+    height = int(screen_height * 0.55)
+    x = (screen_width // 2) - (width // 2)
+    y = (screen_height // 2) - (height // 2)
+    win.geometry(f"{width}x{height}+{x}+{y}")
+    win.minsize(300, 400)  # minimálna veľkosť, ak by sa zmenšovalo
 
     # --- Premenné
     cena_vyjazd_var = StringVar(value="30.00")
@@ -45,12 +53,12 @@ def show_doprava_window():
 
     tk.Label(frame_ba, text="Cena za 1 výjazd (€):").pack(anchor="w")
     entry_cena = tk.Entry(frame_ba, textvariable=cena_vyjazd_var)
-    entry_cena.pack(fill="x")
+    entry_cena.pack(fill="x", expand=True)
     bind_all(entry_cena)
 
     tk.Label(frame_ba, text="Počet výjazdov:").pack(anchor="w")
     spin_vyjazdy = tk.Spinbox(frame_ba, from_=0, to=100, increment=1, textvariable=pocet_vyjazdov_var)
-    spin_vyjazdy.pack(fill="x")
+    spin_vyjazdy.pack(fill="x", expand=True)
     bind_all(spin_vyjazdy)
 
     tk.Label(frame_ba, text="Celková cena (BA):").pack(anchor="w", pady=(5, 0))
@@ -62,17 +70,17 @@ def show_doprava_window():
 
     tk.Label(frame_mimo, text="Cena za 1 km (€):").pack(anchor="w")
     entry_km = tk.Entry(frame_mimo, textvariable=cena_km_var)
-    entry_km.pack(fill="x")
+    entry_km.pack(fill="x", expand=True)
     bind_all(entry_km)
 
     tk.Label(frame_mimo, text="Vzdialenosť (km):").pack(anchor="w")
     spin_km = tk.Spinbox(frame_mimo, from_=0, to=1000, increment=1, textvariable=vzdialenost_var)
-    spin_km.pack(fill="x")
+    spin_km.pack(fill="x", expand=True)
     bind_all(spin_km)
 
     tk.Label(frame_mimo, text="Počet ciest (tam a späť):").pack(anchor="w")
     spin_cesty = tk.Spinbox(frame_mimo, from_=0, to=100, increment=1, textvariable=pocet_ciest_var)
-    spin_cesty.pack(fill="x")
+    spin_cesty.pack(fill="x", expand=True)
     bind_all(spin_cesty)
 
     tk.Label(frame_mimo, text="Celková cena (mimo BA):").pack(anchor="w", pady=(5, 0))
