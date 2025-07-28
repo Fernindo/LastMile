@@ -59,13 +59,22 @@ def create_filter_panel(parent, on_mousewheel_callback, width_fraction=0.2, min_
     filter_container = tk.Frame(parent, bg="white")
     filter_container.pack_propagate(False)
 
-    def _adjust_width(event):
-        total_w = event.width
+    resize_job = [None]
+
+    def _set_width(total_w):
         target = int(total_w * width_fraction)
         target = max(min(target, max_width), min_width)
-        filter_container.config(width=target)
+        if abs(filter_container.winfo_width() - target) > 1:
+            filter_container.config(width=target)
+
+    def _adjust_width(event):
+        if resize_job[0] is not None:
+            filter_container.after_cancel(resize_job[0])
+        resize_job[0] = filter_container.after(100, lambda w=event.width: _set_width(w))
 
     parent.bind("<Configure>", _adjust_width)
+    parent.update_idletasks()
+    _set_width(parent.winfo_width())
 
     canvas = tk.Canvas(filter_container, bg="white", highlightthickness=0)
     h_scrollbar = tk.Scrollbar(filter_container, orient="horizontal", command=canvas.xview)
