@@ -198,7 +198,8 @@ def create_notes_panel(parent, project_name, json_path):
 # Work estimation window (from praca.py)
 # ---------------------------------------------------------------------------
 def show_praca_window(cursor):
-    from tkinter import messagebox  # ak nie je naimportované
+    from tkinter import messagebox
+
     cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly")
     roles = cursor.fetchall()
     if not roles:
@@ -208,11 +209,10 @@ def show_praca_window(cursor):
     praca_window = tk.Toplevel()
     praca_window.title("🛠️ Odhad pracovnej činnosti")
 
-    # Dynamická veľkosť podľa obrazovky
     screen_width = praca_window.winfo_screenwidth()
     screen_height = praca_window.winfo_screenheight()
-    width = int(screen_width * 0.6)
-    height = int(screen_height * 0.5)
+    width = int(screen_width * 0.5)
+    height = int(screen_height * 0.3)
     x = (screen_width - width) // 2
     y = (screen_height - height) // 2
     praca_window.geometry(f"{width}x{height}+{x}+{y}")
@@ -220,9 +220,14 @@ def show_praca_window(cursor):
     praca_window.minsize(800, 400)
 
     entries = []
-    celkovy_predaj_var = tk.StringVar(value="0.00")
+    praca_nakup_var = tk.StringVar(value="0.00")
+    praca_predaj_var = tk.StringVar(value="0.00")
+    praca_marza_var = tk.StringVar(value="0.00")
 
     def recalculate():
+        nakup_sum = 0.0
+        predaj_sum = 0.0
+
         for row in entries:
             try:
                 osoby = int(row["osoby_var"].get())
@@ -233,14 +238,14 @@ def show_praca_window(cursor):
                 predaj = spolu * koef
                 row["spolu_label"].config(text=f"{spolu:.2f}")
                 row["predaj_var"].set(f"{predaj:.2f}")
+                nakup_sum += spolu
+                predaj_sum += predaj
             except Exception:
                 continue
 
-        try:
-            suma = sum(parse_float(r["predaj_var"].get()) for r in entries)
-        except Exception:
-            suma = 0.0
-        celkovy_predaj_var.set(f"{suma:.2f}")
+        praca_nakup_var.set(f"{nakup_sum:.2f}")
+        praca_predaj_var.set(f"{predaj_sum:.2f}")
+        praca_marza_var.set(f"{predaj_sum - nakup_sum:.2f}")
 
     def change_int(var, delta, minimum=0):
         try:
@@ -268,14 +273,14 @@ def show_praca_window(cursor):
         tk.Entry(table_frame, textvariable=row["rola_var"], width=20, justify="center").grid(row=idx, column=0, padx=3, pady=2)
 
         row["osoby_var"] = tk.StringVar(value="1")
-        tk.Button(table_frame, text="−", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1)
+        tk.Button(table_frame, text="−", width=2, command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1)
         tk.Entry(table_frame, textvariable=row["osoby_var"], width=5, justify="center").grid(row=idx, column=2)
-        tk.Button(table_frame, text="+", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3)
+        tk.Button(table_frame, text="+", width=2, command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3)
 
         row["hodiny_var"] = tk.StringVar(value="8")
-        tk.Button(table_frame, text="−", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4)
+        tk.Button(table_frame, text="−", width=2, command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4)
         tk.Entry(table_frame, textvariable=row["hodiny_var"], width=5, justify="center").grid(row=idx, column=5)
-        tk.Button(table_frame, text="+", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6)
+        tk.Button(table_frame, text="+", width=2, command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6)
 
         row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", width=9, relief="groove", anchor="center", bg="#ffffff")
         row["plat_label"].grid(row=idx, column=7)
@@ -284,18 +289,15 @@ def show_praca_window(cursor):
         row["spolu_label"].grid(row=idx, column=8)
 
         row["koef_var"] = tk.StringVar(value="1.0")
-        tk.Button(table_frame, text="−", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9)
+        tk.Button(table_frame, text="−", width=2, command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9)
         tk.Entry(table_frame, textvariable=row["koef_var"], width=5, justify="center").grid(row=idx, column=10)
-        tk.Button(table_frame, text="+", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11)
+        tk.Button(table_frame, text="+", width=2, command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11)
 
         row["predaj_var"] = tk.StringVar(value="0.00")
         tk.Entry(table_frame, textvariable=row["predaj_var"], width=9, justify="center").grid(row=idx, column=12)
 
-        row["del_btn"] = tk.Button(
-            table_frame, text="✖", width=2, bg="#ffc9c9", relief="ridge",
-            command=lambda r=row: remove_specific_row(r)
-        )
-        row["del_btn"].grid(row=idx, column=13, padx=2)
+        row["del_btn"] = tk.Button(table_frame, text="✖", width=2, bg="#ffc9c9", command=lambda r=row: remove_specific_row(r))
+        row["del_btn"].grid(row=idx, column=13)
 
         entries.append(row)
         recalculate()
@@ -363,5 +365,12 @@ def show_praca_window(cursor):
 
     summary_frame = tk.Frame(praca_window, bg="#e9f0fb")
     summary_frame.pack(fill="x", padx=15, pady=(0, 15))
-    tk.Label(summary_frame, text="Celkový predaj:", font=("Segoe UI", 15, "bold"), bg="#e9f0fb").pack(side="left")
-    tk.Label(summary_frame, textvariable=celkovy_predaj_var, font=("Segoe UI", 15), bg="#e9f0fb").pack(side="left", padx=(5, 0))
+
+    tk.Label(summary_frame, text="Práca nákup:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
+    tk.Label(summary_frame, textvariable=praca_nakup_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 15))
+
+    tk.Label(summary_frame, text="Práca predaj:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
+    tk.Label(summary_frame, textvariable=praca_predaj_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 15))
+
+    tk.Label(summary_frame, text="Práca marža:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
+    tk.Label(summary_frame, textvariable=praca_marza_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left")
