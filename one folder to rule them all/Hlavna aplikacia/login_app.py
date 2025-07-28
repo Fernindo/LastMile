@@ -15,7 +15,6 @@ class login_app:
         self.root = root
         self.root.title("Prihlásenie")
         self.root.geometry("420x200")
-        self.root.minsize(360, 200)
         self.center_window(self.root)
 
         self.credentials_file = "saved_credentials.json"
@@ -31,22 +30,13 @@ class login_app:
 
         # Password
         tb.Label(frame, text="Heslo:").grid(row=1, column=0, sticky="e", padx=5, pady=5)
-
-        pass_frame = tb.Frame(frame)
-        pass_frame.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
-        frame.columnconfigure(1, weight=1)
-
-        self.password_entry = tb.Entry(pass_frame, show="*")
-        self.password_entry.pack(side="left", fill="x", expand=True)
+        self.password_entry = tb.Entry(frame, show="*", width=25)
+        self.password_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         self.toggle_button = tb.Button(
-            pass_frame,
-            text="●",
-            width=2,
-            relief="flat",
-            command=self.toggle_password_visibility
+            frame, text="●", width=2, relief="flat", command=self.toggle_password_visibility
         )
-        self.toggle_button.pack(side="left", padx=(5, 0))
+        self.toggle_button.grid(row=1, column=2, padx=0, sticky="w")
 
         # Zapamätať prihlásenie
         self.remember_var = tk.BooleanVar()
