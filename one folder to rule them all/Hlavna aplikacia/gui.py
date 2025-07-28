@@ -6,6 +6,24 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import ttkbootstrap as tb
 import json
+
+UI_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "ui_settings.json")
+
+def _load_ui_settings():
+    if os.path.exists(UI_SETTINGS_FILE):
+        try:
+            with open(UI_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def _save_ui_settings(data):
+    try:
+        with open(UI_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 from datetime import datetime
 import tkinter.simpledialog
 from ttkbootstrap import Style
@@ -90,14 +108,15 @@ def start(project_dir, json_path):
 
     root.tk.call("tk", "scaling", scale)
 
-    font_size = int(10 * scale)
-    row_h = int(24 * scale)
+    ui_settings = _load_ui_settings()
+    font_size_var = [int(ui_settings.get("table_font_size", int(10 * scale)))]
+    row_h = int(2.4 * font_size_var[0])
 
-    style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size))
-    style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size))
+    style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
+    style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
     root.title(f"Project: {project_name}")
     root.state("zoomed")
-    root.option_add("*Font", ("Segoe UI", font_size))
+    root.option_add("*Font", ("Segoe UI", font_size_var[0]))
 
     root.grid_rowconfigure(0, weight=1)
     # Start with the filter hidden so the main area spans the full width
@@ -1068,10 +1087,26 @@ def start(project_dir, json_path):
             c = idx % per_row
             chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
+        # --- Table font size -------------------------------------------
+        tk.Label(inner, text="Veľkosť textu tabuliek:", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        font_frame = tk.Frame(inner, bg="white")
+        font_frame.pack(anchor="w", padx=20)
+        spin = tk.Spinbox(font_frame, from_=8, to=24, textvariable=tk.IntVar(value=font_size_var[0]), width=5)
+        spin.pack(side="left")
+
         btn_frame = tk.Frame(inner, bg="white")
         btn_frame.pack(pady=10)
         def close_settings():
             update_displayed_columns()
+            try:
+                font_size_var[0] = int(spin.get())
+            except Exception:
+                font_size_var[0] = font_size_var[0]
+            row_h = int(2.4 * font_size_var[0])
+            style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
+            style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
+            root.option_add("*Font", ("Segoe UI", font_size_var[0]))
+            _save_ui_settings({"table_font_size": font_size_var[0]})
             settings_window[0] = None
             settings_win.destroy()
         tk.Button(btn_frame, text="Uložiť", command=close_settings).pack(side="left", padx=5)
