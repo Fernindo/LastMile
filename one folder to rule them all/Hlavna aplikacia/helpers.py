@@ -199,18 +199,16 @@ def show_praca_window(cursor):
     praca_window = tk.Toplevel()
     praca_window.title("🛠️ Odhad pracovnej činnosti")
 
-    # --- Dynamická veľkosť podľa rozlíšenia obrazovky
+    # Dynamická veľkosť podľa rozlíšenia obrazovky
     screen_width = praca_window.winfo_screenwidth()
     screen_height = praca_window.winfo_screenheight()
-    width = int(screen_width * 0.6)   
-    height = int(screen_height * 0.4)  
+    width = int(screen_width * 0.6)
+    height = int(screen_height * 0.4)
     x = (screen_width - width) // 2
     y = (screen_height - height) // 2
     praca_window.geometry(f"{width}x{height}+{x}+{y}")
     praca_window.configure(bg="#f9f9f9")
-
-    praca_window.minsize(800, 400)  # minimálna veľkosť, ak sa používateľ pokúsi zmenšiť
-
+    praca_window.minsize(800, 400)
 
     entries = []
     celkovy_predaj_var = tk.StringVar(value="0.00")
@@ -331,17 +329,25 @@ def show_praca_window(cursor):
 
     headers = [
         ("Rola", 25),
-        ("", 3), ("Osoby", 6), ("", 3),
-        ("", 3), ("Hodiny", 6), ("", 3),
+        ("-", 3), ("Osoby", 6), ("+", 3),
+        ("-", 3), ("Hodiny", 6), ("+", 3),
         ("Plat €/h", 10),
         ("Spolu", 10),
-        ("", 3), ("Koef.", 6), ("", 3),
+        ("-", 3), ("Koef.", 6), ("+", 3),
         ("Predaj", 10),
-        ("", 4),  # remove button column
+        ("", 4),  # delete
     ]
 
     for i, (text, width) in enumerate(headers):
-        tk.Label(table_frame, text=text, font=("Segoe UI", 10, "bold"), width=width, bg="#e6e6fa", relief="ridge").grid(row=0, column=i, padx=2, pady=2)
+        tk.Label(
+            table_frame,
+            text=text,
+            font=("Segoe UI", 10, "bold"),
+            width=width,
+            bg="#dfe7fd",
+            relief="ridge",
+            justify="center"
+        ).grid(row=0, column=i, padx=2, pady=4)
 
     for role in roles:
         _, rola, plat = role
@@ -351,5 +357,3 @@ def show_praca_window(cursor):
     summary_frame.pack(fill="x", padx=15, pady=(0, 15))
     tk.Label(summary_frame, text="Celkový predaj:", font=("Segoe UI", 15, "bold"), bg="#f9f9f9").pack(side="left")
     tk.Label(summary_frame, textvariable=celkovy_predaj_var, font=("Segoe UI", 15), bg="#f9f9f9").pack(side="left", padx=(5, 0))
-
-    # Allow the user to continue working while this window is open
