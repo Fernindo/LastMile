@@ -330,7 +330,8 @@ def start(project_dir, json_path):
         top,
         text="⚙️ Nastavenia",
         bootstyle="secondary",
-        command=lambda: open_settings()
+        command=lambda: open_settings(),
+        width=2
     )
     settings_btn.pack(side="right", padx=(5, 10))
 
