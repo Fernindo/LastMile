@@ -199,6 +199,7 @@ def create_notes_panel(parent, project_name, json_path):
 # ---------------------------------------------------------------------------
 def show_praca_window(cursor):
     from tkinter import messagebox
+    from ttkbootstrap import Button
 
     cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly")
     roles = cursor.fetchall()
@@ -211,7 +212,7 @@ def show_praca_window(cursor):
 
     screen_width = praca_window.winfo_screenwidth()
     screen_height = praca_window.winfo_screenheight()
-    width = int(screen_width * 0.5)
+    width = int(screen_width * 0.6)
     height = int(screen_height * 0.3)
     x = (screen_width - width) // 2
     y = (screen_height - height) // 2
@@ -265,39 +266,48 @@ def show_praca_window(cursor):
         except Exception:
             var.set(f"{minimum:.1f}")
 
+    def adjust_column(field, delta, is_float=False, minimum=0.1):
+        for row in entries:
+            var = row.get(field)
+            if var:
+                if is_float:
+                    change_float(var, delta, minimum)
+                else:
+                    change_int(var, delta, minimum)
+
     def add_row(role_id=None, rola="", plat=0.0):
         row = {}
         idx = len(entries) + 1
 
         row["rola_var"] = tk.StringVar(value=rola)
-        tk.Entry(table_frame, textvariable=row["rola_var"], width=20, justify="center").grid(row=idx, column=0, padx=3, pady=2)
+        tk.Entry(table_frame, textvariable=row["rola_var"], justify="center").grid(row=idx, column=0, padx=6, pady=4, sticky="nsew")
 
         row["osoby_var"] = tk.StringVar(value="1")
-        tk.Button(table_frame, text="−", width=2, command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1)
-        tk.Entry(table_frame, textvariable=row["osoby_var"], width=5, justify="center").grid(row=idx, column=2)
-        tk.Button(table_frame, text="+", width=2, command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3)
+        Button(table_frame, text="−", bootstyle="warning", command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1, sticky="nsew", padx=2, pady=(6, 2))
+        tk.Entry(table_frame, textvariable=row["osoby_var"], justify="center").grid(row=idx, column=2, sticky="nsew", padx=2)
+        Button(table_frame, text="+", bootstyle="warning", command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3, sticky="nsew", padx=2, pady=(6, 2))
 
         row["hodiny_var"] = tk.StringVar(value="8")
-        tk.Button(table_frame, text="−", width=2, command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4)
-        tk.Entry(table_frame, textvariable=row["hodiny_var"], width=5, justify="center").grid(row=idx, column=5)
-        tk.Button(table_frame, text="+", width=2, command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6)
+        Button(table_frame, text="−", bootstyle="warning", command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4, sticky="nsew", padx=2, pady=(6, 2))
+        tk.Entry(table_frame, textvariable=row["hodiny_var"], justify="center").grid(row=idx, column=5, sticky="nsew", padx=2)
+        Button(table_frame, text="+", bootstyle="warning", command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6, sticky="nsew", padx=2, pady=(6, 2))
 
-        row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", width=9, relief="groove", anchor="center", bg="#ffffff")
-        row["plat_label"].grid(row=idx, column=7)
+        row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", relief="groove", anchor="center", bg="#ffffff")
+        row["plat_label"].grid(row=idx, column=7, sticky="nsew", padx=2)
 
-        row["spolu_label"] = tk.Label(table_frame, text="0.00", width=9, relief="sunken", anchor="center", bg="#f0f0f0")
-        row["spolu_label"].grid(row=idx, column=8)
+        row["spolu_label"] = tk.Label(table_frame, text="0.00", relief="sunken", anchor="center", bg="#f0f0f0")
+        row["spolu_label"].grid(row=idx, column=8, sticky="nsew", padx=2)
 
         row["koef_var"] = tk.StringVar(value="1.0")
-        tk.Button(table_frame, text="−", width=2, command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9)
-        tk.Entry(table_frame, textvariable=row["koef_var"], width=5, justify="center").grid(row=idx, column=10)
-        tk.Button(table_frame, text="+", width=2, command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11)
+        Button(table_frame, text="−", bootstyle="warning", command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9, sticky="nsew", padx=2, pady=(6, 2))
+        tk.Entry(table_frame, textvariable=row["koef_var"], justify="center").grid(row=idx, column=10, sticky="nsew", padx=2)
+        Button(table_frame, text="+", bootstyle="warning", command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11, sticky="nsew", padx=2, pady=(6, 2))
 
         row["predaj_var"] = tk.StringVar(value="0.00")
-        tk.Entry(table_frame, textvariable=row["predaj_var"], width=9, justify="center").grid(row=idx, column=12)
+        tk.Entry(table_frame, textvariable=row["predaj_var"], justify="center").grid(row=idx, column=12, sticky="nsew", padx=2)
 
-        row["del_btn"] = tk.Button(table_frame, text="✖", width=2, bg="#ffc9c9", command=lambda r=row: remove_specific_row(r))
-        row["del_btn"].grid(row=idx, column=13)
+        row["del_btn"] = Button(table_frame, text="✖", bootstyle="danger", command=lambda r=row: remove_specific_row(r))
+        row["del_btn"].grid(row=idx, column=13, sticky="nsew", padx=2, pady=(6, 2))
 
         entries.append(row)
         recalculate()
@@ -333,7 +343,7 @@ def show_praca_window(cursor):
     Button(top_frame, text="❌ Odstrániť", bootstyle="danger", width=12, command=remove_row).pack(side="left", padx=10)
 
     global table_frame
-    table_frame = tk.Frame(praca_window, bg="#f2f2f2", bd=2, relief="ridge", padx=4, pady=4)
+    table_frame = tk.Frame(praca_window, bg="#f2f2f2", bd=2, relief="ridge")
     table_frame.pack(fill="both", expand=True, padx=15, pady=10)
 
     headers = [
@@ -344,11 +354,10 @@ def show_praca_window(cursor):
         ("Spolu", 9),
         ("−", 2), ("Koef.", 5), ("+", 2),
         ("Predaj", 9),
-        ("", 3),
     ]
 
     for i, (text, width) in enumerate(headers):
-        tk.Label(
+        label = tk.Label(
             table_frame,
             text=text,
             font=("Segoe UI", 9, "bold"),
@@ -357,7 +366,19 @@ def show_praca_window(cursor):
             relief="ridge",
             justify="center",
             pady=5
-        ).grid(row=0, column=i, padx=1, pady=1)
+        )
+        label.grid(row=0, column=i, padx=6, pady=4, sticky="nsew")
+        table_frame.grid_columnconfigure(i, weight=1)
+
+        # Interaktívne hlavičky
+        if text == "−" and i in (1, 4, 9):
+            field = "osoby_var" if i == 1 else "hodiny_var" if i == 4 else "koef_var"
+            is_float = i == 9
+            label.bind("<Button-1>", lambda e, f=field, fl=is_float: adjust_column(f, -1 if not fl else -0.1, fl))
+        elif text == "+" and i in (3, 6, 11):
+            field = "osoby_var" if i == 3 else "hodiny_var" if i == 6 else "koef_var"
+            is_float = i == 11
+            label.bind("<Button-1>", lambda e, f=field, fl=is_float: adjust_column(f, 1 if not fl else 0.1, fl))
 
     for role in roles:
         _, rola, plat = role
@@ -367,10 +388,10 @@ def show_praca_window(cursor):
     summary_frame.pack(fill="x", padx=15, pady=(0, 15))
 
     tk.Label(summary_frame, text="Práca nákup:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
-    tk.Label(summary_frame, textvariable=praca_nakup_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 15))
+    tk.Label(summary_frame, textvariable=praca_nakup_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
 
     tk.Label(summary_frame, text="Práca predaj:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
-    tk.Label(summary_frame, textvariable=praca_predaj_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 15))
+    tk.Label(summary_frame, textvariable=praca_predaj_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
 
     tk.Label(summary_frame, text="Práca marža:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
     tk.Label(summary_frame, textvariable=praca_marza_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left")

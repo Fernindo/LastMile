@@ -25,6 +25,8 @@ def _save_settings(data):
 
 
 def show_doprava_window():
+    from ttkbootstrap import Button
+
     def compute_and_update(event=None):
         try:
             ba_total = float(cena_vyjazd_var.get()) * float(pocet_vyjazdov_var.get())
@@ -48,20 +50,40 @@ def show_doprava_window():
         widget.bind("<FocusOut>", compute_and_update)
         widget.bind("<ButtonRelease>", compute_and_update)
 
+    def make_spin_row(parent, label_text, var, min_value=0, step=1):
+        tk.Label(parent, text=label_text).pack(anchor="w")
+        row = tk.Frame(parent)
+        row.pack(fill="x", expand=True, pady=2)
+
+        entry = tk.Entry(row, textvariable=var, justify="center")
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        bind_all(entry)
+
+        btn_frame = tk.Frame(row)
+        btn_frame.pack(side="right")
+
+        Button(btn_frame, text="−", width=3, bootstyle="warning",
+               command=lambda: var.set(str(max(min_value, int(var.get() or "0") - step))))
+        Button(btn_frame, text="+", width=3, bootstyle="warning",
+               command=lambda: var.set(str(int(var.get() or "0") + step)))
+
+        Button(btn_frame, text="−", width=3, bootstyle="warning",
+               command=lambda: var.set(str(max(min_value, int(var.get() or "0") - step)))).pack(side="left", padx=1)
+        Button(btn_frame, text="+", width=3, bootstyle="warning",
+               command=lambda: var.set(str(int(var.get() or "0") + step))).pack(side="left", padx=1)
+
     win = tk.Toplevel()
     win.title("Výpočet dopravy")
 
-    # Dynamická veľkosť okna podľa rozlíšenia obrazovky
     screen_width = win.winfo_screenwidth()
     screen_height = win.winfo_screenheight()
     width = int(screen_width * 0.2)
-    height = int(screen_height * 0.55)
+    height = int(screen_height * 0.45)
     x = (screen_width // 2) - (width // 2)
     y = (screen_height // 2) - (height // 2)
     win.geometry(f"{width}x{height}+{x}+{y}")
-    win.minsize(300, 400)  # minimálna veľkosť, ak by sa zmenšovalo
+    win.minsize(300, 400)
 
-    # --- Load saved values or use defaults
     settings = _load_settings()
 
     cena_vyjazd_var = StringVar(value=settings.get("cena_vyjazd", "30.00"))
@@ -84,7 +106,6 @@ def show_doprava_window():
     ):
         var.trace_add("write", lambda *a: compute_and_update())
 
-    # --- Bratislava sekcia
     frame_ba = tk.LabelFrame(win, text="🚗 V Bratislave", padx=10, pady=10)
     frame_ba.pack(fill="x", padx=10, pady=(10, 5))
 
@@ -93,22 +114,11 @@ def show_doprava_window():
     entry_cena.pack(fill="x", expand=True)
     bind_all(entry_cena)
 
-    tk.Label(frame_ba, text="Počet výjazdov:").pack(anchor="w")
-    spin_vyjazdy = tk.Spinbox(
-        frame_ba,
-        from_=0,
-        to=100,
-        increment=1,
-        textvariable=pocet_vyjazdov_var,
-        command=compute_and_update,
-    )
-    spin_vyjazdy.pack(fill="x", expand=True)
-    bind_all(spin_vyjazdy)
+    make_spin_row(frame_ba, "Počet výjazdov:", pocet_vyjazdov_var, min_value=0, step=1)
 
     tk.Label(frame_ba, text="Celková cena (BA):").pack(anchor="w", pady=(5, 0))
     tk.Label(frame_ba, textvariable=vysledok_ba_var, font=("Segoe UI", 10, "bold")).pack(anchor="w")
 
-    # --- mimo BA sekcia
     frame_mimo = tk.LabelFrame(win, text="🚐 Mimo Bratislavu", padx=10, pady=10)
     frame_mimo.pack(fill="x", padx=10, pady=(5, 5))
 
@@ -117,34 +127,12 @@ def show_doprava_window():
     entry_km.pack(fill="x", expand=True)
     bind_all(entry_km)
 
-    tk.Label(frame_mimo, text="Vzdialenosť (km):").pack(anchor="w")
-    spin_km = tk.Spinbox(
-        frame_mimo,
-        from_=0,
-        to=1000,
-        increment=1,
-        textvariable=vzdialenost_var,
-        command=compute_and_update,
-    )
-    spin_km.pack(fill="x", expand=True)
-    bind_all(spin_km)
-
-    tk.Label(frame_mimo, text="Počet ciest (tam a späť):").pack(anchor="w")
-    spin_cesty = tk.Spinbox(
-        frame_mimo,
-        from_=0,
-        to=100,
-        increment=1,
-        textvariable=pocet_ciest_var,
-        command=compute_and_update,
-    )
-    spin_cesty.pack(fill="x", expand=True)
-    bind_all(spin_cesty)
+    make_spin_row(frame_mimo, "Vzdialenosť (km):", vzdialenost_var, min_value=0, step=1)
+    make_spin_row(frame_mimo, "Počet ciest (tam a späť):", pocet_ciest_var, min_value=0, step=1)
 
     tk.Label(frame_mimo, text="Celková cena (mimo BA):").pack(anchor="w", pady=(5, 0))
     tk.Label(frame_mimo, textvariable=vysledok_mimo_var, font=("Segoe UI", 10, "bold")).pack(anchor="w")
 
-    # --- Spolu sekcia
     frame_spolu = tk.LabelFrame(win, text="💰 Spolu doprava", padx=10, pady=10)
     frame_spolu.pack(fill="x", padx=10, pady=(5, 10))
 
