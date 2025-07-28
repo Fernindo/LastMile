@@ -1,5 +1,27 @@
 import tkinter as tk
 from tkinter import StringVar
+import json
+import os
+
+SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "doprava_settings.json")
+
+
+def _load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_settings(data):
+    try:
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Chyba pri ukladaní nastavení dopravy: {e}")
 
 
 def show_doprava_window():
@@ -39,14 +61,16 @@ def show_doprava_window():
     win.geometry(f"{width}x{height}+{x}+{y}")
     win.minsize(300, 400)  # minimálna veľkosť, ak by sa zmenšovalo
 
-    # --- Premenné
-    cena_vyjazd_var = StringVar(value="30.00")
-    pocet_vyjazdov_var = StringVar(value="0")
+    # --- Load saved values or use defaults
+    settings = _load_settings()
+
+    cena_vyjazd_var = StringVar(value=settings.get("cena_vyjazd", "30.00"))
+    pocet_vyjazdov_var = StringVar(value=settings.get("pocet_vyjazdov", "0"))
     vysledok_ba_var = StringVar(value="0.00 €")
 
-    cena_km_var = StringVar(value="0.55")
-    vzdialenost_var = StringVar(value="0.0")
-    pocet_ciest_var = StringVar(value="0")
+    cena_km_var = StringVar(value=settings.get("cena_km", "0.55"))
+    vzdialenost_var = StringVar(value=settings.get("vzdialenost", "0.0"))
+    pocet_ciest_var = StringVar(value=settings.get("pocet_ciest", "0"))
     vysledok_mimo_var = StringVar(value="0.00 €")
 
     vysledok_spolu_var = StringVar(value="0.00 €")
@@ -128,3 +152,16 @@ def show_doprava_window():
     tk.Label(frame_spolu, textvariable=vysledok_spolu_var, font=("Segoe UI", 12, "bold")).pack(anchor="w")
 
     compute_and_update()
+
+    def on_close():
+        data = {
+            "cena_vyjazd": cena_vyjazd_var.get(),
+            "pocet_vyjazdov": pocet_vyjazdov_var.get(),
+            "cena_km": cena_km_var.get(),
+            "vzdialenost": vzdialenost_var.get(),
+            "pocet_ciest": pocet_ciest_var.get(),
+        }
+        _save_settings(data)
+        win.destroy()
+
+    win.protocol("WM_DELETE_WINDOW", on_close)
