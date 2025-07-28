@@ -13,6 +13,7 @@ import copy
 import json
 import tkinter.ttk as ttk
 from basket import Basket, BasketItem
+from types import SimpleNamespace
 
 # Keep track of open notes widgets so we can grab the latest values
 NOTES_UI_STATE: dict[str, list[tuple[tk.IntVar, object]]] = {}
@@ -975,6 +976,8 @@ def show_recommendations_popup(
             tree.column(c, width=width, stretch=True)
 
     tree.bind("<Configure>", adjust_cols)
+    win.update_idletasks()
+    adjust_cols(SimpleNamespace(width=tree.winfo_width()))
 
     tk.Button(win, text="Zatvoriť", command=win.destroy).pack(pady=5)
     win.geometry("1000x450")
