@@ -189,7 +189,7 @@ def create_notes_panel(parent, project_name, json_path):
 # Work estimation window (from praca.py)
 # ---------------------------------------------------------------------------
 def show_praca_window(cursor):
-    """Display a popup window for work/role estimation."""
+    from tkinter import messagebox  # ak nie je naimportované
     cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly")
     roles = cursor.fetchall()
     if not roles:
@@ -199,11 +199,11 @@ def show_praca_window(cursor):
     praca_window = tk.Toplevel()
     praca_window.title("🛠️ Odhad pracovnej činnosti")
 
-    # Dynamická veľkosť podľa rozlíšenia obrazovky
+    # Dynamická veľkosť podľa obrazovky
     screen_width = praca_window.winfo_screenwidth()
     screen_height = praca_window.winfo_screenheight()
     width = int(screen_width * 0.6)
-    height = int(screen_height * 0.4)
+    height = int(screen_height * 0.5)
     x = (screen_width - width) // 2
     y = (screen_height - height) // 2
     praca_window.geometry(f"{width}x{height}+{x}+{y}")
@@ -256,39 +256,37 @@ def show_praca_window(cursor):
         idx = len(entries) + 1
 
         row["rola_var"] = tk.StringVar(value=rola)
-        tk.Entry(table_frame, textvariable=row["rola_var"], width=25, justify="center").grid(row=idx, column=0, padx=4, pady=4)
+        tk.Entry(table_frame, textvariable=row["rola_var"], width=20, justify="center").grid(row=idx, column=0, padx=3, pady=2)
 
         row["osoby_var"] = tk.StringVar(value="1")
-        tk.Button(table_frame, text="-", width=3, command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1, padx=1)
-        tk.Entry(table_frame, textvariable=row["osoby_var"], width=6, justify="center").grid(row=idx, column=2, padx=1)
-        tk.Button(table_frame, text="+", width=3, command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3, padx=1)
+        tk.Button(table_frame, text="−", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1)
+        tk.Entry(table_frame, textvariable=row["osoby_var"], width=5, justify="center").grid(row=idx, column=2)
+        tk.Button(table_frame, text="+", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3)
 
         row["hodiny_var"] = tk.StringVar(value="8")
-        tk.Button(table_frame, text="-", width=3, command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4, padx=1)
-        tk.Entry(table_frame, textvariable=row["hodiny_var"], width=6, justify="center").grid(row=idx, column=5, padx=1)
-        tk.Button(table_frame, text="+", width=3, command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6, padx=1)
+        tk.Button(table_frame, text="−", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4)
+        tk.Entry(table_frame, textvariable=row["hodiny_var"], width=5, justify="center").grid(row=idx, column=5)
+        tk.Button(table_frame, text="+", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6)
 
-        row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", width=10, relief="groove", anchor="center", bg="#fff")
-        row["plat_label"].grid(row=idx, column=7, padx=4)
+        row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", width=9, relief="groove", anchor="center", bg="#ffffff")
+        row["plat_label"].grid(row=idx, column=7)
 
-        row["spolu_label"] = tk.Label(table_frame, text="0.00", width=10, relief="sunken", anchor="center", bg="#f0f0f0")
-        row["spolu_label"].grid(row=idx, column=8, padx=4)
+        row["spolu_label"] = tk.Label(table_frame, text="0.00", width=9, relief="sunken", anchor="center", bg="#f0f0f0")
+        row["spolu_label"].grid(row=idx, column=8)
 
         row["koef_var"] = tk.StringVar(value="1.0")
-        tk.Button(table_frame, text="-", width=3, command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9, padx=1)
-        tk.Entry(table_frame, textvariable=row["koef_var"], width=6, justify="center").grid(row=idx, column=10, padx=1)
-        tk.Button(table_frame, text="+", width=3, command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11, padx=1)
+        tk.Button(table_frame, text="−", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9)
+        tk.Entry(table_frame, textvariable=row["koef_var"], width=5, justify="center").grid(row=idx, column=10)
+        tk.Button(table_frame, text="+", width=2, height=1, bg="#dee2e6", relief="ridge", command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11)
 
         row["predaj_var"] = tk.StringVar(value="0.00")
-        tk.Entry(table_frame, textvariable=row["predaj_var"], width=10, justify="center").grid(row=idx, column=12, padx=4)
+        tk.Entry(table_frame, textvariable=row["predaj_var"], width=9, justify="center").grid(row=idx, column=12)
 
         row["del_btn"] = tk.Button(
-            table_frame,
-            text="❌",
-            width=3,
+            table_frame, text="✖", width=2, bg="#ffc9c9", relief="ridge",
             command=lambda r=row: remove_specific_row(r)
         )
-        row["del_btn"].grid(row=idx, column=13, padx=1)
+        row["del_btn"].grid(row=idx, column=13, padx=2)
 
         entries.append(row)
         recalculate()
@@ -318,42 +316,43 @@ def show_praca_window(cursor):
             idx = entries.index(row_dict)
             _remove_row_at(idx)
 
-    top_frame = tk.Frame(praca_window, bg="#f9f9f9")
-    top_frame.pack(fill="x", padx=15, pady=15)
+    top_frame = tk.Frame(praca_window, bg="#e9f0fb")
+    top_frame.pack(fill="x", padx=15, pady=10)
     Button(top_frame, text="➕ Pridať", bootstyle="success", width=12, command=lambda: add_row(rola="Nová rola", plat=0)).pack(side="left", padx=10)
     Button(top_frame, text="❌ Odstrániť", bootstyle="danger", width=12, command=remove_row).pack(side="left", padx=10)
 
     global table_frame
-    table_frame = tk.Frame(praca_window, bg="#fdfdfd", bd=2, relief="groove")
+    table_frame = tk.Frame(praca_window, bg="#f2f2f2", bd=2, relief="ridge", padx=4, pady=4)
     table_frame.pack(fill="both", expand=True, padx=15, pady=10)
 
     headers = [
-        ("Rola", 25),
-        ("-", 3), ("Osoby", 6), ("+", 3),
-        ("-", 3), ("Hodiny", 6), ("+", 3),
-        ("Plat €/h", 10),
-        ("Spolu", 10),
-        ("-", 3), ("Koef.", 6), ("+", 3),
-        ("Predaj", 10),
-        ("", 4),  # delete
+        ("Rola", 20),
+        ("−", 2), ("Osoby", 5), ("+", 2),
+        ("−", 2), ("Hodiny", 5), ("+", 2),
+        ("Plat €/h", 9),
+        ("Spolu", 9),
+        ("−", 2), ("Koef.", 5), ("+", 2),
+        ("Predaj", 9),
+        ("", 3),
     ]
 
     for i, (text, width) in enumerate(headers):
         tk.Label(
             table_frame,
             text=text,
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 9, "bold"),
             width=width,
-            bg="#dfe7fd",
+            bg="#cfe2ff",
             relief="ridge",
-            justify="center"
-        ).grid(row=0, column=i, padx=2, pady=4)
+            justify="center",
+            pady=5
+        ).grid(row=0, column=i, padx=1, pady=1)
 
     for role in roles:
         _, rola, plat = role
         add_row(role_id=role[0], rola=rola, plat=plat)
 
-    summary_frame = tk.Frame(praca_window, bg="#f9f9f9")
+    summary_frame = tk.Frame(praca_window, bg="#e9f0fb")
     summary_frame.pack(fill="x", padx=15, pady=(0, 15))
-    tk.Label(summary_frame, text="Celkový predaj:", font=("Segoe UI", 15, "bold"), bg="#f9f9f9").pack(side="left")
-    tk.Label(summary_frame, textvariable=celkovy_predaj_var, font=("Segoe UI", 15), bg="#f9f9f9").pack(side="left", padx=(5, 0))
+    tk.Label(summary_frame, text="Celkový predaj:", font=("Segoe UI", 15, "bold"), bg="#e9f0fb").pack(side="left")
+    tk.Label(summary_frame, textvariable=celkovy_predaj_var, font=("Segoe UI", 15), bg="#e9f0fb").pack(side="left", padx=(5, 0))
