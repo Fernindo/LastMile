@@ -1,16 +1,20 @@
 import tkinter as tk
-from tkinter import StringVar, DoubleVar, IntVar
+from tkinter import StringVar
 
 
 def show_doprava_window():
     def compute_and_update(event=None):
         try:
-            ba_total = float(cena_vyjazd_var.get()) * pocet_vyjazdov_var.get()
-        except:
+            ba_total = float(cena_vyjazd_var.get()) * float(pocet_vyjazdov_var.get())
+        except Exception:
             ba_total = 0.0
         try:
-            mimo_total = cena_km_var.get() * vzdialenost_var.get() * pocet_ciest_var.get()
-        except:
+            mimo_total = (
+                float(cena_km_var.get())
+                * float(vzdialenost_var.get())
+                * float(pocet_ciest_var.get())
+            )
+        except Exception:
             mimo_total = 0.0
 
         vysledok_ba_var.set(f"{ba_total:.2f} €")
@@ -37,12 +41,12 @@ def show_doprava_window():
 
     # --- Premenné
     cena_vyjazd_var = StringVar(value="30.00")
-    pocet_vyjazdov_var = IntVar(value=0)
+    pocet_vyjazdov_var = StringVar(value="0")
     vysledok_ba_var = StringVar(value="0.00 €")
 
-    cena_km_var = DoubleVar(value=0.55)
-    vzdialenost_var = DoubleVar(value=0.0)
-    pocet_ciest_var = IntVar(value=0)
+    cena_km_var = StringVar(value="0.55")
+    vzdialenost_var = StringVar(value="0.0")
+    pocet_ciest_var = StringVar(value="0")
     vysledok_mimo_var = StringVar(value="0.00 €")
 
     vysledok_spolu_var = StringVar(value="0.00 €")
