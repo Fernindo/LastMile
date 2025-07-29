@@ -1033,6 +1033,7 @@ def start(project_dir, json_path):
         if settings_window[0] and settings_window[0].winfo_exists():
             settings_window[0].focus()
             return
+
         settings_win = tk.Toplevel(root)
         settings_window[0] = settings_win
         settings_win.title("Nastavenia")
@@ -1040,7 +1041,7 @@ def start(project_dir, json_path):
         settings_win.resizable(False, False)
 
         container = tk.Frame(settings_win, bg="white")
-        container.pack(fill="both", expand=True)
+        container.pack(fill="both", expand=True, padx=10, pady=10)
 
         canvas = tk.Canvas(container, bg="white", highlightthickness=0)
         h_scroll = tk.Scrollbar(container, orient="horizontal", command=canvas.xview)
@@ -1052,11 +1053,15 @@ def start(project_dir, json_path):
         h_scroll.pack(side="bottom", fill="x")
         inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
+        label_font = ("Segoe UI", 10, "bold")
+
         # --- Database column visibility ---------------------------------
-        tk.Label(inner, text="St\u013flpce datab\u00e1zy", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(5, 0))
+        tk.Label(inner, text="Stĺpce databázy", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(5, 0))
         db_chk_frame = tk.Frame(inner, bg="white")
-        db_chk_frame.pack(anchor="w", padx=20)
-        for col in db_columns:
+        db_chk_frame.pack(anchor="w", padx=20, pady=(0, 10))
+
+        db_cols_per_row = 8
+        for idx, col in enumerate(db_columns):
             chk = tk.Checkbutton(
                 db_chk_frame,
                 text=col.capitalize(),
@@ -1064,17 +1069,16 @@ def start(project_dir, json_path):
                 command=update_displayed_db_columns,
                 bg="white",
             )
-
-            chk.pack(side="left", padx=5)
-
+            r = idx // db_cols_per_row
+            c = idx % db_cols_per_row
+            chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
         # --- Basket column visibility -----------------------------------
-        tk.Label(inner, text="Zobraziť stĺpce:", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(10, 0))
-
+        tk.Label(inner, text="Zobraziť stĺpce:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         basket_chk_frame = tk.Frame(inner, bg="white")
-        basket_chk_frame.pack(anchor="w", padx=20)
+        basket_chk_frame.pack(anchor="w", padx=20, pady=(0, 10))
 
-        per_row = (len(basket_columns) + 1) // 2
+        basket_cols_per_row = 8
         for idx, col in enumerate(basket_columns):
             chk = tk.Checkbutton(
                 basket_chk_frame,
@@ -1083,19 +1087,22 @@ def start(project_dir, json_path):
                 command=update_displayed_columns,
                 bg="white",
             )
-            r = idx // per_row
-            c = idx % per_row
+            r = idx // basket_cols_per_row
+            c = idx % basket_cols_per_row
             chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
         # --- Table font size -------------------------------------------
-        tk.Label(inner, text="Veľkosť textu tabuliek:", font=("Arial", 10, "bold"), bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        tk.Label(inner, text="Veľkosť textu tabuliek:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         font_frame = tk.Frame(inner, bg="white")
-        font_frame.pack(anchor="w", padx=20)
-        spin = tk.Spinbox(font_frame, from_=8, to=24, textvariable=tk.IntVar(value=font_size_var[0]), width=5)
-        spin.pack(side="left")
+        font_frame.pack(anchor="w", padx=20, pady=(0, 10))
 
+        spin = tk.Spinbox(font_frame, from_=8, to=24, textvariable=tk.IntVar(value=font_size_var[0]), width=5)
+        spin.pack(side="left", padx=5)
+
+        # --- Save button -----------------------------------------------
         btn_frame = tk.Frame(inner, bg="white")
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=15)
+
         def close_settings():
             update_displayed_columns()
             try:
@@ -1109,9 +1116,22 @@ def start(project_dir, json_path):
             _save_ui_settings({"table_font_size": font_size_var[0]})
             settings_window[0] = None
             settings_win.destroy()
-        tk.Button(btn_frame, text="Uložiť", command=close_settings).pack(side="left", padx=5)
+
+        save_btn = tk.Button(
+            btn_frame,
+            text="💾 Uložiť",
+            command=close_settings,
+            bg="#007BFF",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            padx=15,
+            pady=5
+        )
+        save_btn.pack()
 
         settings_win.protocol("WM_DELETE_WINDOW", close_settings)
+
+
         
 
     # ── REPLACE the old DB-double-click binding with this new one ─────────────

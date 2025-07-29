@@ -390,8 +390,10 @@ def show_praca_window(cursor):
     tk.Label(summary_frame, text="Práca nákup:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
     tk.Label(summary_frame, textvariable=praca_nakup_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
 
+    tk.Label(summary_frame, text="Práca marža:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
+    tk.Label(summary_frame, textvariable=praca_marza_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
+
     tk.Label(summary_frame, text="Práca predaj:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
     tk.Label(summary_frame, textvariable=praca_predaj_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
 
-    tk.Label(summary_frame, text="Práca marža:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
-    tk.Label(summary_frame, textvariable=praca_marza_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left")
+    
