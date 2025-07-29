@@ -78,7 +78,7 @@ def show_doprava_window():
     screen_width = win.winfo_screenwidth()
     screen_height = win.winfo_screenheight()
     width = int(screen_width * 0.2)
-    height = int(screen_height * 0.45)
+    height = int(screen_height * 0.5)
     x = (screen_width // 2) - (width // 2)
     y = (screen_height // 2) - (height // 2)
     win.geometry(f"{width}x{height}+{x}+{y}")

@@ -233,7 +233,10 @@ def show_praca_window(cursor):
             try:
                 osoby = int(row["osoby_var"].get())
                 hodiny = int(row["hodiny_var"].get())
-                plat = parse_float(row["plat_label"].cget("text"))
+                if "plat_entry" in row:
+                    plat = parse_float(row["plat_var"].get())
+                else:
+                    plat = parse_float(row["plat_label"].cget("text"))
                 koef = parse_float(row["koef_var"].get())
                 spolu = osoby * hodiny * plat
                 predaj = spolu * koef
@@ -292,8 +295,14 @@ def show_praca_window(cursor):
         tk.Entry(table_frame, textvariable=row["hodiny_var"], justify="center").grid(row=idx, column=5, sticky="nsew", padx=2)
         Button(table_frame, text="+", bootstyle="warning", command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6, sticky="nsew", padx=2, pady=(6, 2))
 
-        row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", relief="groove", anchor="center", bg="#ffffff")
-        row["plat_label"].grid(row=idx, column=7, sticky="nsew", padx=2)
+        if role_id is None:
+            row["plat_var"] = tk.StringVar(value=f"{plat:.2f}")
+            entry = tk.Entry(table_frame, textvariable=row["plat_var"], justify="center", width=10)
+            entry.grid(row=idx, column=7, sticky="nsew", padx=2)
+            row["plat_entry"] = entry
+        else:
+            row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", relief="groove", anchor="center", bg="#ffffff")
+            row["plat_label"].grid(row=idx, column=7, sticky="nsew", padx=2)
 
         row["spolu_label"] = tk.Label(table_frame, text="0.00", relief="sunken", anchor="center", bg="#f0f0f0")
         row["spolu_label"].grid(row=idx, column=8, sticky="nsew", padx=2)
@@ -315,6 +324,8 @@ def show_praca_window(cursor):
         row["osoby_var"].trace_add("write", lambda *args: recalculate())
         row["hodiny_var"].trace_add("write", lambda *args: recalculate())
         row["koef_var"].trace_add("write", lambda *args: recalculate())
+        if "plat_var" in row:
+            row["plat_var"].trace_add("write", lambda *args: recalculate())
 
     def _remove_row_at(index: int):
         if len(entries) <= 1:
@@ -370,7 +381,6 @@ def show_praca_window(cursor):
         label.grid(row=0, column=i, padx=6, pady=4, sticky="nsew")
         table_frame.grid_columnconfigure(i, weight=1)
 
-        # Interaktívne hlavičky
         if text == "−" and i in (1, 4, 9):
             field = "osoby_var" if i == 1 else "hodiny_var" if i == 4 else "koef_var"
             is_float = i == 9
@@ -381,8 +391,8 @@ def show_praca_window(cursor):
             label.bind("<Button-1>", lambda e, f=field, fl=is_float: adjust_column(f, 1 if not fl else 0.1, fl))
 
     for role in roles:
-        _, rola, plat = role
-        add_row(role_id=role[0], rola=rola, plat=plat)
+        role_id, rola, plat = role
+        add_row(role_id=role_id, rola=rola, plat=plat)
 
     summary_frame = tk.Frame(praca_window, bg="#e9f0fb")
     summary_frame.pack(fill="x", padx=15, pady=(0, 15))
@@ -395,5 +405,3 @@ def show_praca_window(cursor):
 
     tk.Label(summary_frame, text="Práca predaj:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
     tk.Label(summary_frame, textvariable=praca_predaj_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
-
-    

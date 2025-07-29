@@ -1037,7 +1037,7 @@ def start(project_dir, json_path):
         settings_win = tk.Toplevel(root)
         settings_window[0] = settings_win
         settings_win.title("Nastavenia")
-        settings_win.geometry("1450x400")
+        settings_win.geometry("1000x350")
         settings_win.resizable(False, False)
 
         container = tk.Frame(settings_win, bg="white")
