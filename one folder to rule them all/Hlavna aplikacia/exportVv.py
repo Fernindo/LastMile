@@ -38,8 +38,17 @@ def export_vv(selected_items, project_name, notes_text="", definicia_text="", pr
         print(f"🔍 Error: {e}")
         return
 
+    app = xw.App(visible=False)
+    wb = None
+    # Store current Excel settings and disable for faster writes
+    original_display_alerts = app.display_alerts
+    original_screen_updating = app.screen_updating
+    original_calculation = app.calculation
+    app.display_alerts = False
+    app.screen_updating = False
+    app.calculation = "manual"
+
     try:
-        app = xw.App(visible=False)
         wb = xw.Book(new_file)
         sheet = wb.sheets[0]
 
@@ -82,34 +91,30 @@ def export_vv(selected_items, project_name, notes_text="", definicia_text="", pr
             dst.api.PasteSpecial(Paste=-4163)
             sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = False
 
-            sheet.cells(insert_position, 2).value = counter
+            row_values = [
+                counter,
+                produkt,
+                jednotky,
+                pocet_materialu,
+                0,
+                0,
+                pocet_materialu,
+                0,
+                0,
+                0,
+                None,
+                0,
+                0,
+                0,
+                0,
+                0,
+                None,
+                dodavatel,
+            ]
+            sheet.range((insert_position, 2), (insert_position, 19)).value = row_values
+            row_rng = sheet.range((insert_position, 2), (insert_position, 19))
+            row_rng.api.Font.Size = 9
             sheet.cells(insert_position, 2).api.HorizontalAlignment = HAlign.xlHAlignLeft
-            sheet.cells(insert_position, 2).api.Font.Size = 9
-
-            sheet.cells(insert_position, 3).value = produkt
-            sheet.cells(insert_position, 3).api.Font.Size = 9
-
-            sheet.cells(insert_position, 4).value = jednotky
-            sheet.cells(insert_position, 4).api.Font.Size = 9
-
-            sheet.cells(insert_position, 5).value = pocet_materialu
-            sheet.cells(insert_position, 5).api.Font.Size = 9
-
-            # Namiesto všetkých cien vkladáme nuly
-            sheet.cells(insert_position, 6).value = 0
-            sheet.cells(insert_position, 7).value = 0
-            sheet.cells(insert_position, 8).value = pocet_materialu  # prípadne 0 ak netreba
-            sheet.cells(insert_position, 9).value = 0
-            sheet.cells(insert_position, 10).value = 0
-            sheet.cells(insert_position, 11).value = 0
-            sheet.cells(insert_position, 13).value = 0
-            sheet.cells(insert_position, 14).value = 0
-            sheet.cells(insert_position, 15).value = 0
-            sheet.cells(insert_position, 16).value = 0
-            sheet.cells(insert_position, 17).value = 0
-
-            sheet.cells(insert_position, 19).value = dodavatel
-            sheet.cells(insert_position, 19).api.Font.Size = 9
 
             counter += 1
             insert_position += 1
@@ -117,10 +122,15 @@ def export_vv(selected_items, project_name, notes_text="", definicia_text="", pr
             next_section = selected_items[idx + 1][0] if idx + 1 < len(selected_items) else None
             if next_section != section:
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                sheet.cells(insert_position, 2).value = section + "spolu"
-                sheet.cells(insert_position, 6).value = "Spolu ks"
-                last_item_row = insert_position - 1
-                sheet.cells(insert_position, 7).value = f"=SUM(E{section_start_row}:E{last_item_row})"
+                sum_values = [
+                    section + "spolu",
+                    None,
+                    None,
+                    None,
+                    "Spolu ks",
+                    f"=SUM(E{section_start_row}:E{insert_position - 1})",
+                ]
+                sheet.range((insert_position, 2), (insert_position, 7)).value = sum_values
 
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
@@ -147,8 +157,6 @@ def export_vv(selected_items, project_name, notes_text="", definicia_text="", pr
                     br.Weight = BW.xlThin
 
         wb.save()
-        wb.close()
-        app.quit()
         print(f"✅ Výkaz výmer exportovaný do: {new_file}")
         try:
             if sys.platform.startswith("darwin"):
@@ -163,3 +171,11 @@ def export_vv(selected_items, project_name, notes_text="", definicia_text="", pr
     except Exception as e:
         print("❌ Chyba počas exportu VV.")
         print(f"🔍 Error: {e}")
+    finally:
+        if wb:
+            wb.save()
+            wb.close()
+        app.display_alerts = original_display_alerts
+        app.screen_updating = original_screen_updating
+        app.calculation = original_calculation
+        app.quit()
