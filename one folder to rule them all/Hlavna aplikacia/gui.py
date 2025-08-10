@@ -45,6 +45,7 @@ from doprava import show_doprava_window
 from gui_functions import (
     get_database_connection,
     sync_postgres_to_sqlite,
+    ensure_indexes,
     apply_filters,
     update_basket_table,
     add_to_basket_full,         # “silent” version, DOES NOT auto-add recs
@@ -80,6 +81,8 @@ def start(project_dir, json_path):
     cursor = conn.cursor()
     if db_type == "postgres":
         sync_postgres_to_sqlite(conn)
+    else:
+        ensure_indexes(conn)
 
     # ─── Create main window via ttkbootstrap ─────────────────────────────
     style = Style(theme="litera")
@@ -327,10 +330,17 @@ def start(project_dir, json_path):
     tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20, 5))
     name_entry = tk.Entry(top, width=30)
     name_entry.pack(side="left")
-    name_entry.bind(
-        "<KeyRelease>",
-        lambda e: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
-    )
+    filter_job = [None]
+
+    def on_name_change(event=None):
+        if filter_job[0]:
+            root.after_cancel(filter_job[0])
+        filter_job[0] = root.after(
+            200,
+            lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree),
+        )
+
+    name_entry.bind("<KeyRelease>", on_name_change)
 
     tk.Label(top, text="Objekt:").pack(side="left", padx=(30, 5))
     project_entry = tk.Entry(top, width=40)
