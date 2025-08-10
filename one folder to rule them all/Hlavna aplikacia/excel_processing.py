@@ -3,25 +3,9 @@ import shutil
 import sys
 import subprocess
 from tkinter import filedialog
-from urllib.parse import urlparse
-from typing import Optional
 
 import xlwings as xw
 from xlwings.constants import BordersIndex as BI, BorderWeight as BW, LineStyle, HAlign
-
-
-def _normalize_url(url: str) -> Optional[str]:
-    """Return a normalized URL or None if invalid."""
-    if not url:
-        return None
-    url = url.strip()
-    parsed = urlparse(url)
-    if not parsed.scheme:
-        url = "http://" + url
-        parsed = urlparse(url)
-    if parsed.scheme and parsed.netloc:
-        return url
-    return None
 
 
 def update_excel(selected_items, project_name, notes_text="", definicia_text="", praca_data=None):
@@ -54,16 +38,8 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         print(f"🔍 Error: {e}")
         return
 
-    app = xw.App(visible=False)
-    wb = None
-    original_display_alerts = app.display_alerts
-    original_screen_updating = app.screen_updating
-    original_calculation = app.calculation
-    app.display_alerts = False
-    app.screen_updating = False
-    app.calculation = "manual"
-
     try:
+        app = xw.App(visible=False)
         wb = xw.Book(new_file)
         sheet = wb.sheets[0]
 
@@ -87,9 +63,13 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 sheet.cells(insert_position, 2).value = section
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
+
                 row_range.api.Font.Size = 12
+
+
                 row_range.api.HorizontalAlignment = HAlign.xlHAlignLeft
                 header_row = insert_position
+
                 insert_position += 1
                 section_start_row = insert_position
                 prev_section = section
@@ -97,7 +77,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             produkt = item[1]
             jednotky = item[2]
             dodavatel = item[3]
-            odkaz = _normalize_url(item[4])
+            odkaz = item[4]
             koef_material = float(item[5])
             nakup_materialu = float(item[7])
             pocet_materialu = int(item[9]) if len(item) > 9 else 1
@@ -109,36 +89,46 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             dst.api.PasteSpecial(Paste=-4163)
             sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = False
 
-            row_values = [
-                counter,
-                produkt,
-                jednotky,
-                pocet_materialu,
-                f"=N{insert_position}*M{insert_position}",
-                f"=F{insert_position}*E{insert_position}",
-                pocet_materialu,
-                nakup_materialu,
-                f"=I{insert_position}*H{insert_position}",
-                f"=G{insert_position}+J{insert_position}",
-                None,
-                koef_material,
-                nakup_materialu,
-                f"=N{insert_position}*E{insert_position}",
-                f"=G{insert_position}-O{insert_position}",
-                f"=P{insert_position}+G{insert_position}",
-                None,
-                dodavatel,
-            ]
-            sheet.range((insert_position, 2), (insert_position, 19)).value = row_values
-            row_rng = sheet.range((insert_position, 2), (insert_position, 19))
-            row_rng.api.Font.Size = 9
+            sheet.cells(insert_position, 2).value = counter
             sheet.cells(insert_position, 2).api.HorizontalAlignment = HAlign.xlHAlignLeft
+            sheet.cells(insert_position, 2).api.Font.Size = 9
+            sheet.cells(insert_position, 3).value = produkt
+            sheet.cells(insert_position, 3).api.Font.Size = 9
+            sheet.cells(insert_position, 4).value = jednotky
+            sheet.cells(insert_position, 4).api.Font.Size = 9
+            sheet.cells(insert_position, 5).value = pocet_materialu
+            sheet.cells(insert_position, 5).api.Font.Size = 9
+            sheet.cells(insert_position, 6).value = f"=N{insert_position}*M{insert_position}"
+            sheet.cells(insert_position, 6).api.Font.Size = 9
+            sheet.cells(insert_position, 7).value = f"=F{insert_position}*E{insert_position}"
+            sheet.cells(insert_position, 7).api.Font.Size = 9
+            sheet.cells(insert_position, 8).value = pocet_materialu
+            sheet.cells(insert_position, 8).api.Font.Size = 9
+            sheet.cells(insert_position, 9).value = nakup_materialu
+            sheet.cells(insert_position, 9).api.Font.Size = 9
+            sheet.cells(insert_position, 10).value = f"=I{insert_position}*H{insert_position}"
+            sheet.cells(insert_position, 10).api.Font.Size = 9
+            sheet.cells(insert_position, 11).value = f"=G{insert_position}+J{insert_position}"
+            sheet.cells(insert_position, 11).api.Font.Size = 9
+            sheet.cells(insert_position, 13).value = koef_material
+            sheet.cells(insert_position, 13).api.Font.Size = 9
+            sheet.cells(insert_position, 14).value = nakup_materialu
+            sheet.cells(insert_position, 14).api.Font.Size = 9
+            sheet.cells(insert_position, 15).value = f"=N{insert_position}*E{insert_position}"
+            sheet.cells(insert_position, 15).api.Font.Size = 9
+            sheet.cells(insert_position, 16).value = f"=G{insert_position}-O{insert_position}"
+            sheet.cells(insert_position, 16).api.Font.Size = 9
+            sheet.cells(insert_position, 17).value = f"=P{insert_position}+G{insert_position}"
+            sheet.cells(insert_position, 17).api.Font.Size = 9
+            sheet.cells(insert_position, 19).value = dodavatel
+            sheet.cells(insert_position, 19).api.Font.Size = 9
             if odkaz:
                 sheet.cells(insert_position, 19).api.Hyperlinks.Add(
                     Anchor=sheet.cells(insert_position, 19).api,
                     Address=odkaz,
                     TextToDisplay="Link",
                 )
+            
 
             counter += 1
             insert_position += 1
@@ -146,25 +136,27 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             next_section = selected_items[idx + 1][0] if idx + 1 < len(selected_items) else None
             if next_section != section:
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                sum_values = [
-                    section + "spolu",
-                    None,
-                    None,
-                    None,
-                    "Materiál",
-                    f"=SUM(G{section_start_row}:G{insert_position - 1})",
-                    None,
-                    "Práca",
-                    f"=SUM(J{section_start_row}:J{insert_position - 1})",
-                    f"=ROUNDUP(SUM(K{section_start_row}:K{insert_position - 1}),0)",
-                ]
-                sheet.range((insert_position, 2), (insert_position, 11)).value = sum_values
+                sheet.cells(insert_position, 2).value = section + "spolu"
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
+
                 row_range.api.Font.Size = 12
+
                 row_range.api.HorizontalAlignment = HAlign.xlHAlignLeft
 
+                sheet.cells(insert_position, 6).value = "Materiál"
+                sheet.cells(insert_position, 6).api.Font.Size = 12
+                last_item_row = insert_position - 1
+                sheet.cells(insert_position, 7).value = f"=SUM(G{section_start_row}:G{last_item_row})"
+                sheet.cells(insert_position, 7).api.Font.Size = 10
+                sheet.cells(insert_position, 9).value = "Práca"
+                sheet.cells(insert_position, 9).api.Font.Size = 12
+                sheet.cells(insert_position, 10).value = f"=SUM(J{section_start_row}:J{last_item_row})"
+                sheet.cells(insert_position, 10).api.Font.Size = 10
+                sheet.cells(insert_position, 11).value = f"=ROUNDUP(SUM(K{section_start_row}:K{last_item_row}),0)"
+                sheet.cells(insert_position, 11).api.Font.Size = 10
                 insert_position += 1
+
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
                 src.api.Copy()
                 dst = sheet.range(f"{insert_position}:{insert_position}")
@@ -187,8 +179,8 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             try:
                 notes_sheet = wb.sheets.add(after=sheet)
                 notes_sheet.name = "Poznámky"
-                lines = notes_text.splitlines()
-                notes_sheet.range((1, 1), (len(lines), 1)).value = [[line] for line in lines]
+                for i, line in enumerate(notes_text.splitlines(), start=1):
+                    notes_sheet.cells(i, 1).value = line
             except Exception as e:
                 print("⚠ Failed to add notes sheet:", e)
 
@@ -196,13 +188,15 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             start_row = 44
             start_col = 10  # Column J
             headers = ["Rola", "Počet osôb", "Hodiny", "Plat/h", "Spolu", "Koef.", "Predaj"]
-            sheet.range((start_row, start_col), (start_row, start_col + len(headers) - 1)).value = [headers]
-            sheet.range(
-                (start_row + 1, start_col),
-                (start_row + len(praca_data), start_col + len(headers) - 1),
-            ).value = praca_data
+            for col, header in enumerate(headers):
+                sheet.cells(start_row, start_col + col).value = header
+            for r_idx, row in enumerate(praca_data, start=start_row + 1):
+                for c_idx, val in enumerate(row):
+                    sheet.cells(r_idx, start_col + c_idx).value = val
 
         wb.save()
+        wb.close()
+        app.quit()
         print(f"✅ Successfully exported to: {new_file}")
         try:
             if sys.platform.startswith("darwin"):
@@ -217,11 +211,3 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
     except Exception as e:
         print("❌ Failed during Excel export.")
         print(f"🔍 Error: {e}")
-    finally:
-        if wb:
-            wb.save()
-            wb.close()
-        app.display_alerts = original_display_alerts
-        app.screen_updating = original_screen_updating
-        app.calculation = original_calculation
-        app.quit()
