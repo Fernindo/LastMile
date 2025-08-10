@@ -90,8 +90,8 @@ def ensure_indexes(sqlite_conn: sqlite3.Connection) -> None:
 
 def sync_postgres_to_sqlite(pg_conn):
     """
-    Pull produkty, class, and produkt_class from Postgres into local_backup.db.
-    Ensures local SQLite mirror for offline use.
+    Pull key tables from Postgres into ``local_backup.db`` so the application
+    can run in offline mode. Existing tables are dropped and recreated.
     """
     sqlite_conn   = sqlite3.connect("local_backup.db")
     sqlite_cursor = sqlite_conn.cursor()
@@ -99,7 +99,8 @@ def sync_postgres_to_sqlite(pg_conn):
 
     # ── 1) Sync produkty ────────────────────────────────────────────────────
     sqlite_cursor.execute("DROP TABLE IF EXISTS produkty")
-    sqlite_cursor.execute("""
+    sqlite_cursor.execute(
+        """
         CREATE TABLE produkty (
             id INTEGER PRIMARY KEY,
             produkt TEXT,
@@ -109,16 +110,21 @@ def sync_postgres_to_sqlite(pg_conn):
             koeficient_material REAL,
             koeficient_prace REAL,
             nakup_materialu REAL,
-            cena_prace REAL
+            cena_prace REAL,
+            product_type_id INTEGER
         )
-    """)
-    pg_cursor.execute("""
+        """
+    )
+    pg_cursor.execute(
+        """
         SELECT
           id, produkt, jednotky, dodavatel, odkaz,
           koeficient_material, koeficient_prace,
-          nakup_materialu, cena_prace
+          nakup_materialu, cena_prace,
+          product_type_id
         FROM produkty
-    """)
+        """
+    )
     prod_rows = pg_cursor.fetchall()
     cleaned = [
         tuple(float(col) if isinstance(col, decimal.Decimal) else col
@@ -126,7 +132,7 @@ def sync_postgres_to_sqlite(pg_conn):
         for row in prod_rows
     ]
     sqlite_cursor.executemany(
-        "INSERT INTO produkty VALUES (?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO produkty VALUES (?,?,?,?,?,?,?,?,?,?)",
         cleaned
     )
 
@@ -182,11 +188,45 @@ def sync_postgres_to_sqlite(pg_conn):
         )
     except Exception as e:
         print("Warning: failed to sync recommendations:", e)
+    # ── 5) Sync product_type ────────────────────────────────────────────────
+    sqlite_cursor.execute("DROP TABLE IF EXISTS product_type")
+    sqlite_cursor.execute(
+        """
+        CREATE TABLE product_type (
+            id INTEGER PRIMARY KEY,
+            code TEXT
+        )
+        """
+    )
+    pg_cursor.execute("SELECT id, code FROM public.product_type")
+    pt_rows = pg_cursor.fetchall()
+    sqlite_cursor.executemany("INSERT INTO product_type VALUES (?,?)", pt_rows)
+
+    # ── 6) Sync product_type_dependency ────────────────────────────────────
+    sqlite_cursor.execute("DROP TABLE IF EXISTS product_type_dependency")
+    sqlite_cursor.execute(
+        """
+        CREATE TABLE product_type_dependency (
+            id INTEGER PRIMARY KEY,
+            parent_type_id INTEGER,
+            child_type_id INTEGER,
+            note TEXT
+        )
+        """
+    )
+    pg_cursor.execute(
+        "SELECT id, parent_type_id, child_type_id, note FROM public.product_type_dependency"
+    )
+    ptd_rows = pg_cursor.fetchall()
+    sqlite_cursor.executemany(
+        "INSERT INTO product_type_dependency VALUES (?,?,?,?)",
+        ptd_rows,
+    )
 
     sqlite_conn.commit()
     ensure_indexes(sqlite_conn)
     sqlite_conn.close()
-    print("✔ Synced PostgreSQL → SQLite (produkty, class, produkt_class, recommendations)")
+    print("✔ Synced PostgreSQL → SQLite (produkty, class, produkt_class, recommendations, product_type, product_type_dependency)")
 
 
 # ─── Basket Persistence / I/O ────────────────────────────────────────────────
@@ -1020,6 +1060,7 @@ def show_recommendations_popup(
     win.wait_window()
 
 
+
 def check_type_dependencies(
     basket: Basket,
     cursor,
@@ -1033,29 +1074,32 @@ def check_type_dependencies(
 ):
     """Suggest required product types missing from the basket."""
 
-    # Collect product names currently in the basket
     names = [prod for products in basket.items.values() for prod in products.keys()]
     if not names:
         messagebox.showinfo("Kontrola", "Košík je prázdny.")
         return
 
     placeholder = ",".join("?" if db_type == "sqlite" else "%s" for _ in names)
+    produkty_table = "public.produkty" if db_type != "sqlite" else "produkty"
+    dependency_table = (
+        "public.product_type_dependency" if db_type != "sqlite" else "product_type_dependency"
+    )
+    type_table = "public.product_type" if db_type != "sqlite" else "product_type"
+
     try:
         cursor.execute(
             f"""
-            SELECT p.id, pc.class_id
-            FROM produkty p
-            LEFT JOIN produkt_class pc ON p.id = pc.produkt_id
-            WHERE p.produkt IN ({placeholder})
+            SELECT DISTINCT product_type_id
+            FROM {produkty_table}
+            WHERE produkt IN ({placeholder}) AND product_type_id IS NOT NULL
             """,
             tuple(names),
         )
-        rows = cursor.fetchall()
+        current_types = {row[0] for row in cursor.fetchall()}
     except Exception as e:
         messagebox.showerror("Chyba", str(e))
         return
 
-    current_types = {r[1] for r in rows if r[1] is not None}
     if not current_types:
         messagebox.showinfo("Kontrola", "Všetko v poriadku ✓")
         return
@@ -1063,46 +1107,43 @@ def check_type_dependencies(
     ph = ",".join("?" if db_type == "sqlite" else "%s" for _ in current_types)
     try:
         cursor.execute(
-            f"SELECT parent_type_id, child_type_id FROM product_type_dependency WHERE parent_type_id IN ({ph})",
+            f"""
+            SELECT DISTINCT child_type_id
+            FROM {dependency_table}
+            WHERE parent_type_id IN ({ph})
+            """,
             tuple(current_types),
         )
-        deps = cursor.fetchall()
+        required_types = {row[0] for row in cursor.fetchall()}
     except Exception as e:
         messagebox.showerror("Chyba", str(e))
         return
 
-    required_types = {child for _, child in deps}
     missing_types = required_types - current_types
     if not missing_types:
         messagebox.showinfo("Kontrola", "Všetko v poriadku ✓")
         return
 
-    # Fetch names for the missing types
     ph = ",".join("?" if db_type == "sqlite" else "%s" for _ in missing_types)
-    type_names = {}
     try:
         cursor.execute(
-            f"SELECT id, nazov_tabulky FROM class WHERE id IN ({ph})",
+            f"SELECT id, code FROM {type_table} WHERE id IN ({ph})",
             tuple(missing_types),
         )
-        type_names = dict(cursor.fetchall())
+        type_codes = dict(cursor.fetchall())
     except Exception:
-        pass
+        type_codes = {}
 
-    # Helper to fetch full product info by ID
-    def fetch_item(pid):
+    def _fetch_item(pid):
         ph = "?" if db_type == "sqlite" else "%s"
         cursor.execute(
             f"""
             SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
                    p.koeficient_material, p.nakup_materialu,
                    p.cena_prace, p.koeficient_prace,
-                   MIN(c.nazov_tabulky)
-            FROM produkty p
-            LEFT JOIN produkt_class pc ON p.id = pc.produkt_id
-            LEFT JOIN class c ON pc.class_id = c.id
+                   'Uncategorized'
+            FROM {produkty_table} p
             WHERE p.id = {ph}
-            GROUP BY p.id
             """,
             (pid,),
         )
@@ -1112,14 +1153,20 @@ def check_type_dependencies(
     win.title("Chýbajúce typy")
     rows_data = []
 
-    for t_id in missing_types:
+    for t_id in sorted(missing_types):
         frame = tk.Frame(win)
         frame.pack(fill="x", padx=10, pady=5)
-        tk.Label(frame, text=type_names.get(t_id, str(t_id))).pack(side="left")
+        tk.Label(frame, text=type_codes.get(t_id, str(t_id))).pack(side="left")
 
+        ph = "?" if db_type == "sqlite" else "%s"
         try:
             cursor.execute(
-                f"SELECT p.id, p.produkt FROM produkty p JOIN produkt_class pc ON p.id = pc.produkt_id WHERE pc.class_id = {'?' if db_type == 'sqlite' else '%s'}",
+                f"""
+                SELECT id, produkt
+                FROM {produkty_table}
+                WHERE product_type_id = {ph}
+                ORDER BY produkt
+                """,
                 (t_id,),
             )
             prod_rows = cursor.fetchall()
@@ -1128,7 +1175,8 @@ def check_type_dependencies(
 
         names_list = [name for _, name in prod_rows]
         var = tk.StringVar(value=names_list[0] if names_list else "")
-        combo = ttk.Combobox(frame, values=names_list, textvariable=var, state="readonly", width=40)
+        combo_state = "readonly" if names_list else "disabled"
+        combo = ttk.Combobox(frame, values=names_list, textvariable=var, state=combo_state, width=40)
         combo.pack(side="left", padx=5)
 
         data = {"products": prod_rows, "var": var}
@@ -1140,7 +1188,7 @@ def check_type_dependencies(
                 pid = d["products"][0][0]
             if pid is None:
                 return
-            item = fetch_item(pid)
+            item = _fetch_item(pid)
             if item:
                 add_to_basket_full(
                     item,
@@ -1155,7 +1203,8 @@ def check_type_dependencies(
                     total_material_var,
                 )
 
-        tk.Button(frame, text="Pridať", command=add_one).pack(side="left", padx=5)
+        btn_state = tk.NORMAL if prod_rows else tk.DISABLED
+        tk.Button(frame, text="Pridať", command=add_one, state=btn_state).pack(side="left", padx=5)
         rows_data.append(data)
 
     def add_all():
@@ -1163,7 +1212,7 @@ def check_type_dependencies(
             if not d["products"]:
                 continue
             pid = d["products"][0][0]
-            item = fetch_item(pid)
+            item = _fetch_item(pid)
             if item:
                 add_to_basket_full(
                     item,
