@@ -1018,3 +1018,168 @@ def show_recommendations_popup(
     win.transient()
     win.grab_set()
     win.wait_window()
+
+
+def check_type_dependencies(
+    basket: Basket,
+    cursor,
+    conn,
+    db_type,
+    basket_tree,
+    mark_modified,
+    total_spolu_var,
+    total_praca_var=None,
+    total_material_var=None,
+):
+    """Suggest required product types missing from the basket."""
+
+    # Collect product names currently in the basket
+    names = [prod for products in basket.items.values() for prod in products.keys()]
+    if not names:
+        messagebox.showinfo("Kontrola", "Košík je prázdny.")
+        return
+
+    placeholder = ",".join("?" if db_type == "sqlite" else "%s" for _ in names)
+    try:
+        cursor.execute(
+            f"""
+            SELECT p.id, pc.class_id
+            FROM produkty p
+            LEFT JOIN produkt_class pc ON p.id = pc.produkt_id
+            WHERE p.produkt IN ({placeholder})
+            """,
+            tuple(names),
+        )
+        rows = cursor.fetchall()
+    except Exception as e:
+        messagebox.showerror("Chyba", str(e))
+        return
+
+    current_types = {r[1] for r in rows if r[1] is not None}
+    if not current_types:
+        messagebox.showinfo("Kontrola", "Všetko v poriadku ✓")
+        return
+
+    ph = ",".join("?" if db_type == "sqlite" else "%s" for _ in current_types)
+    try:
+        cursor.execute(
+            f"SELECT parent_type_id, child_type_id FROM product_type_dependency WHERE parent_type_id IN ({ph})",
+            tuple(current_types),
+        )
+        deps = cursor.fetchall()
+    except Exception as e:
+        messagebox.showerror("Chyba", str(e))
+        return
+
+    required_types = {child for _, child in deps}
+    missing_types = required_types - current_types
+    if not missing_types:
+        messagebox.showinfo("Kontrola", "Všetko v poriadku ✓")
+        return
+
+    # Fetch names for the missing types
+    ph = ",".join("?" if db_type == "sqlite" else "%s" for _ in missing_types)
+    type_names = {}
+    try:
+        cursor.execute(
+            f"SELECT id, nazov_tabulky FROM class WHERE id IN ({ph})",
+            tuple(missing_types),
+        )
+        type_names = dict(cursor.fetchall())
+    except Exception:
+        pass
+
+    # Helper to fetch full product info by ID
+    def fetch_item(pid):
+        ph = "?" if db_type == "sqlite" else "%s"
+        cursor.execute(
+            f"""
+            SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
+                   p.koeficient_material, p.nakup_materialu,
+                   p.cena_prace, p.koeficient_prace,
+                   MIN(c.nazov_tabulky)
+            FROM produkty p
+            LEFT JOIN produkt_class pc ON p.id = pc.produkt_id
+            LEFT JOIN class c ON pc.class_id = c.id
+            WHERE p.id = {ph}
+            GROUP BY p.id
+            """,
+            (pid,),
+        )
+        return cursor.fetchone()
+
+    win = tk.Toplevel()
+    win.title("Chýbajúce typy")
+    rows_data = []
+
+    for t_id in missing_types:
+        frame = tk.Frame(win)
+        frame.pack(fill="x", padx=10, pady=5)
+        tk.Label(frame, text=type_names.get(t_id, str(t_id))).pack(side="left")
+
+        try:
+            cursor.execute(
+                f"SELECT p.id, p.produkt FROM produkty p JOIN produkt_class pc ON p.id = pc.produkt_id WHERE pc.class_id = {'?' if db_type == 'sqlite' else '%s'}",
+                (t_id,),
+            )
+            prod_rows = cursor.fetchall()
+        except Exception:
+            prod_rows = []
+
+        names_list = [name for _, name in prod_rows]
+        var = tk.StringVar(value=names_list[0] if names_list else "")
+        combo = ttk.Combobox(frame, values=names_list, textvariable=var, state="readonly", width=40)
+        combo.pack(side="left", padx=5)
+
+        data = {"products": prod_rows, "var": var}
+
+        def add_one(d=data):
+            sel = d["var"].get()
+            pid = next((pid for pid, nm in d["products"] if nm == sel), None)
+            if pid is None and d["products"]:
+                pid = d["products"][0][0]
+            if pid is None:
+                return
+            item = fetch_item(pid)
+            if item:
+                add_to_basket_full(
+                    item,
+                    basket,
+                    conn,
+                    cursor,
+                    db_type,
+                    basket_tree,
+                    mark_modified,
+                    total_spolu_var,
+                    total_praca_var,
+                    total_material_var,
+                )
+
+        tk.Button(frame, text="Pridať", command=add_one).pack(side="left", padx=5)
+        rows_data.append(data)
+
+    def add_all():
+        for d in rows_data:
+            if not d["products"]:
+                continue
+            pid = d["products"][0][0]
+            item = fetch_item(pid)
+            if item:
+                add_to_basket_full(
+                    item,
+                    basket,
+                    conn,
+                    cursor,
+                    db_type,
+                    basket_tree,
+                    mark_modified,
+                    total_spolu_var,
+                    total_praca_var,
+                    total_material_var,
+                )
+        win.destroy()
+
+    tk.Button(win, text="Pridať všetko", command=add_all).pack(pady=5)
+    win.transient()
+    win.grab_set()
+    win.wait_window()

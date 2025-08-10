@@ -62,6 +62,7 @@ from gui_functions import (
     show_notes_popup,
     get_current_notes,
     show_recommendations_popup,
+    check_type_dependencies,
     UNSAVED_NOTES
 )
 
@@ -924,6 +925,24 @@ def start(project_dir, json_path):
     )
     )
     exportVV_btn.pack(side="left", padx=(0, 10))
+
+    kontrola_btn = tb.Button(
+        right_btn_frame,
+        text="Kontrola",
+        bootstyle="secondary",
+        command=lambda: check_type_dependencies(
+            basket,
+            cursor,
+            conn,
+            db_type,
+            basket_tree,
+            mark_modified,
+            total_spolu_var,
+            total_praca_var,
+            total_material_var,
+        ),
+    )
+    kontrola_btn.pack(side="left", padx=(0, 10))
 
     coeff_set_mat_btn = tb.Button(
         right_btn_frame,
