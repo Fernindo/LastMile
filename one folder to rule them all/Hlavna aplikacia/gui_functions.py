@@ -64,6 +64,30 @@ def get_database_connection():
 
 sqlite3.register_adapter(decimal.Decimal, float)
 
+def ensure_indexes(sqlite_conn: sqlite3.Connection) -> None:
+    """Create indexes to speed up common filters.
+
+    Safe to call multiple times thanks to ``IF NOT EXISTS``.
+    """
+    cur = sqlite_conn.cursor()
+    cur.execute("PRAGMA foreign_keys = ON")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_produkty_name ON produkty(produkt)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_produkt_class_pid ON produkt_class(produkt_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_produkt_class_cid ON produkt_class(class_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_recommendations_pid ON recommendations(produkt_id)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_recommendations_rid ON recommendations(recommended_id)"
+    )
+    sqlite_conn.commit()
+
 def sync_postgres_to_sqlite(pg_conn):
     """
     Pull produkty, class, and produkt_class from Postgres into local_backup.db.
@@ -160,6 +184,7 @@ def sync_postgres_to_sqlite(pg_conn):
         print("Warning: failed to sync recommendations:", e)
 
     sqlite_conn.commit()
+    ensure_indexes(sqlite_conn)
     sqlite_conn.close()
     print("✔ Synced PostgreSQL → SQLite (produkty, class, produkt_class, recommendations)")
 
@@ -233,15 +258,24 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     except:
         pass
 
+    records = []
     row_idx = 0
     for cid in sorted(grouped):
         header = cnames.get(cid, "Uncategorized")
-        tree.insert("", "end", values=("", f"-- {header} --"), tags=("header",))
+        records.append((("", f"-- {header} --"), ("header",)))
         for row in grouped[cid]:
             tag = "even" if row_idx % 2 == 0 else "odd"
-            # row has 8 columns: (produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, koef_prace)
-            tree.insert("", "end", values=row + (header,), tags=(tag,))
+            records.append((row + (header,), (tag,)))
             row_idx += 1
+
+    def insert_chunk(start: int = 0, batch: int = 500):
+        end = start + batch
+        for vals, tags in records[start:end]:
+            tree.insert("", "end", values=vals, tags=tags)
+        if end < len(records):
+            tree.after(0, lambda: insert_chunk(end, batch))
+
+    insert_chunk()
     tree.tag_configure(
         "header",
         font=("Arial", 10, "bold"),
