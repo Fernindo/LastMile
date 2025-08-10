@@ -1133,99 +1133,103 @@ def check_type_dependencies(
         type_codes = dict(cursor.fetchall())
     except Exception:
         type_codes = {}
-
-    def _fetch_item(pid):
-        ph = "?" if db_type == "sqlite" else "%s"
-        cursor.execute(
-            f"""
-            SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
-                   p.koeficient_material, p.nakup_materialu,
-                   p.cena_prace, p.koeficient_prace,
-                   'Uncategorized'
-            FROM {produkty_table} p
-            WHERE p.id = {ph}
-            """,
-            (pid,),
-        )
-        return cursor.fetchone()
-
     win = tk.Toplevel()
     win.title("Chýbajúce typy")
-    rows_data = []
 
+    ph = "?" if db_type == "sqlite" else "%s"
+    rows = []
     for t_id in sorted(missing_types):
-        frame = tk.Frame(win)
-        frame.pack(fill="x", padx=10, pady=5)
-        tk.Label(frame, text=type_codes.get(t_id, str(t_id))).pack(side="left")
-
-        ph = "?" if db_type == "sqlite" else "%s"
         try:
             cursor.execute(
                 f"""
-                SELECT id, produkt
-                FROM {produkty_table}
-                WHERE product_type_id = {ph}
-                ORDER BY produkt
+                SELECT p.produkt, p.jednotky, p.dodavatel, p.odkaz,
+                       p.koeficient_material, p.nakup_materialu,
+                       p.cena_prace, p.koeficient_prace,
+                       MIN(c.nazov_tabulky)
+                FROM {produkty_table} p
+                LEFT JOIN produkt_class pc ON p.id = pc.produkt_id
+                LEFT JOIN class c ON pc.class_id = c.id
+                WHERE p.product_type_id = {ph}
+                GROUP BY p.id
+                ORDER BY p.produkt
                 """,
                 (t_id,),
             )
             prod_rows = cursor.fetchall()
         except Exception:
             prod_rows = []
+        for r in prod_rows:
+            rows.append(r + (type_codes.get(t_id, str(t_id)),))
 
-        names_list = [name for _, name in prod_rows]
-        var = tk.StringVar(value=names_list[0] if names_list else "")
-        combo_state = "readonly" if names_list else "disabled"
-        combo = ttk.Combobox(frame, values=names_list, textvariable=var, state=combo_state, width=40)
-        combo.pack(side="left", padx=5)
+    if not rows:
+        messagebox.showinfo("Kontrola", "Pre chýbajúce typy nie sú dostupné produkty.")
+        return
 
-        data = {"products": prod_rows, "var": var}
+    cols = (
+        "produkt",
+        "jednotky",
+        "dodavatel",
+        "odkaz",
+        "koeficient_material",
+        "nakup_materialu",
+        "cena_prace",
+        "koeficient_prace",
+        "section",
+        "type",
+    )
+    tree = ttk.Treeview(win, columns=cols, show="headings", displaycolumns=cols)
+    for c in cols:
+        tree.heading(c, text=c.capitalize())
+        tree.column(c, anchor="center")
 
-        def add_one(d=data):
-            sel = d["var"].get()
-            pid = next((pid for pid, nm in d["products"] if nm == sel), None)
-            if pid is None and d["products"]:
-                pid = d["products"][0][0]
-            if pid is None:
-                return
-            item = _fetch_item(pid)
-            if item:
-                add_to_basket_full(
-                    item,
-                    basket,
-                    conn,
-                    cursor,
-                    db_type,
-                    basket_tree,
-                    mark_modified,
-                    total_spolu_var,
-                    total_praca_var,
-                    total_material_var,
-                )
+    normalized = [
+        row[:8] + (row[8] if row[8] else "Uncategorized", row[9])
+        for row in rows
+    ]
+    for idx, row in enumerate(normalized):
+        tag = "even" if idx % 2 == 0 else "odd"
+        tree.insert("", "end", values=row, tags=(tag,))
 
-        btn_state = tk.NORMAL if prod_rows else tk.DISABLED
-        tk.Button(frame, text="Pridať", command=add_one, state=btn_state).pack(side="left", padx=5)
-        rows_data.append(data)
+    tree.tag_configure("even", background="#f9f9f9")
+    tree.tag_configure("odd", background="#ffffff")
+
+    def on_double_click(event):
+        sel = tree.focus()
+        if not sel:
+            return
+        vals = tree.item(sel)["values"]
+        if not vals:
+            return
+        add_to_basket_full(
+            vals[:-1],
+            basket,
+            conn,
+            cursor,
+            db_type,
+            basket_tree,
+            mark_modified,
+            total_spolu_var,
+            total_praca_var,
+            total_material_var,
+        )
+
+    tree.bind("<Double-1>", on_double_click)
+    tree.pack(fill="both", expand=True, padx=10, pady=10)
 
     def add_all():
-        for d in rows_data:
-            if not d["products"]:
-                continue
-            pid = d["products"][0][0]
-            item = _fetch_item(pid)
-            if item:
-                add_to_basket_full(
-                    item,
-                    basket,
-                    conn,
-                    cursor,
-                    db_type,
-                    basket_tree,
-                    mark_modified,
-                    total_spolu_var,
-                    total_praca_var,
-                    total_material_var,
-                )
+        for row in normalized:
+            add_to_basket_full(
+                row[:-1],
+                basket,
+                conn,
+                cursor,
+                db_type,
+                basket_tree,
+                mark_modified,
+                total_spolu_var,
+                total_praca_var,
+                total_material_var,
+            )
         win.destroy()
 
     tk.Button(win, text="Pridať všetko", command=add_all).pack(pady=5)
