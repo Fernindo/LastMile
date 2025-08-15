@@ -31,7 +31,11 @@ def start():
     """Launch the project selector window."""
 
     root = tk.Tk()
-    style = Style(master=root, theme="litera")
+    # ttkbootstrap's ``Style`` no longer accepts a ``master`` parameter in
+    # recent versions. Creating a ``Style`` instance automatically configures
+    # the existing ``Tk`` root, so we simply initialize it with the desired
+    # theme.
+    style = Style(theme="litera")
     root.title("Project Selector")
     root.geometry("500x300")
 
