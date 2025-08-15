@@ -75,8 +75,12 @@ def start(project_dir, json_path):
 
     # ─── Prepare paths and DB ────────────────────────────────────────────
     project_name = os.path.basename(project_dir)
-    json_dir     = os.path.join(project_dir, "projects")
-    commit_file  = json_path
+    # The project directory itself now contains all version JSON files.
+    # Older variants expected a "projects" subfolder; keep compatibility by
+    # using the subfolder only if it exists.
+    potential = os.path.join(project_dir, "projects")
+    json_dir = potential if os.path.isdir(potential) else project_dir
+    commit_file = json_path
 
     conn, db_type = get_database_connection()
     cursor = conn.cursor()
