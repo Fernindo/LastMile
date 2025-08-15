@@ -32,3 +32,8 @@ from gui_functions import remove_accents
 def test_remove_accents():
     text = "Pôvodný názov"
     assert remove_accents(text) == "Povodny nazov"
+
+
+def test_remove_accents_handles_non_string():
+    assert remove_accents(None) == ""
+    assert remove_accents(123) == "123"
