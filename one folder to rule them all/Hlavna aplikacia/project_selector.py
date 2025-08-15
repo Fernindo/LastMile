@@ -3,11 +3,12 @@ import json
 import tkinter as tk
 import ttkbootstrap as tb
 from ttkbootstrap import Style
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 
 # Directory containing all projects
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECTS_DIR = os.path.join(BASE_DIR, "projects")
+os.makedirs(PROJECTS_DIR, exist_ok=True)
 
 
 def list_projects():
@@ -37,8 +38,15 @@ def on_project_select(event):
         version_list.insert(tk.END, ver)
 
 
+def refresh_projects():
+    """Reload the project list from disk."""
+    project_list.delete(0, tk.END)
+    for proj in list_projects():
+        project_list.insert(tk.END, proj)
+
+
 def open_version():
-    """Open the selected project version."""
+    """Open the selected project version using the main GUI."""
     psel = project_list.curselection()
     vsel = version_list.curselection()
     if not psel or not vsel:
@@ -47,16 +55,28 @@ def open_version():
     project = project_list.get(psel[0])
     version = version_list.get(vsel[0])
     fpath = os.path.join(PROJECTS_DIR, project, version)
-    try:
-        with open(fpath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        messagebox.showinfo(
-            "Project Opened",
-            f"Loaded {project}\nVersion: {version}\n\n" +
-            json.dumps(data, indent=2, ensure_ascii=False)
-        )
-    except Exception as e:
-        messagebox.showerror("Error", f"Could not open project: {e}")
+    root.destroy()
+    import gui
+    gui.start(os.path.join(PROJECTS_DIR, project), fpath)
+
+
+def create_project():
+    """Prompt for a project name and create its folder with a starter file."""
+    name = simpledialog.askstring("New Project", "Project name:")
+    if not name:
+        return
+    pdir = os.path.join(PROJECTS_DIR, name)
+    if os.path.exists(pdir):
+        messagebox.showerror("Error", "Project already exists.")
+        return
+    os.makedirs(pdir, exist_ok=True)
+    starter = os.path.join(pdir, f"{name}.json")
+    with open(starter, "w", encoding="utf-8") as f:
+        json.dump({"user_name": "", "items": [], "notes": []}, f, ensure_ascii=False, indent=2)
+    refresh_projects()
+    root.destroy()
+    import gui
+    gui.start(pdir, starter)
 
 
 style = Style(theme="litera")
@@ -88,8 +108,11 @@ version_list.grid(row=1, column=1, sticky="nsew", padx=5, pady=5)
 tb.Button(frame, text="Open", bootstyle="success", command=open_version)\
     .grid(row=2, column=0, columnspan=2, pady=10)
 
+# Create project button
+tb.Button(frame, text="New Project", bootstyle="info", command=create_project)\
+    .grid(row=3, column=0, columnspan=2, pady=(0, 10))
+
 # Populate projects
-for proj in list_projects():
-    project_list.insert(tk.END, proj)
+refresh_projects()
 
 root.mainloop()
