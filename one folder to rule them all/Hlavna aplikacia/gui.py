@@ -90,8 +90,8 @@ def start(project_dir, json_path):
         ensure_indexes(conn)
 
     # ─── Create main window via ttkbootstrap ─────────────────────────────
-    style = Style(theme="litera")
-    root  = style.master
+    root = tk.Tk()
+    style = Style(master=root, theme="litera")
     style.configure(
         "Main.Treeview.Heading",
         background="#e6e6fa",
