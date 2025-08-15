@@ -85,14 +85,14 @@ class Basket:
     # ------------------------------------------------------------------
     # Basic modifications
     def add_item(self, item: Tuple, section: Optional[str] = None) -> bool:
+        self.snapshot()
         produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, koef_pr = item[:8]
         if section is None:
             section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
-        if section in self.items and produkt in self.items[section]:
-            return False
-        self.snapshot()
         if section not in self.items:
             self.items[section] = OrderedDict()
+        if produkt in self.items[section]:
+            return False
         info = BasketItem(
             jednotky=jednotky,
             dodavatel=dodavatel,
