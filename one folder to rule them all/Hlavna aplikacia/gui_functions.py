@@ -239,24 +239,8 @@ def show_error(msg):
 
 # ─── Filtering / Tree Population ────────────────────────────────────────────
 
-def remove_accents(s) -> str:
-    """Return *s* with any accent characters removed.
-
-    ``unicodedata.normalize`` expects a string input.  The original
-    implementation raised ``TypeError`` when ``None`` or other non-string
-    values were provided, which can happen when optional fields are processed.
-    Non-string inputs are converted to strings, while ``None`` yields an empty
-    string.
-    """
-
-    if s is None:
-        return ""
-    if not isinstance(s, str):
-        s = str(s)
-    normalized = unicodedata.normalize('NFD', s)
-    return ''.join(
-        c for c in normalized if unicodedata.category(c) != 'Mn'
-    )
+def remove_accents(s):
+    return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     """

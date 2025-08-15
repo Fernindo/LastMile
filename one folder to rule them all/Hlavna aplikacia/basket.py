@@ -85,28 +85,14 @@ class Basket:
     # ------------------------------------------------------------------
     # Basic modifications
     def add_item(self, item: Tuple, section: Optional[str] = None) -> bool:
-        """Add a new item to the basket.
-
-        A snapshot should only be taken when the basket is actually modified.
-        Previously a snapshot was created even when ``produkt`` already existed
-        in the section, polluting the undo stack.  This method now checks for
-        duplicates before mutating state or taking a snapshot.
-        """
-
+        self.snapshot()
         produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, koef_pr = item[:8]
-
         if section is None:
             section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
-
-        # Bail out early if the product already exists
-        if produkt in self.items.get(section, {}):
-            return False
-
-        # From this point we know a modification will occur
-        self.snapshot()
         if section not in self.items:
             self.items[section] = OrderedDict()
-
+        if produkt in self.items[section]:
+            return False
         info = BasketItem(
             jednotky=jednotky,
             dodavatel=dodavatel,

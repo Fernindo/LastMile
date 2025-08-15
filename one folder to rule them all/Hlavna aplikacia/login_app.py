@@ -134,7 +134,7 @@ class login_app:
             os.remove(self.credentials_file)
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    style = Style(master=root, theme="flatly")
+    style = Style(theme="flatly")
+    root = style.master
     login_app(root)
     root.mainloop()
