@@ -43,3 +43,12 @@ def test_apply_and_revert_coefficients():
     info = b.items["SectionA"]["Produkt"]
     assert info.koeficient_material == 1.2
     assert info.koeficient_prace == 1.5
+
+
+def test_duplicate_add_does_not_affect_undo():
+    b = Basket()
+    item = make_item()
+    assert b.add_item(item)
+    assert not b.add_item(item)
+    b.undo()
+    assert not b.items
