@@ -122,7 +122,16 @@ def start(project_dir, json_path):
     root.state("zoomed")
     root.option_add("*Font", ("Segoe UI", font_size_var[0]))
 
-    root.grid_rowconfigure(0, weight=1)
+    def back_to_projects():
+        root.destroy()
+        import home
+        home.main()
+
+    tb.Button(root, text="\U0001F3E0 Projects", bootstyle="secondary", command=back_to_projects)\
+        .grid(row=0, column=0, sticky="w", padx=10, pady=5)
+
+    root.grid_rowconfigure(0, weight=0)
+    root.grid_rowconfigure(1, weight=1)
     # Start with the filter hidden so the main area spans the full width
     root.grid_columnconfigure(0, weight=1)  # main content
     root.grid_columnconfigure(1, weight=0)  # placeholder for filter panel
@@ -148,7 +157,7 @@ def start(project_dir, json_path):
     # ─── Top-Level Frames ─────────────────────────────────────────────────
     
     main_frame   = tb.Frame(root, padding=10)
-    main_frame.grid(row=0, column=0, sticky="nsew")
+    main_frame.grid(row=1, column=0, sticky="nsew")
     
     db_visible = [True]  # Používame list kvôli mutabilite
 
