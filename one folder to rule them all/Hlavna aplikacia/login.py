@@ -217,21 +217,28 @@ class LoginApp:
 
     def on_open_latest(self):
         """
-        Ak sú práve zadané a platné prihlasovacie údaje, prenesieme meno/priezvisko.
-        Inak otvoríme len najnovší bez mena/priezviska.
+        Otvorí najnovšiu verziu IBA ak sú správne prihlasovacie údaje.
         """
         username = self.var_username.get().strip()
         password = self.var_password.get()
 
-        meno = ""
-        priezvisko = ""
-        if username and password:
-            user = verify_user_online(username, password)
-            if user:
-                meno = user.get("meno", "")
-                priezvisko = user.get("priezvisko", "")
+        if not username or not password:
+            messagebox.showwarning("Chýbajú údaje", "Zadaj používateľské meno aj heslo.")
+            return
 
-        run_launcher(meno=meno, priezvisko=priezvisko, open_latest=True)
+        user = verify_user_online(username, password)
+        if not user:
+            messagebox.showerror("Neplatné údaje", "Prihlásenie zlyhalo. Skontroluj meno/heslo.")
+            return
+
+        # Ak úspešné → uložiť config ak je zapnuté „zapamätať“
+        if self.var_remember.get():
+            save_config({"remember": True, "username": username, "password": password})
+        else:
+            save_config({"remember": False})
+
+        # Spusti launcher s open-latest (a s menom/priezviskom)
+        run_launcher(meno=user.get("meno", ""), priezvisko=user.get("priezvisko", ""), open_latest=True)
 
 def main():
     # jednotný vzhľad s tvojím GUI
