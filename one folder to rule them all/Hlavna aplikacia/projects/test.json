@@ -1,3 +1,30 @@
 {
-  "data": "Default session content."
+  "project": "Hlavna aplikacia",
+  "items": [
+    {
+      "section": "Rozvádzače",
+      "products": [
+        {
+          "produkt": "Rozvádzač 42U",
+          "jednotky": "ks",
+          "dodavatel": "",
+          "odkaz": "",
+          "koeficient_material": 1.3,
+          "nakup_materialu": 250.0,
+          "koeficient_prace": 1.0,
+          "cena_prace": 60.0,
+          "pocet_prace": 1,
+          "pocet_materialu": 1,
+          "sync": true
+        }
+      ]
+    }
+  ],
+  "notes": [],
+  "notes_history": [
+    {
+      "timestamp": "2025-08-20T09:24:24.162873",
+      "notes": []
+    }
+  ]
 }

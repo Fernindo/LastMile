@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import datetime
 import argparse
 import tkinter as tk
@@ -32,7 +33,7 @@ def main():
     # Build main window
     root = tk.Tk()
     root.title("📁 Archív projektov")
-    root.geometry("460x520")
+    root.geometry("480x540")
     root.configure(bg="#f0f4f8")
 
     # Title and description
@@ -50,7 +51,7 @@ def main():
 
     lb = Listbox(
         list_frame,
-        width=48,
+        width=50,
         height=20,
         font=("Segoe UI", 10),
         bg="white",
@@ -68,20 +69,22 @@ def main():
     lb.config(yscrollcommand=sb.set)
 
     # Close button
-    Button(root, text="Zavrieť", command=root.destroy, font=("Segoe UI", 10), bg="#e0e0e0", relief="flat").pack(pady=(5, 15))
+    Button(root, text="Zavrieť", command=root.destroy, font=("Segoe UI", 10),
+           bg="#e0e0e0", relief="flat").pack(pady=(5, 15))
 
-    # On double click
+    # Helper: odstráň autora z display názvu
+    def strip_author_suffix(display: str) -> str:
+        if " — " in display:
+            return display.split(" — ", 1)[0].rstrip()
+        return display
+
+    # On double click (alebo auto-open)
     def on_open(evt=None, idx=None):
         sel = lb.curselection() if idx is None else (idx,)
         if not sel:
             return
         display = lb.get(sel[0]).strip()
-
-        # odstráň prípadný podpis " — Priezvisko M."
-        if " — " in display:
-            core = display.split(" — ", 1)[0]
-        else:
-            core = display
+        core = strip_author_suffix(display)
 
         if " | " in core:
             date_part, base = [s.strip() for s in core.split("|", 1)]
@@ -93,7 +96,8 @@ def main():
         json_path = os.path.join(projects_dir, json_file)
         root.destroy()
         import gui
-        gui.start(base_dir, json_path)
+        # ✨ odovzdaj meno a priezvisko do gui
+        gui.start(base_dir, json_path, args.meno, args.priezvisko)
 
     lb.bind("<Double-1>", on_open)
 
@@ -114,9 +118,17 @@ def main():
 
     files.sort(key=sort_key, reverse=True)
 
-    # Build display list; prvá (najnovšia) dostane podpis priezvisko + iniciála
+    def read_author(path: str) -> str:
+        try:
+            with open(path, "r", encoding="utf-8") as jf:
+                data = json.load(jf)
+                return (data.get("author") or "").strip()
+        except Exception:
+            return ""
+
+    # Build display list; autor sa berie zo súboru
     display_items = []
-    for i, f in enumerate(files):
+    for f in files:
         name, _ = os.path.splitext(f)
         if "_" in name:
             base, date_part = name.split("_", 1)
@@ -124,9 +136,10 @@ def main():
         else:
             display = name
 
-        if i == 0 and (args.priezvisko or args.meno):
-            who = f"{args.priezvisko} {args.meno[:1] + '.' if args.meno else ''}".strip()
-            display = f"{display} — {who}"
+        author = read_author(os.path.join(projects_dir, f))
+        if author:
+            display = f"{display} — {author}"
+
         display_items.append(display)
         lb.insert(tk.END, display)
 

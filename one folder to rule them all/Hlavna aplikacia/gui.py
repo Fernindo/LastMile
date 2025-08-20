@@ -68,10 +68,13 @@ from gui_functions import (
 
 from tkinter import messagebox, simpledialog
 
-def start(project_dir, json_path):
-    """
-    Build the entire UI (layout, widgets, geometry) here. All logic lives in gui_functions.py.
-    """
+def start(project_dir, json_path, meno="", priezvisko="", username=""):
+    global CURRENT_USER
+    CURRENT_USER = {
+        "meno": meno or "",
+        "priezvisko": priezvisko or "",
+        "username": username or ""
+    }
 
     # ─── Prepare paths and DB ────────────────────────────────────────────
     project_name = os.path.basename(project_dir)
@@ -1200,9 +1203,10 @@ def start(project_dir, json_path):
             "Chceš uložiť zmeny pred zatvorením košíka?"
         )
         if resp is None:
-            return  # Cancel → do nothing
+            return  # Cancel
         if resp is False:
-            root.destroy()
+            if root.winfo_exists():
+                root.destroy()
             return
 
         reorder_basket_data(basket_tree, basket)
@@ -1214,10 +1218,8 @@ def start(project_dir, json_path):
             parent=root
         )
         if not fname:
-            return  # user canceled → stay open
+            return  # user canceled
 
-        # Include the current time in the filename so each save produces a
-        # unique archive even when multiple saves happen on the same day.
         ts = datetime.now().strftime("_%Y-%m-%d_%H-%M-%S")
         filename = f"{fname}{ts}.json"
         fullpath = os.path.join(json_dir, filename)
@@ -1243,27 +1245,42 @@ def start(project_dir, json_path):
             notes_history = []
         notes_history.append(history_entry)
 
+        # autor z CURRENT_USER (stabilný – nemení sa pri neskorších prihláseniach)
+        user = globals().get("CURRENT_USER", {}) or {}
+        meno_u = user.get("meno", "")
+        priezvisko_u = user.get("priezvisko", "")
+        username_u = user.get("username", "")
+
+        if priezvisko_u or meno_u:
+            author = f"{priezvisko_u} {meno_u[:1]}.".strip()
+        elif username_u:
+            author = username_u
+        else:
+            author = ""
+
         out = {
             "project": project_name,
+            "author": author,
             "items": [],
             "notes": notes_list,
             "notes_history": notes_history,
         }
+
         for section, prods in basket.items.items():
             sec_obj = {"section": section, "products": []}
             for pname, info in prods.items():
                 sec_obj["products"].append({
                     "produkt":              pname,
-                    "jednotky":            info.jednotky,
-                    "dodavatel":           info.dodavatel,
-                    "odkaz":               info.odkaz,
-                    "koeficient_material": info.koeficient_material,
-                    "nakup_materialu":     info.nakup_materialu,
-                    "koeficient_prace":    info.koeficient_prace,
-                    "cena_prace":          info.cena_prace,
-                    "pocet_prace":         info.pocet_prace,
-                    "pocet_materialu":     info.pocet_materialu,
-                    "sync":                info.sync,
+                    "jednotky":             info.jednotky,
+                    "dodavatel":            info.dodavatel,
+                    "odkaz":                info.odkaz,
+                    "koeficient_material":  info.koeficient_material,
+                    "nakup_materialu":      info.nakup_materialu,
+                    "koeficient_prace":     info.koeficient_prace,
+                    "cena_prace":           info.cena_prace,
+                    "pocet_prace":          info.pocet_prace,
+                    "pocet_materialu":      info.pocet_materialu,
+                    "sync":                 info.sync,
                 })
             out["items"].append(sec_obj)
 
@@ -1280,7 +1297,11 @@ def start(project_dir, json_path):
             )
             return
 
-        root.destroy()
+        if root.winfo_exists():
+            root.destroy()
+
+
+
 
     root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()
