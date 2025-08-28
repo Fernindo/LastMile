@@ -1182,10 +1182,15 @@ def check_type_dependencies(
 
     # Treeview uses a tree column (#0) to show section headers above items
     tree = ttk.Treeview(win, columns=cols, show="tree headings", displaycolumns=cols)
+    # Configure the tree (section) column and data columns to be resizable from the start
+    tree.heading("#0", text="Sekcia")
+    tree.column("#0", width=180, minwidth=120, stretch=True, anchor="w")
     for c in cols:
         tree.heading(c, text=c.capitalize())
         anchor = "w" if c == "produkt" else "center"
-        tree.column(c, anchor=anchor)
+        # Give sane default widths and allow stretch
+        default_w = 220 if c == "produkt" else (200 if c == "odkaz" else 110)
+        tree.column(c, anchor=anchor, width=default_w, minwidth=80, stretch=True)
 
     # Normalize rows into (8 item fields + section) and group by section
     display_rows = [
