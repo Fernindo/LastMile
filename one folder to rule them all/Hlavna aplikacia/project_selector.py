@@ -6,6 +6,9 @@ import ttkbootstrap as tb
 from ttkbootstrap import Style
 from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
+import subprocess
+import sys
+
 
 # Single-app Projects Home embedded in project_selector.py
 # No new code files. Only creates project JSONs when you make a new project.
@@ -158,7 +161,20 @@ def main():
             refresh_projects()
 
     tb.Button(top, text="Browse…", bootstyle="secondary", command=browse_root).pack(side="left")
+    def open_login():
+        login_path = os.path.join(os.path.dirname(__file__), "login.py")
+        if not os.path.isfile(login_path):
+            messagebox.showerror("Chyba", "login.py sa nenašiel.")
+            return
+        try:
+            subprocess.Popen([sys.executable, login_path],
+                             cwd=os.path.dirname(login_path) or None)
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Nepodarilo sa spustiť login.py:\n{e}")
 
+    tb.Button(top, text="Prihlásenie", bootstyle="primary", command=open_login)\
+        .pack(side="right", padx=(6, 0))
+    
     def create_project_dialog():
         """Otvorí malé okno pre zadanie názvu, ulice a plochy."""
         dlg = tb.Toplevel(root)
