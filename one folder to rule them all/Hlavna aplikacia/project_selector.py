@@ -190,7 +190,7 @@ def main():
             messagebox.showerror("Chyba", "login.py sa nenašiel.")
             return
         try:
-            subprocess.Popen([sys.executable, login_path],
+            subprocess.Popen([sys.executable, login_path, "--no-launch"],
                              cwd=os.path.dirname(login_path) or None)
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa spustiť login.py:\n{e}")
