@@ -114,6 +114,7 @@ def main():
         "projects_root": tk.StringVar(value=get_projects_root()),
         "projects": [],
         "selected_project": None,
+        "filter_text": tk.StringVar(),
     }
 
     # Top bar
@@ -154,6 +155,9 @@ def main():
 
     left = tb.Labelframe(body, text="Projects", padding=8)
     left.pack(side="left", fill="y")
+    tb.Label(left, text="Filter:").pack(anchor="w")
+    filter_entry = tb.Entry(left, textvariable=root.projects_home_state["filter_text"])
+    filter_entry.pack(fill="x", pady=(0, 6))
     right = tb.Labelframe(body, text="Archive", padding=8)
     right.pack(side="left", fill="both", expand=True, padx=(10, 0))
 
@@ -176,16 +180,22 @@ def main():
 
     # ─────────────────────────── Behaviors ───────────────────────────
 
-    def refresh_projects():
+    def refresh_projects(*_):
         projects = discover_projects(root.projects_home_state["projects_root"].get())
         root.projects_home_state["projects"] = projects
         proj_list.delete(0, "end")
+        flt = root.projects_home_state["filter_text"].get().lower()
         for item in projects:
-            proj_list.insert("end", item["name"])
+            name = item["name"]
+            if flt and flt not in name.lower():
+                continue
+            proj_list.insert("end", name)
         archive_list.delete(0, "end")
         archive_list._files = []
         root.projects_home_state["selected_project"] = None
         delete_btn.configure(state="disabled")
+
+    root.projects_home_state["filter_text"].trace_add("write", refresh_projects)
 
     def select_project_by_name(name):
         for idx, item in enumerate(root.projects_home_state["projects"]):
