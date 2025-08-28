@@ -147,7 +147,7 @@ def main():
         refresh_projects()
         select_project_by_name(info["name"])
 
-    tb.Button(top, text="Create Project", bootstyle="success", command=create_project_dialog).pack(side="right")
+    # Moved Create Project button into the left panel above Delete
 
     # Body: left projects list (with Delete), right archive list
     body = tb.Frame(root, padding=10)
@@ -167,8 +167,10 @@ def main():
     # Project action buttons
     proj_btns = tb.Frame(left)
     proj_btns.pack(fill="x", pady=(8, 0))
+    create_btn = tb.Button(proj_btns, text="Create Project", bootstyle="success", command=create_project_dialog)
+    create_btn.pack(fill="x")
     delete_btn = tb.Button(proj_btns, text="Delete Project", bootstyle="danger")
-    delete_btn.pack(side="left")
+    delete_btn.pack(fill="x", pady=(6, 0))
 
     archive_list = tk.Listbox(right)
     archive_list.pack(fill="both", expand=True)
