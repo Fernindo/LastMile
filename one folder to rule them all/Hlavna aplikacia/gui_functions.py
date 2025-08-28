@@ -240,6 +240,8 @@ def show_error(msg):
 # ─── Filtering / Tree Population ────────────────────────────────────────────
 
 def remove_accents(s):
+    if not isinstance(s, str):
+        return "" if s is None else str(s)
     return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
 def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
