@@ -1167,6 +1167,8 @@ def check_type_dependencies(
         messagebox.showinfo("Kontrola", "Pre chýbajúce typy nie sú dostupné produkty.")
         return
 
+    # Build rows without the 'type' column and show 'section' above items
+    # Prepare display columns (drop 'section' and 'type')
     cols = (
         "produkt",
         "jednotky",
@@ -1176,34 +1178,55 @@ def check_type_dependencies(
         "nakup_materialu",
         "cena_prace",
         "koeficient_prace",
-        "section",
-        "type",
     )
-    tree = ttk.Treeview(win, columns=cols, show="headings", displaycolumns=cols)
+
+    # Treeview uses a tree column (#0) to show section headers above items
+    tree = ttk.Treeview(win, columns=cols, show="tree headings", displaycolumns=cols)
     for c in cols:
         tree.heading(c, text=c.capitalize())
-        tree.column(c, anchor="center")
+        anchor = "w" if c == "produkt" else "center"
+        tree.column(c, anchor=anchor)
 
-    normalized = [
-        row[:8] + (row[8] if row[8] else "Uncategorized", row[9])
+    # Normalize rows into (8 item fields + section) and group by section
+    display_rows = [
+        row[:8] + (row[8] if row[8] else "Uncategorized",)
         for row in rows
     ]
-    for idx, row in enumerate(normalized):
-        tag = "even" if idx % 2 == 0 else "odd"
-        tree.insert("", "end", values=row, tags=(tag,))
 
+    # Map item iid -> full payload (8 fields + section) for handlers
+    payload_by_iid = {}
+
+    by_section = {}
+    for r in display_rows:
+        by_section.setdefault(r[8], []).append(r)
+
+    # Style tags
     tree.tag_configure("even", background="#f9f9f9")
     tree.tag_configure("odd", background="#ffffff")
+    tree.tag_configure(
+        "section_header",
+        font=("Segoe UI", 10, "bold"),
+        background="#eef5ff",
+    )
+
+    # Insert grouped rows with a header per section
+    for section_name in sorted(by_section.keys(), key=lambda s: (s is None, str(s))):
+        parent = tree.insert("", "end", text=section_name or "Uncategorized", open=True, tags=("section_header",))
+        for idx, r in enumerate(by_section[section_name]):
+            tag = "even" if idx % 2 == 0 else "odd"
+            iid = tree.insert(parent, "end", text="", values=r[:8], tags=(tag,))
+            payload_by_iid[iid] = r
 
     def on_double_click(event):
         sel = tree.focus()
         if not sel:
             return
-        vals = tree.item(sel)["values"]
-        if not vals:
+        # Ignore clicks on section headers (they have no payload)
+        payload = payload_by_iid.get(sel)
+        if not payload:
             return
         add_to_basket_full(
-            vals[:-1],
+            payload,
             basket,
             conn,
             cursor,
@@ -1219,9 +1242,9 @@ def check_type_dependencies(
     tree.pack(fill="both", expand=True, padx=10, pady=10)
 
     def add_all():
-        for row in normalized:
+        for row in display_rows:
             add_to_basket_full(
-                row[:-1],
+                row,
                 basket,
                 conn,
                 cursor,
@@ -1235,6 +1258,22 @@ def check_type_dependencies(
         win.destroy()
 
     tk.Button(win, text="Pridať všetko", command=add_all).pack(pady=5)
+
+    # Set a slightly narrower, screen-fitting window size for the Kontrola popup
+    win.update_idletasks()
+    screen_w = win.winfo_screenwidth()
+    screen_h = win.winfo_screenheight()
+    # Aim for a moderate width; ensure it fits on smaller screens
+    w = min(1000, max(800, screen_w - 120))
+    h = min(600, max(450, screen_h - 200))
+    x = (screen_w - w) // 2
+    y = (screen_h - h) // 2
+    try:
+        win.geometry(f"{int(w)}x{int(h)}+{int(x)}+{int(y)}")
+    except Exception:
+        # Fallback to a safe default if geometry fails
+        win.geometry("1000x550")
+
     win.transient()
     win.grab_set()
     win.wait_window()

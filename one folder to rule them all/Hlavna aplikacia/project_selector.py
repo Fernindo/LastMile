@@ -43,27 +43,43 @@ def set_projects_root(path):
 # ─────────────────────── Helpers: projects & archive ───────────────────────
 
 def discover_projects(root):
+    """Rýchlejšie prehľadanie priečinka pomocou os.scandir."""
     items = []
     if not os.path.isdir(root):
         return items
-    for name in sorted(os.listdir(root)):
-        p = os.path.join(root, name)
-        if not os.path.isdir(p):
-            continue
-        json_dir = os.path.join(p, "projects")
-        if os.path.isdir(json_dir):
-            items.append({"name": name, "path": p})
+    try:
+        with os.scandir(root) as it:
+            for entry in it:
+                if not entry.is_dir():
+                    continue
+                json_dir = os.path.join(entry.path, "projects")
+                if os.path.isdir(json_dir):
+                    items.append({"name": entry.name, "path": entry.path})
+        items.sort(key=lambda x: x["name"].lower())
+    except Exception:
+        pass
     return items
 
 def project_archive(project_path):
     json_dir = os.path.join(project_path, "projects")
     if not os.path.isdir(json_dir):
         return []
-    files = [os.path.join(json_dir, f) for f in os.listdir(json_dir) if f.lower().endswith(".json")]
-    files.sort(key=lambda p: os.path.getmtime(p), reverse=True)  # newest first
-    return files
+    files = []
+    try:
+        with os.scandir(json_dir) as it:
+            for entry in it:
+                if entry.is_file() and entry.name.lower().endswith('.json'):
+                    try:
+                        mtime = entry.stat().st_mtime
+                    except Exception:
+                        mtime = 0
+                    files.append((mtime, entry.path))
+        files.sort(key=lambda t: t[0], reverse=True)  # newest first
+        return [p for _, p in files]
+    except Exception:
+        return []
 
-def create_project(root, name):
+def create_project(root, name, street=None, area=None):
     if not name:
         raise ValueError("Project name is required.")
     safe = name.strip()
@@ -75,8 +91,14 @@ def create_project(root, name):
     # Seed one main JSON if missing
     main_json = os.path.join(json_dir, f"{safe}.json")
     if not os.path.exists(main_json):
+        payload = {
+            "project": safe,
+            "street": (street or "").strip() if isinstance(street, str) else street,
+            "area": area,
+            "created": datetime.now().isoformat(),
+        }
         with open(main_json, "w", encoding="utf-8") as f:
-            json.dump({"project": safe, "created": datetime.now().isoformat()}, f, ensure_ascii=False, indent=2)
+            json.dump(payload, f, ensure_ascii=False, indent=2)
     return {"name": safe, "path": proj_dir, "json": main_json}
 
 # ─────────────────────────── Launch GUI safely ───────────────────────────
@@ -131,19 +153,97 @@ def main():
         if path:
             root.projects_home_state["projects_root"].set(path)
             set_projects_root(path)
+            # Rescan filesystem only when root changes
+            rescan_projects()
             refresh_projects()
 
     tb.Button(top, text="Browse…", bootstyle="secondary", command=browse_root).pack(side="left")
 
     def create_project_dialog():
-        name = simpledialog.askstring("New Project", "Project name:")
-        if not name:
+        """Otvorí malé okno pre zadanie názvu, ulice a plochy."""
+        dlg = tb.Toplevel(root)
+        dlg.title("Nový projekt")
+        dlg.resizable(False, False)
+        dlg.transient(root)
+        dlg.grab_set()
+
+        frm = tb.Frame(dlg, padding=12)
+        frm.pack(fill="both", expand=True)
+
+        name_var = tk.StringVar()
+        street_var = tk.StringVar()
+        area_var = tk.StringVar()
+
+        # Názov
+        tb.Label(frm, text="Názov projektu:").grid(row=0, column=0, sticky="w", padx=(0,8), pady=(0,6))
+        name_entry = tb.Entry(frm, textvariable=name_var, width=36)
+        name_entry.grid(row=0, column=1, sticky="ew", pady=(0,6))
+
+        # Ulica
+        tb.Label(frm, text="Ulica:").grid(row=1, column=0, sticky="w", padx=(0,8), pady=(0,6))
+        street_entry = tb.Entry(frm, textvariable=street_var, width=36)
+        street_entry.grid(row=1, column=1, sticky="ew", pady=(0,6))
+
+        # Plocha
+        tb.Label(frm, text="Plocha (m²):").grid(row=2, column=0, sticky="w", padx=(0,8), pady=(0,10))
+        area_entry = tb.Entry(frm, textvariable=area_var, width=18)
+        area_entry.grid(row=2, column=1, sticky="w", pady=(0,10))
+
+        frm.columnconfigure(1, weight=1)
+
+        result = {"ok": False}
+
+        def on_ok():
+            name = (name_var.get() or "").strip()
+            if not name:
+                messagebox.showwarning("Chýba názov", "Zadajte názov projektu.", parent=dlg)
+                return
+            # Parse area as float if provided
+            area_txt = (area_var.get() or "").strip()
+            area_val = None
+            if area_txt:
+                try:
+                    # allow comma decimal
+                    area_val = float(area_txt.replace(",", "."))
+                except ValueError:
+                    messagebox.showwarning("Neplatná plocha", "Plocha musí byť číslo.", parent=dlg)
+                    return
+            result.update({
+                "ok": True,
+                "name": name,
+                "street": (street_var.get() or "").strip(),
+                "area": area_val,
+            })
+            dlg.destroy()
+
+        def on_cancel():
+            dlg.destroy()
+
+        btns = tb.Frame(frm)
+        btns.grid(row=3, column=0, columnspan=2, sticky="e")
+        tb.Button(btns, text="Zrušiť", bootstyle="secondary", command=on_cancel).pack(side="right", padx=(0,6))
+        tb.Button(btns, text="Vytvoriť", bootstyle="success", command=on_ok).pack(side="right")
+
+        name_entry.focus_set()
+        dlg.bind("<Return>", lambda e: on_ok())
+        dlg.bind("<Escape>", lambda e: on_cancel())
+
+        root.wait_window(dlg)
+
+        if not result.get("ok"):
             return
+
         try:
-            info = create_project(root.projects_home_state["projects_root"].get(), name)
+            info = create_project(
+                root.projects_home_state["projects_root"].get(),
+                result["name"],
+                street=result.get("street"),
+                area=result.get("area"),
+            )
         except Exception as e:
-            messagebox.showerror("Create project failed", str(e))
+            messagebox.showerror("Vytvorenie projektu zlyhalo", str(e))
             return
+        rescan_projects()
         refresh_projects()
         select_project_by_name(info["name"])
 
@@ -167,7 +267,7 @@ def main():
     # Project action buttons
     proj_btns = tb.Frame(left)
     proj_btns.pack(fill="x", pady=(8, 0))
-    create_btn = tb.Button(proj_btns, text="Create Project", bootstyle="success", command=create_project_dialog)
+    create_btn = tb.Button(proj_btns, text="Vytvoriť projekt", bootstyle="success", command=create_project_dialog)
     create_btn.pack(fill="x")
     delete_btn = tb.Button(proj_btns, text="Delete Project", bootstyle="danger")
     delete_btn.pack(fill="x", pady=(6, 0))
@@ -183,8 +283,8 @@ def main():
     # ─────────────────────────── Behaviors ───────────────────────────
 
     def refresh_projects(*_):
-        projects = discover_projects(root.projects_home_state["projects_root"].get())
-        root.projects_home_state["projects"] = projects
+        """Refresh only the UI list from in-memory projects and current filter."""
+        projects = root.projects_home_state["projects"]
         proj_list.delete(0, "end")
         flt = root.projects_home_state["filter_text"].get().lower()
         for item in projects:
@@ -197,7 +297,20 @@ def main():
         root.projects_home_state["selected_project"] = None
         delete_btn.configure(state="disabled")
 
-    root.projects_home_state["filter_text"].trace_add("write", refresh_projects)
+    # Debounced filter to avoid rescanning/redrawing on each keystroke
+    _filter_after = [None]
+    def _on_filter_change(*_args):
+        if _filter_after[0] is not None:
+            try:
+                root.after_cancel(_filter_after[0])
+            except Exception:
+                pass
+        _filter_after[0] = root.after(120, refresh_projects)
+    root.projects_home_state["filter_text"].trace_add("write", _on_filter_change)
+
+    def rescan_projects():
+        projects = discover_projects(root.projects_home_state["projects_root"].get())
+        root.projects_home_state["projects"] = projects
 
     def select_project_by_name(name):
         for idx, item in enumerate(root.projects_home_state["projects"]):
@@ -278,6 +391,7 @@ def main():
             return
 
         # Refresh lists
+        rescan_projects()
         refresh_projects()
         messagebox.showinfo("Project deleted", f"'{proj_name}' was deleted.")
 
@@ -289,6 +403,7 @@ def main():
     open_btn.configure(command=open_selected)
     delete_btn.configure(command=delete_selected_project, state="disabled")
 
+    rescan_projects()
     refresh_projects()
     root.mainloop()
 
