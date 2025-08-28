@@ -25,6 +25,29 @@ def load_settings():
         except Exception:
             return {}
     return {}
+LOGIN_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "login_config.json")
+
+def load_login_state() -> bool:
+    """Bezpečne načíta boolean stav prihlásenia z login_config.json."""
+    try:
+        with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return bool(data.get("logged_in", False))
+    except Exception:
+        return False
+def set_logged_out():
+    """Zapíše logged_in=False do login_config.json."""
+    try:
+        if os.path.exists(LOGIN_CONFIG_FILE):
+            with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {}
+        data["logged_in"] = False
+        with open(LOGIN_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 def save_settings(data):
     try:
@@ -172,9 +195,47 @@ def main():
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa spustiť login.py:\n{e}")
 
-    tb.Button(top, text="Prihlásenie", bootstyle="primary", command=open_login)\
-        .pack(side="right", padx=(6, 0))
+    # inicializačný štýl podľa aktuálneho stavu
+    login_btn = tb.Button(
+        top,
+        text="Prihlásenie",
+        bootstyle=("success" if load_login_state() else "danger"),
+        command=open_login
+    )
+    login_btn.pack(side="right", padx=(6, 0))
+
+    # periodická kontrola súboru login_config.json a aktualizácia farby
+    def refresh_login_btn():
+        try:
+            is_in = load_login_state()
+            login_btn.configure(bootstyle=("success" if is_in else "danger"))
+            # voliteľne zmeň text (napr. „Prihlásený“ / „Prihlásenie“):
+            # login_btn.configure(text=("Prihlásený" if is_in else "Prihlásenie"))
+        except Exception:
+            # ak by bol súbor počas zápisu, ignoruj chybu a skús znova
+            pass
+        finally:
+            root.after(2000, refresh_login_btn)  # každé 2 sekundy
+
+    refresh_login_btn()
     
+    # tlačidlo Odhlásiť (X)
+    def do_logout():
+        set_logged_out()
+        login_btn.configure(bootstyle="danger")
+        # voliteľne môžeš zmeniť aj text
+        # login_btn.configure(text="Prihlásenie")
+
+    logout_btn = tb.Button(
+        top,
+        text="X",
+        width=3,
+        bootstyle="danger",
+        command=do_logout
+    )
+    logout_btn.pack(side="right", padx=(6, 0))
+
+
     def create_project_dialog():
         """Otvorí malé okno pre zadanie názvu, ulice a plochy."""
         dlg = tb.Toplevel(root)

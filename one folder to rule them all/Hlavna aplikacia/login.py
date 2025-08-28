@@ -3,15 +3,17 @@ import os
 import sys
 import json
 import subprocess
+import argparse
 import tkinter as tk
 from tkinter import messagebox
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
+
 from gui_functions import get_database_connection  # tvoje napojenie na online DB
 
 APP_TITLE = "Prihlásenie"
-CONFIG_FILE = "login_config.json"  # ukladá "zapamätaj si" lokálne
-LAUNCHER_FILE = "launcher.py"      # spúšťaný launcher
+CONFIG_FILE = "login_config.json"              # lokálne ukladanie "zapamätaj si" a logged_in
+PROJECT_SELECTOR_FILE = "project_selector.py"  # po prihlásení spúšťame selector (ak nie je --no-launch)
 
 # ───────────────────────── Helpery ─────────────────────────
 
@@ -23,17 +25,26 @@ def resource_path(rel_path: str) -> str:
         base_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_dir, rel_path)
 
-def load_config():
+def load_config() -> dict:
     try:
         with open(resource_path(CONFIG_FILE), "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
 
-def save_config(cfg: dict):
+def save_config(cfg_updates: dict):
+    """Bezpečne uloží/aktualizuje login_config.json tak, aby sa nezmazali iné kľúče."""
+    path = resource_path(CONFIG_FILE)
+    current = {}
     try:
-        with open(resource_path(CONFIG_FILE), "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        with open(path, "r", encoding="utf-8") as f:
+            current = json.load(f)
+    except Exception:
+        current = {}
+    current.update(cfg_updates)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(current, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
 
@@ -52,7 +63,6 @@ def verify_user_online(username: str, password: str):
 
     try:
         cur = conn.cursor()
-        # Vyber placeholdery podľa typu DB
         if db_type == "postgres":
             sql = """
                 SELECT id, username, password, role_id,
@@ -63,7 +73,7 @@ def verify_user_online(username: str, password: str):
             """
             params = (username,)
         else:
-            # fallback (napr. sqlite) – rovnaké stĺpce
+            # fallback (napr. sqlite)
             sql = """
                 SELECT id, username, password, role_id,
                        COALESCE(meno,''), COALESCE(priezvisko,''), COALESCE(popis,'')
@@ -82,11 +92,11 @@ def verify_user_online(username: str, password: str):
         except Exception:
             pass
         return None
-
-    try:
-        conn.close()
-    except Exception:
-        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     if not row:
         return None
@@ -101,42 +111,34 @@ def verify_user_online(username: str, password: str):
         "popis": row[6] or "",
     }
 
-    # Plaintext kontrola podľa tvojich dát
+    # Plaintext kontrola podľa tvojich dát (nahradíš hash porovnaním, keď budeš mať hashované heslá)
     if str(password) == str(user["password"]):
         return user
     return None
 
-def run_launcher(meno: str = "", priezvisko: str = "", open_latest: bool = False):
-    """
-    Spustí launcher.py s voliteľnými parametrami --meno, --priezvisko, --open-latest.
-    """
-    launcher_path = resource_path(LAUNCHER_FILE)
-    if not os.path.isfile(launcher_path):
-        messagebox.showerror("Chyba", f"Nenašiel som '{LAUNCHER_FILE}'.")
+def run_project_selector_and_exit():
+    """Spustí project_selector.py a bezpečne ukončí login proces."""
+    selector_path = resource_path(PROJECT_SELECTOR_FILE)
+    if not os.path.isfile(selector_path):
+        messagebox.showerror("Chyba", f"Nenašiel som '{PROJECT_SELECTOR_FILE}'.")
         return
-
-    args = [sys.executable, launcher_path]
-    if meno:
-        args += ["--meno", meno]
-    if priezvisko:
-        args += ["--priezvisko", priezvisko]
-    if open_latest:
-        args += ["--open-latest"]
-
     try:
-        subprocess.Popen(args, cwd=os.path.dirname(launcher_path) or None)
+        subprocess.Popen([sys.executable, selector_path],
+                         cwd=os.path.dirname(selector_path) or None)
     except Exception as e:
-        messagebox.showerror("Chyba", f"Nepodarilo sa spustiť launcher:\n{e}")
+        messagebox.showerror("Chyba", f"Nepodarilo sa spustiť Project Selector:\n{e}")
         return
     finally:
-        # Bezpečne ukončí login proces (aby nezostal visieť)
+        # Bezpečne ukončí login proces (aby nezostal visieť paralelný Tk root)
         os._exit(0)
 
 # ───────────────────────── UI ─────────────────────────
 
 class LoginApp:
-    def __init__(self, root):
+    def __init__(self, root, no_launch: bool = False):
         self.root = root
+        self.no_launch = no_launch
+
         root.title(APP_TITLE)
         root.geometry("420x300")
         root.resizable(False, False)
@@ -168,7 +170,12 @@ class LoginApp:
         tb.Label(frm, text="Heslo:").grid(row=2, column=0, sticky="w")
         self.ent_pass = tb.Entry(frm, textvariable=self.var_password, show="•", width=28, bootstyle=INFO)
         self.ent_pass.grid(row=2, column=1, sticky="we", pady=(0, 6))
-        chk_show = tb.Checkbutton(frm, text="Zobraziť heslo", variable=self.var_show_password, command=self.toggle_password, bootstyle=SECONDARY)
+        chk_show = tb.Checkbutton(
+            frm, text="Zobraziť heslo",
+            variable=self.var_show_password,
+            command=self.toggle_password,
+            bootstyle=SECONDARY
+        )
         chk_show.grid(row=2, column=2, sticky="w")
 
         # Remember me
@@ -179,11 +186,16 @@ class LoginApp:
         btn_login = tb.Button(frm, text="Prihlásiť sa", command=self.on_login, bootstyle=SUCCESS)
         btn_login.grid(row=4, column=1, sticky="we", pady=(12, 4))
 
-        btn_skip = tb.Button(frm, text="Skip (vývoj)", command=lambda: run_launcher(open_latest=False), bootstyle=WARNING)
+        btn_skip = tb.Button(frm, text="Skip (vývoj)", command=self.on_skip, bootstyle=WARNING)
         btn_skip.grid(row=4, column=2, sticky="we", pady=(12, 4))
 
-        btn_open_latest = tb.Button(frm, text="Otvoriť najnovšiu verziu", command=self.on_open_latest, bootstyle=PRIMARY)
-        btn_open_latest.grid(row=5, column=1, columnspan=2, sticky="we", pady=(4, 0))
+        btn_open_selector = tb.Button(
+            frm,
+            text="Otvoriť Project Selector",
+            command=self.on_open_selector,
+            bootstyle=PRIMARY
+        )
+        btn_open_selector.grid(row=5, column=1, columnspan=2, sticky="we", pady=(4, 0))
 
         # Shortcuts
         root.bind("<Return>", lambda e: self.on_login())
@@ -193,6 +205,27 @@ class LoginApp:
 
     def toggle_password(self):
         self.ent_pass.config(show="" if self.var_show_password.get() else "•")
+
+    def _persist_login_config(self, username: str, password: str):
+        """
+        Uloží remember a stav prihlásenia tak, aby Project Selector vedel
+        prepnúť farbu tlačidla (pollingom).
+        """
+        if self.var_remember.get():
+            save_config({
+                "remember": True,
+                "username": username,
+                "password": password,
+                "logged_in": True
+            })
+        else:
+            # Nechceme držať credity – len si pamätáme, že sme prihlásení
+            save_config({
+                "remember": False,
+                "username": "",
+                "password": "",
+                "logged_in": True
+            })
 
     def on_login(self):
         username = self.var_username.get().strip()
@@ -207,17 +240,21 @@ class LoginApp:
             messagebox.showerror("Neplatné údaje", "Prihlásenie zlyhalo. Skontroluj meno/heslo.")
             return
 
-        # Save remember
-        if self.var_remember.get():
-            save_config({"remember": True, "username": username, "password": password})
-        else:
-            save_config({"remember": False})
+        # Save config (remember + logged_in)
+        self._persist_login_config(username, password)
 
-        run_launcher(meno=user.get("meno", ""), priezvisko=user.get("priezvisko", ""), open_latest=False)
+        # Ak bol login spustený zo Selectora s --no-launch, iba zavri okno
+        if self.no_launch:
+            self.root.destroy()
+            return
 
-    def on_open_latest(self):
+        # Inak spusti Project Selector a ukonči tento proces
+        run_project_selector_and_exit()
+
+    def on_open_selector(self):
         """
-        Otvorí najnovšiu verziu IBA ak sú správne prihlasovacie údaje.
+        Otvorí Project Selector IBA ak sú správne prihlasovacie údaje.
+        (Ponechané kvôli UX – kontroluje meno/heslo rovnako ako Prihlásiť sa.)
         """
         username = self.var_username.get().strip()
         password = self.var_password.get()
@@ -231,16 +268,31 @@ class LoginApp:
             messagebox.showerror("Neplatné údaje", "Prihlásenie zlyhalo. Skontroluj meno/heslo.")
             return
 
-        # Ak úspešné → uložiť config ak je zapnuté „zapamätať“
-        if self.var_remember.get():
-            save_config({"remember": True, "username": username, "password": password})
-        else:
-            save_config({"remember": False})
+        self._persist_login_config(username, password)
 
-        # Spusti launcher s open-latest (a s menom/priezviskom)
-        run_launcher(meno=user.get("meno", ""), priezvisko=user.get("priezvisko", ""), open_latest=True)
+        if self.no_launch:
+            self.root.destroy()
+            return
+
+        run_project_selector_and_exit()
+
+    def on_skip(self):
+        """Skip (vývoj) – bez verifikácie účtu."""
+        if self.no_launch:
+            # ak login spustený zo Selectora -> len zavri
+            self.root.destroy()
+        else:
+            run_project_selector_and_exit()
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--no-launch",
+        action="store_true",
+        help="Po úspešnom prihlásení nespúšťať Project Selector, iba zavrieť login."
+    )
+    args = parser.parse_args()
+
     # jednotný vzhľad s tvojím GUI
     style = tb.Style(theme="litera")
     root = style.master
@@ -248,7 +300,8 @@ def main():
         root.tk.call("tk", "scaling", 1.15)
     except Exception:
         pass
-    app = LoginApp(root)
+
+    app = LoginApp(root, no_launch=args.no_launch)
     root.mainloop()
 
 if __name__ == "__main__":
