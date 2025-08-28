@@ -514,13 +514,15 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
         # --- Summary / misc -------------------------------------------
         "predaj_spolu",
         "sync",
+        "dodavatel",
+        "odkaz",
     )
     column_vars = {}
     for col in basket_columns:
-        column_vars[col] = tk.BooleanVar(value=True)
+        column_vars[col] = tk.BooleanVar(value=col not in {"dodavatel", "odkaz"})
 
     # -- Basket Treeview --
-    initial_display = [c for c in basket_columns]
+    initial_display = [c for c in basket_columns if column_vars[c].get()]
     basket_tree = ttk.Treeview(
         basket_tree_container,  # ✅ správne ukotvenie
         columns=basket_columns,

@@ -85,14 +85,16 @@ class Basket:
     # ------------------------------------------------------------------
     # Basic modifications
     def add_item(self, item: Tuple, section: Optional[str] = None) -> bool:
-        self.snapshot()
         produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, koef_pr = item[:8]
         if section is None:
             section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
-        if section not in self.items:
-            self.items[section] = OrderedDict()
-        if produkt in self.items[section]:
+        prods = self.items.get(section)
+        if prods is None:
+            prods = OrderedDict()
+        if produkt in prods:
             return False
+        self.snapshot()
+        self.items.setdefault(section, prods)
         info = BasketItem(
             jednotky=jednotky,
             dodavatel=dodavatel,
@@ -102,7 +104,7 @@ class Basket:
             cena_prace=float(cena_prace),
             koeficient_prace=float(koef_pr),
         )
-        self.items[section][produkt] = info
+        prods[produkt] = info
         self.original.setdefault(section, OrderedDict())[produkt] = copy.deepcopy(info)
         return True
 
@@ -177,6 +179,8 @@ class Basket:
                         f"{marza_pr:.2f}",
                         f"{predaj_spolu:.2f}",
                         sync,
+                        d.dodavatel,
+                        d.odkaz,
                     ),
                 )
 
@@ -207,6 +211,17 @@ class Basket:
             prods: OrderedDict[str, BasketItem] = OrderedDict()
             for child in tree.get_children(sec):
                 vals = tree.item(child, "values")
+                orig = self.original.get(sec_name, {}).get(vals[0])
+                dod = ""
+                link = ""
+                if len(vals) > 20 and vals[20]:
+                    dod = vals[20]
+                elif orig is not None:
+                    dod = orig.dodavatel
+                if len(vals) > 21 and vals[21]:
+                    link = vals[21]
+                elif orig is not None:
+                    link = orig.odkaz
                 prods[vals[0]] = BasketItem(
                     jednotky=vals[1],
                     koeficient_material=float(vals[3]),
@@ -215,8 +230,8 @@ class Basket:
                     cena_prace=float(vals[12]),
                     pocet_materialu=int(float(vals[2])),
                     pocet_prace=int(float(vals[10])),
-                    dodavatel="",
-                    odkaz="",
+                    dodavatel=dod,
+                    odkaz=link,
                     sync=(vals[19] == "✓"),
                 )
             new_items[sec_name] = prods
