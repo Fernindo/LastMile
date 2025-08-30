@@ -1,4 +1,14 @@
 {
+  "author": "Mrkva J.",
+  "user_id": null,
+  "username": "user1",
   "project": "test",
-  "created": "2025-08-15T17:36:55.530078"
+  "items": [],
+  "notes": [],
+  "notes_history": [
+    {
+      "timestamp": "2025-08-30T19:11:56.608009",
+      "notes": []
+    }
+  ]
 }

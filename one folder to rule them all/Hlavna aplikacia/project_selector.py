@@ -8,6 +8,7 @@ from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
 import subprocess
 import sys
+from gui_functions import get_database_connection
 
 
 # Single-app Projects Home embedded in project_selector.py
@@ -26,6 +27,34 @@ def load_settings():
             return {}
     return {}
 LOGIN_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "login_config.json")
+def load_login_user():
+    try:
+        with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("user") or {}
+    except Exception:
+        return {}
+
+def load_skip_login() -> bool:
+    try:
+        with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return bool(data.get("skip_login", False))
+    except Exception:
+        return False
+
+def set_skip_login(value: bool):
+    try:
+        if os.path.exists(LOGIN_CONFIG_FILE):
+            with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = {}
+        data["skip_login"] = bool(value)
+        with open(LOGIN_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 def load_login_state() -> bool:
     """Bezpečne načíta boolean stav prihlásenia z login_config.json."""
@@ -67,6 +96,53 @@ def set_projects_root(path):
     save_settings(st)
 
 # ─────────────────────── Helpers: projects & archive ───────────────────────
+def resolve_author_from_json(json_path: str) -> str:
+    """
+    Vráti 'Priezvisko M.' podľa posledného ukladateľa.
+    1) Skúsi priamo JSON kľúč 'author'
+    2) Fallback: 'user_id' alebo 'username' -> dotiahne meno/priezvisko z tabuľky users
+    """
+    username = ""
+    user_id = None
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            # Ak už nové GUI zapisuje 'author', stačí ho použiť
+            if data.get("author"):
+                return str(data["author"])
+            username = (data.get("username") or "").strip()
+            user_id = data.get("user_id")
+    except Exception:
+        pass
+
+    # Ak nemáme identifikátor, nevieme určiť
+    if user_id is None and not username:
+        return ""
+
+    try:
+        conn, db_type = get_database_connection()
+        cur = conn.cursor()
+        if user_id is not None:
+            sql = "SELECT COALESCE(meno,''), COALESCE(priezvisko,'') FROM users WHERE id = %s" \
+                  if db_type == "postgres" else \
+                  "SELECT COALESCE(meno,''), COALESCE(priezvisko,'') FROM users WHERE id = ?"
+            cur.execute(sql, (user_id,))
+        else:
+            sql = "SELECT COALESCE(meno,''), COALESCE(priezvisko,'') FROM users WHERE username = %s LIMIT 1" \
+                  if db_type == "postgres" else \
+                  "SELECT COALESCE(meno,''), COALESCE(priezvisko,'') FROM users WHERE username = ? LIMIT 1"
+            cur.execute(sql, (username,))
+        row = cur.fetchone()
+        conn.close()
+        if row:
+            meno, priezvisko = row[0] or "", row[1] or ""
+            return f"{priezvisko} {meno[:1]}.".strip()
+    except Exception:
+        pass
+
+    return ""
 
 def discover_projects(root):
     """Rýchlejšie prehľadanie priečinka pomocou os.scandir."""
@@ -130,24 +206,25 @@ def create_project(root, name, street=None, area=None):
 # ─────────────────────────── Launch GUI safely ───────────────────────────
 
 def launch_gui_in_same_root(root, project_dir, json_path):
-    """
-    IMPORTANT:
-    - Do NOT destroy the Tk root; gui.start() expects a default root to exist.
-    - Instead, fully clear the root to avoid pack/grid conflicts, then let gui.start build on it.
-    """
-    # Persist chosen root before switching screens
     set_projects_root(root.projects_home_state["projects_root"].get())
 
-    # Completely clear the root so there are no pack-managed widgets left
     for child in list(root.winfo_children()):
         try:
             child.destroy()
         except Exception:
             pass
 
-    # Now import and start the main GUI (it will find the existing default root)
+    # načítaj prihláseného používateľa (ak skip, nech je prázdny)
+    u = load_login_user() if load_login_state() else {}
+
     import gui
-    gui.start(project_dir, json_path)
+    gui.start(
+        project_dir,
+        json_path,
+        meno=u.get("meno", ""),
+        priezvisko=u.get("priezvisko", ""),
+        username=u.get("username", "")
+    )
 
 # ──────────────────────────────── Main UI ────────────────────────────────
 
@@ -194,6 +271,18 @@ def main():
                              cwd=os.path.dirname(login_path) or None)
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa spustiť login.py:\n{e}")
+    # po vytvorení logout_btn
+    skip_var = tk.BooleanVar(value=load_skip_login())
+    def on_toggle_skip():
+        set_skip_login(skip_var.get())
+    skip_chk = tb.Checkbutton(
+        top,
+        text="Skip prihlásenia",
+        variable=skip_var,
+        bootstyle="secondary",
+        command=on_toggle_skip
+    )
+    skip_chk.pack(side="right", padx=(6, 0))
 
     # inicializačný štýl podľa aktuálneho stavu
     login_btn = tb.Button(
@@ -412,10 +501,23 @@ def main():
         for fp in files:
             base = os.path.basename(fp)
             ts = datetime.fromtimestamp(os.path.getmtime(fp)).strftime("%Y-%m-%d %H:%M")
-            archive_list.insert("end", f"{ts}  |  {base}")
-        archive_list._files = files  # attach list for easy lookup
+            who = resolve_author_from_json(fp)
+            suffix = f"  |  {base}"
+            if who:
+                suffix += f"  |  {who}"
+            archive_list.insert("end", f"{ts}{suffix}")
+
+        archive_list._files = files  # <-- pridaj
+
+
 
     def open_selected():
+        if not load_login_state() and not load_skip_login():
+            messagebox.showwarning(
+            "Prihlásenie",
+            "Aby si mohol otvoriť projekt, prihlás sa (alebo dočasne povol 'Skip prihlásenia')."
+        )
+            return
         proj = root.projects_home_state["selected_project"]
         if not proj:
             messagebox.showwarning("No project selected", "Please select a project.")
