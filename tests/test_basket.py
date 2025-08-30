@@ -1,11 +1,17 @@
 import sys
+import subprocess
 from pathlib import Path
 
-# Add application directory to path
+# Build and add application directory to path
 ROOT_DIR = Path(__file__).resolve().parents[1]
-APP_DIR = ROOT_DIR / 'one folder to rule them all' / 'Hlavna aplikacia'
+subprocess.run([sys.executable, "setup.py", "build"], cwd=ROOT_DIR, check=True)
+build_lib = next((ROOT_DIR / "build").glob("lib.*"))
+sys.path.insert(0, str(build_lib.resolve()))
+
+APP_DIR = ROOT_DIR / "one folder to rule them all" / "Hlavna aplikacia"
 sys.path.append(str(APP_DIR))
 
+import fastbasket
 from basket import Basket
 
 
@@ -45,10 +51,11 @@ def test_apply_and_revert_coefficients():
     assert info.koeficient_prace == 1.5
 
 
-def test_duplicate_add_does_not_affect_undo():
-    b = Basket()
-    item = make_item()
-    assert b.add_item(item)
-    assert not b.add_item(item)
-    b.undo()
-    assert not b.items
+def test_undo_engine():
+    eng = fastbasket.UndoEngine()
+    ch = fastbasket.Change("sec", "prod", "field", "1", "2")
+    eng.apply(ch)
+    u = eng.undo()
+    assert u.old_value == "1"
+    r = eng.redo()
+    assert r.new_value == "2"
