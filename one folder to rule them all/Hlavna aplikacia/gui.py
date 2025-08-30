@@ -223,7 +223,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         root,
         lambda: refresh_db_results()
     )
-    filter_container.config(width=350)
+    
 
     setup_cat_tree(category_structure)
 
@@ -487,10 +487,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         inner.bind("<Configure>", _on_inner_configure)
         def _on_canvas_configure(event=None):
             try:
-                canvas.itemconfig(_win_id, width=canvas.winfo_width())
+                current = canvas.itemcget(_win_id, "width")
+                w = canvas.winfo_width()
+                if not current or abs(int(float(current)) - w) >= 4:  # ignore tiny changes
+                    canvas.itemconfig(_win_id, width=w)
             except Exception:
                 pass
         canvas.bind("<Configure>", _on_canvas_configure)
+
         def _on_mousewheel(event):
             # Support Windows/macOS (event.delta) and Linux/X11 (Button-4/5)
             units = 0

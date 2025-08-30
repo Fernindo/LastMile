@@ -60,21 +60,37 @@ def create_filter_panel(parent, on_mousewheel_callback, width_fraction=0.2, min_
     filter_container.pack_propagate(False)
 
     resize_job = [None]
+    _last_w = [None]
+    _resizing = [False]   # re-entrancy guard to avoid resize feedback loops
 
     def _set_width(total_w):
-        target = int(total_w * width_fraction)
-        target = max(min(target, max_width), min_width)
-        if abs(filter_container.winfo_width() - target) > 1:
-            filter_container.config(width=target)
+        if _resizing[0]:
+            return
+        _resizing[0] = True
+        try:
+            target = int(total_w * width_fraction)
+            target = max(min(target, max_width), min_width)
+            # Only apply if meaningfully different (prevents 1–2 px thrash)
+            if abs(filter_container.winfo_width() - target) >= 2:
+                filter_container.config(width=target)
+        finally:
+            _resizing[0] = False
 
     def _adjust_width(event):
-        if resize_job[0] is not None:
-            filter_container.after_cancel(resize_job[0])
-        resize_job[0] = filter_container.after(100, lambda w=event.width: _set_width(w))
+        # Only react if the *width* of the parent changed by ≥ 4 px.
+        w = event.width
+        if _last_w[0] is None or abs(w - _last_w[0]) >= 4:
+            _last_w[0] = w
+            if resize_job[0] is not None:
+                filter_container.after_cancel(resize_job[0])
+            # debounce quick bursts of <Configure> during scroll
+            resize_job[0] = filter_container.after(80, lambda w=w: _set_width(w))
 
     parent.bind("<Configure>", _adjust_width)
     parent.update_idletasks()
-    _set_width(parent.winfo_width())
+    _last_w[0] = parent.winfo_width()
+    _set_width(_last_w[0])
+
 
     canvas = tk.Canvas(filter_container, bg="white", highlightthickness=0)
     h_scrollbar = tk.Scrollbar(filter_container, orient="horizontal", command=canvas.xview)
