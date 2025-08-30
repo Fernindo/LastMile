@@ -686,6 +686,178 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
 
     basket_tree.bind("<Double-1>", on_basket_double_click)
 
+    # Inline cell editor (rebind Double-Click to edit in place)
+    _cell_editor = {"widget": None}
+
+    def _destroy_editor(commit=False):
+        ed = _cell_editor.get("widget")
+        if not ed or not ed.winfo_exists():
+            _cell_editor["widget"] = None
+            return
+
+        row = getattr(ed, "_edit_row", None)
+        col_name = getattr(ed, "_edit_col", None)
+        dtype = getattr(ed, "_edit_type", None)
+        value_text = ed.get()
+
+        ed.destroy()
+        _cell_editor["widget"] = None
+
+        if not commit or not row or not col_name:
+            return
+
+        # Determine targets: apply to all selected items in same column, or only the edited row
+        selected = [r for r in basket_tree.selection() if basket_tree.parent(r)]
+        if not selected or row not in selected:
+            selected = [row]
+
+        # Parse value according to type
+        try:
+            if dtype == "int":
+                new_val = int(float(str(value_text).replace(",", ".")))
+            elif dtype == "float":
+                new_val = float(str(value_text).replace(",", "."))
+            else:
+                new_val = value_text
+        except Exception:
+            root.bell()
+            return
+
+        # Update model and UI
+        basket.snapshot()
+        for iid in selected:
+            sec_name = basket_tree.item(basket_tree.parent(iid), "text")
+            prod_name = basket_tree.item(iid)["values"][0]
+
+            # map visible column to BasketItem attribute
+            attr = col_name
+            if attr == "nakup_mat_jedn":
+                attr = "nakup_materialu"
+            if attr == "koeficient_praca":
+                attr = "koeficient_prace"
+
+            # protect against editing of computed/unsupported columns
+            if attr not in {
+                "pocet_materialu",
+                "pocet_prace",
+                "koeficient_material",
+                "koeficient_prace",
+                "nakup_materialu",
+                "cena_prace",
+            }:
+                continue
+
+            # Respect sync when editing pocet_prace
+            if col_name == "pocet_prace" and basket.items[sec_name][prod_name].sync:
+                continue
+
+            # Remember original coefficients for revert actions
+            if attr == "koeficient_material":
+                key = (sec_name, prod_name)
+                if key not in basket.base_coeffs_material:
+                    basket.base_coeffs_material[key] = getattr(basket.items[sec_name][prod_name], attr)
+            if attr == "koeficient_prace":
+                key = (sec_name, prod_name)
+                if key not in basket.base_coeffs_work:
+                    basket.base_coeffs_work[key] = getattr(basket.items[sec_name][prod_name], attr)
+
+            setattr(basket.items[sec_name][prod_name], attr, new_val)
+            if basket.items[sec_name][prod_name].sync and col_name == "pocet_materialu":
+                basket.items[sec_name][prod_name].pocet_prace = new_val
+
+        mark_modified()
+        update_basket_table(basket_tree, basket)
+        recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+
+    def on_basket_cell_double_click(event):
+        # If an editor is active, commit and remove it first
+        _destroy_editor(commit=True)
+
+        row = basket_tree.identify_row(event.y)
+        col = basket_tree.identify_column(event.x)
+        if not row:
+            return
+
+        # If this is a section header (parent == ""), do nothing
+        if basket_tree.parent(row) == "":
+            return
+
+        # Determine which column is being edited
+        idx_visible = int(col.replace("#", "")) - 1
+        visible_cols = basket_tree.cget("displaycolumns")
+        if isinstance(visible_cols, str):
+            visible_cols = (visible_cols,)
+        if idx_visible >= len(visible_cols):
+            return
+        col_name = visible_cols[idx_visible]
+
+        sec = basket_tree.parent(row)
+        prod = basket_tree.item(row)["values"][0]
+
+        # Toggle sync without editor
+        section_name = basket_tree.item(sec, "text")
+        if col_name == "sync":
+            basket.snapshot()
+            new_val = not basket.items[section_name][prod].sync
+            selected = [r for r in basket_tree.selection() if basket_tree.parent(r)]
+            if not selected or row not in selected:
+                selected = [row]
+            for iid in selected:
+                sec_name = basket_tree.item(basket_tree.parent(iid), "text")
+                prod_name = basket_tree.item(iid)["values"][0]
+                basket.items[sec_name][prod_name].sync = new_val
+                if new_val:
+                    mat_c = basket.items[sec_name][prod_name].pocet_materialu
+                    basket.items[sec_name][prod_name].pocet_prace = mat_c
+            update_basket_table(basket_tree, basket)
+            recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+            mark_modified()
+            return
+
+        # Establish editor type
+        if col_name in ("pocet_materialu", "pocet_prace"):
+            if col_name == "pocet_prace" and basket.items[section_name][prod].sync:
+                messagebox.showinfo(
+                    "Synchronizácia",
+                    "Počet práce je synchronizovaný s počtom materiálu.\nVypnite Sync pre úpravu.",
+                )
+                return
+            dtype = "int"
+        elif col_name in ("koeficient_material", "nakup_mat_jedn", "koeficient_praca", "cena_prace"):
+            dtype = "float"
+        else:
+            # Computed or unsupported columns are not editable
+            return
+
+        old = basket_tree.set(row, col_name)
+        # Place editor over the cell
+        try:
+            x, y, w, h = basket_tree.bbox(row, col)
+        except Exception:
+            basket_tree.see(row)
+            try:
+                x, y, w, h = basket_tree.bbox(row, col)
+            except Exception:
+                return
+
+        ed = tk.Entry(basket_tree)
+        ed.insert(0, str(old))
+        ed.select_range(0, "end")
+        ed.focus_set()
+        ed.place(x=x, y=y, width=w, height=h)
+        ed._edit_row = row
+        ed._edit_col = col_name
+        ed._edit_type = dtype
+        _cell_editor["widget"] = ed
+
+        # Commit/cancel bindings
+        ed.bind("<Return>", lambda e: _destroy_editor(commit=True))
+        ed.bind("<Escape>", lambda e: _destroy_editor(commit=False))
+        ed.bind("<FocusOut>", lambda e: _destroy_editor(commit=True))
+
+    # Override the earlier double-click binding with inline editor
+    basket_tree.bind("<Double-1>", on_basket_cell_double_click)
+
     # -- Right-click context menu to Reset item (Basket) --
     def on_basket_right_click(event):
         iid = basket_tree.identify_row(event.y)

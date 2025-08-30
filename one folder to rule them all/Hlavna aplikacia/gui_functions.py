@@ -27,6 +27,9 @@ from helpers import (
 )
 from excel_processing import update_excel
 
+# Cache whether PostgreSQL has the unaccent extension available
+PG_HAS_UNACCENT: bool | None = None
+
 # ─── Network / Database Helpers ─────────────────────────────────────────────
 
 def is_online(host="8.8.8.8", port=53, timeout=3):
@@ -277,6 +280,31 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
         query += f" AND pc.class_id IN ({placeholder})"
         params.extend(sel_ids)
 
+    # Push the name filter into SQL for performance
+    if name_f:
+        if db_type == "postgres":
+            # Detect 'unaccent' extension availability once per process
+            global PG_HAS_UNACCENT
+            use_unaccent = PG_HAS_UNACCENT
+            if use_unaccent is None:
+                try:
+                    cursor.execute("SELECT 1 FROM pg_extension WHERE extname = 'unaccent'")
+                    use_unaccent = cursor.fetchone() is not None
+                except Exception:
+                    use_unaccent = False
+                PG_HAS_UNACCENT = use_unaccent
+
+            ph = "%s"
+            if use_unaccent:
+                query += f" AND lower(unaccent(p.produkt)) LIKE {ph}"
+            else:
+                query += f" AND lower(p.produkt) LIKE {ph}"
+            params.append(f"%{name_f}%")
+        else:
+            # SQLite: basic case-insensitive LIKE using lower()
+            query += " AND lower(p.produkt) LIKE ?"
+            params.append(f"%{name_f}%")
+
     try:
         cursor.execute(query, tuple(params))
         rows = cursor.fetchall()
@@ -287,10 +315,8 @@ def apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree):
     tree.delete(*tree.get_children())
     grouped = {}
     for r in rows:
-        prod = r[0]
-        if not name_f or name_f in remove_accents(prod.lower()):
-            cid = r[-1]
-            grouped.setdefault(cid, []).append(r[:-1])
+        cid = r[-1]
+        grouped.setdefault(cid, []).append(r[:-1])
 
     cnames = {}
     try:
