@@ -5,6 +5,8 @@ from collections import OrderedDict
 from typing import Dict, Tuple, Optional
 import copy
 
+import fastbasket
+
 @dataclass
 class BasketItem:
     jednotky: str
@@ -29,58 +31,7 @@ class Basket:
         self.original: OrderedDict[str, OrderedDict[str, BasketItem]] = OrderedDict()
         self.base_coeffs_material: Dict[Tuple[str, str], float] = {}
         self.base_coeffs_work: Dict[Tuple[str, str], float] = {}
-        self._undo_stack: list[
-            tuple[
-                OrderedDict[str, OrderedDict[str, BasketItem]],
-                Dict[Tuple[str, str], float],
-                Dict[Tuple[str, str], float],
-            ]
-        ] = []
-        self._redo_stack: list[
-            tuple[
-                OrderedDict[str, OrderedDict[str, BasketItem]],
-                Dict[Tuple[str, str], float],
-                Dict[Tuple[str, str], float],
-            ]
-        ] = []
-
-    # ------------------------------------------------------------------
-    # Undo/Redo helpers
-    def snapshot(self) -> None:
-        self._undo_stack.append(
-            (
-                copy.deepcopy(self.items),
-                copy.deepcopy(self.base_coeffs_material),
-                copy.deepcopy(self.base_coeffs_work),
-            )
-        )
-        self._redo_stack.clear()
-
-    def undo(self) -> bool:
-        if not self._undo_stack:
-            return False
-        self._redo_stack.append(
-            (
-                copy.deepcopy(self.items),
-                copy.deepcopy(self.base_coeffs_material),
-                copy.deepcopy(self.base_coeffs_work),
-            )
-        )
-        self.items, self.base_coeffs_material, self.base_coeffs_work = self._undo_stack.pop()
-        return True
-
-    def redo(self) -> bool:
-        if not self._redo_stack:
-            return False
-        self._undo_stack.append(
-            (
-                copy.deepcopy(self.items),
-                copy.deepcopy(self.base_coeffs_material),
-                copy.deepcopy(self.base_coeffs_work),
-            )
-        )
-        self.items, self.base_coeffs_material, self.base_coeffs_work = self._redo_stack.pop()
-        return True
+        self._undo = fastbasket.UndoEngine()
 
     # ------------------------------------------------------------------
     # Basic modifications
@@ -88,11 +39,9 @@ class Basket:
         produkt, jednotky, dodavatel, odkaz, koef_mat, nakup_mat, cena_prace, koef_pr = item[:8]
         if section is None:
             section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
-        # Do not snapshot if nothing changes (duplicate add)
+        # Do not record if nothing changes (duplicate add)
         if section in self.items and produkt in self.items[section]:
             return False
-        # We are about to mutate state; snapshot first
-        self.snapshot()
         if section not in self.items:
             self.items[section] = OrderedDict()
         info = BasketItem(
@@ -108,15 +57,66 @@ class Basket:
         self.original.setdefault(section, OrderedDict())[produkt] = copy.deepcopy(info)
         return True
 
+    # ------------------------------------------------------------------
+    # Undo/Redo using fastbasket engine
+    def apply_change(self, section: str, produkt: str, field: str, new_value: str) -> None:
+        info = self.items.get(section, {}).get(produkt)
+        if not info:
+            return
+        old_val = getattr(info, field)
+        self._undo.apply(fastbasket.Change(section, produkt, field, str(old_val), str(new_value)))
+        if field in {"pocet_materialu", "pocet_prace"}:
+            setattr(info, field, int(new_value))
+        elif field in {"koeficient_material", "nakup_materialu", "koeficient_prace", "cena_prace"}:
+            setattr(info, field, float(new_value))
+        elif field == "sync":
+            setattr(info, field, bool(new_value))
+        else:
+            setattr(info, field, new_value)
+
+    def undo(self) -> bool:
+        ch = self._undo.undo()
+        if ch is None:
+            return False
+        info = self.items.get(ch.section, {}).get(ch.product)
+        if info:
+            field = ch.field
+            val = ch.old_value
+            if field in {"pocet_materialu", "pocet_prace"}:
+                setattr(info, field, int(val))
+            elif field in {"koeficient_material", "nakup_materialu", "koeficient_prace", "cena_prace"}:
+                setattr(info, field, float(val))
+            elif field == "sync":
+                setattr(info, field, val.lower() in {"true", "1"})
+            else:
+                setattr(info, field, val)
+        return True
+
+    def redo(self) -> bool:
+        ch = self._undo.redo()
+        if ch is None:
+            return False
+        info = self.items.get(ch.section, {}).get(ch.product)
+        if info:
+            field = ch.field
+            val = ch.new_value
+            if field in {"pocet_materialu", "pocet_prace"}:
+                setattr(info, field, int(val))
+            elif field in {"koeficient_material", "nakup_materialu", "koeficient_prace", "cena_prace"}:
+                setattr(info, field, float(val))
+            elif field == "sync":
+                setattr(info, field, val.lower() in {"true", "1"})
+            else:
+                setattr(info, field, val)
+        return True
+
     def remove(self, section: str, produkt: str) -> None:
         if section in self.items and produkt in self.items[section]:
-            self.snapshot()
             del self.items[section][produkt]
             if not self.items[section]:
                 del self.items[section]
 
     def remove_selection(self, tree) -> None:
-        self.snapshot()
         for iid in tree.selection():
             parent = tree.parent(iid)
             if parent == "":
@@ -130,79 +130,51 @@ class Basket:
     def update_tree(self, tree) -> None:
         """Refresh all rows of the provided tree widget."""
         tree.delete(*tree.get_children())
-
         for section, products in self.items.items():
             sec_id = tree.insert("", "end", text=section)
-            # Expand sections by default so all products are visible
             tree.item(sec_id, open=True)
+            rows: list[fastbasket.InputRow] = []
             for produkt, d in products.items():
-                poc_mat = int(d.pocet_materialu)
-                poc_pr = int(d.pocet_prace)
-                koef_mat = float(d.koeficient_material)
-                nakup_mat = float(d.nakup_materialu)
-                predaj_mat_jedn = nakup_mat * koef_mat
-                predaj_mat_spolu = predaj_mat_jedn * poc_mat
-                koef_pr = float(d.koeficient_prace)
-                cena_pr = float(d.cena_prace)
-                predaj_praca_jedn = cena_pr * koef_pr
-                predaj_praca_spolu = predaj_praca_jedn * poc_pr
-                predaj_spolu = predaj_mat_spolu + predaj_praca_spolu
-                nakup_mat_spolu = nakup_mat * poc_mat
-                zisk_mat = predaj_mat_spolu - nakup_mat_spolu
-                marza_mat = (zisk_mat / predaj_mat_spolu * 100) if predaj_mat_spolu else 0
-                nakup_praca_spolu = cena_pr * poc_pr
-                zisk_pr = predaj_praca_spolu - nakup_praca_spolu
-                marza_pr = (zisk_pr / predaj_praca_spolu * 100) if predaj_praca_spolu else 0
-                sync = "\u2713" if d.sync else ""
-                tree.insert(
-                    sec_id,
-                    "end",
-                    text="",
-                    values=(
+                rows.append(
+                    fastbasket.InputRow(
                         produkt,
                         d.jednotky,
-                        poc_mat,
-                        f"{koef_mat:.2f}",
-                        f"{nakup_mat:.2f}",
-                        f"{predaj_mat_jedn:.2f}",
-                        f"{nakup_mat_spolu:.2f}",
-                        f"{predaj_mat_spolu:.2f}",
-                        f"{zisk_mat:.2f}",
-                        f"{marza_mat:.2f}",
-                        poc_pr,
-                        f"{koef_pr:.2f}",
-                        f"{cena_pr:.2f}",
-                        f"{nakup_praca_spolu:.2f}",
-                        f"{predaj_praca_jedn:.2f}",
-                        f"{predaj_praca_spolu:.2f}",
-                        f"{zisk_pr:.2f}",
-                        f"{marza_pr:.2f}",
-                        f"{predaj_spolu:.2f}",
-                        sync,
-                    ),
+                        int(d.pocet_materialu),
+                        float(d.koeficient_material),
+                        float(d.nakup_materialu),
+                        int(d.pocet_prace),
+                        float(d.koeficient_prace),
+                        float(d.cena_prace),
+                        bool(d.sync),
+                    )
                 )
+            formatted, _, _ = fastbasket.compute_rows_and_totals(rows)
+            for row in formatted:
+                tree.insert(sec_id, "end", text="", values=row)
 
 
     def recompute_totals(self) -> Tuple[float, float, float]:
         """Return (material_total, work_total, overall_total)."""
-        total_material = 0.0
-        total_work = 0.0
+        rows: list[fastbasket.InputRow] = []
         for section, products in self.items.items():
-            for _, info in products.items():
-                koef_mat = float(info.koeficient_material)
-                nakup_mat = float(info.nakup_materialu)
-                poc_mat = int(info.pocet_materialu)
-                total_material += nakup_mat * koef_mat * poc_mat
-
-                koef_pr = float(info.koeficient_prace)
-                cena_pr = float(info.cena_prace)
-                poc_pr = int(info.pocet_prace)
-                total_work += cena_pr * koef_pr * poc_pr
-
+            for produkt, info in products.items():
+                rows.append(
+                    fastbasket.InputRow(
+                        produkt,
+                        info.jednotky,
+                        int(info.pocet_materialu),
+                        float(info.koeficient_material),
+                        float(info.nakup_materialu),
+                        int(info.pocet_prace),
+                        float(info.koeficient_prace),
+                        float(info.cena_prace),
+                        bool(info.sync),
+                    )
+                )
+        _, total_material, total_work = fastbasket.compute_rows_and_totals(rows)
         return total_material, total_work, total_material + total_work
 
     def reorder_from_tree(self, tree) -> None:
-        self.snapshot()
         new_items: OrderedDict[str, OrderedDict[str, BasketItem]] = OrderedDict()
         for sec in tree.get_children(""):
             sec_name = tree.item(sec, "text")
@@ -230,7 +202,6 @@ class Basket:
         """Apply the same coefficient to material and work for all items."""
         if not self.items:
             return
-        self.snapshot()
         for section, products in self.items.items():
             for pname, info in products.items():
                 key = (section, pname)
@@ -245,7 +216,6 @@ class Basket:
         """Apply coefficient only to material prices for all items."""
         if not self.items:
             return
-        self.snapshot()
         for section, products in self.items.items():
             for pname, info in products.items():
                 key = (section, pname)
@@ -257,7 +227,6 @@ class Basket:
         """Apply coefficient only to work prices for all items."""
         if not self.items:
             return
-        self.snapshot()
         for section, products in self.items.items():
             for pname, info in products.items():
                 key = (section, pname)
@@ -267,7 +236,6 @@ class Basket:
 
     def revert_coefficient(self) -> None:
         """Revert both material and work coefficients to stored originals."""
-        self.snapshot()
         for (section, pname), orig in self.base_coeffs_material.items():
             if section in self.items and pname in self.items[section]:
                 self.items[section][pname].koeficient_material = orig
@@ -279,7 +247,6 @@ class Basket:
 
     def revert_material_coefficient(self) -> None:
         """Revert only material coefficients to stored originals."""
-        self.snapshot()
         for (section, pname), orig in self.base_coeffs_material.items():
             if section in self.items and pname in self.items[section]:
                 self.items[section][pname].koeficient_material = orig
@@ -287,7 +254,6 @@ class Basket:
 
     def revert_work_coefficient(self) -> None:
         """Revert only work coefficients to stored originals."""
-        self.snapshot()
         for (section, pname), orig in self.base_coeffs_work.items():
             if section in self.items and pname in self.items[section]:
                 self.items[section][pname].koeficient_prace = orig
@@ -297,7 +263,6 @@ class Basket:
         orig = self.original.get(section, {}).get(produkt)
         if not orig:
             return
-        self.snapshot()
         self.items[section][produkt] = copy.deepcopy(orig)
 
 
