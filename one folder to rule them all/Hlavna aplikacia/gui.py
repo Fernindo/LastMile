@@ -68,13 +68,15 @@ from gui_functions import (
 
 from tkinter import messagebox, simpledialog
 
-def start(project_dir, json_path, meno="", priezvisko="", username=""):
+def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=None):
     global CURRENT_USER
     CURRENT_USER = {
+        "id": user_id,
         "meno": meno or "",
         "priezvisko": priezvisko or "",
         "username": username or ""
     }
+
 
     # ─── Prepare paths and DB ────────────────────────────────────────────
     project_name = os.path.basename(project_dir)
@@ -1422,7 +1424,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
         meno_u = user.get("meno", "")
         priezvisko_u = user.get("priezvisko", "")
         username_u = user.get("username", "")
-
+        user_id_u = user.get("id")
+        
         if priezvisko_u or meno_u:
             author = f"{priezvisko_u} {meno_u[:1]}.".strip()
         elif username_u:
@@ -1431,6 +1434,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
             author = ""
 
         out = {
+            
+            "author": author,            # pre rýchle čítanie
+            "user_id": user_id_u,        # pre DB mapovanie
+            "username": username_u, 
             "project": project_name,
             "author": author,
             "items": [],

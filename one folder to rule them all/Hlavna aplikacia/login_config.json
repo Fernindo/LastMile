@@ -2,5 +2,12 @@
   "remember": true,
   "username": "user1",
   "password": "1234",
-  "logged_in": true
+  "logged_in": false,
+  "user": {
+    "id": 3,
+    "username": "user1",
+    "meno": "Jozko",
+    "priezvisko": "Mrkva"
+  },
+  "skip_login": true
 }
