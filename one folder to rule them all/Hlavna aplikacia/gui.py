@@ -158,6 +158,11 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     db_visible = [True]  # Používame list kvôli mutabilite
     # DB view mode state
     db_view_mode = ["table"]  # 'table' | 'cards'
+    # Initialize from saved UI settings if present
+    try:
+        db_view_mode[0] = ui_settings.get("db_view_mode", db_view_mode[0])
+    except Exception:
+        pass
     db_cards_frame = [None]
 
     def toggle_db_view():
@@ -286,33 +291,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     )
     toggle_basket_btn.pack(side="left", padx=(10, 0))
 
-    # View-mode button for Database: Card View
-    def _update_view_buttons():
-        mode = db_view_mode[0]
-        try:
-            card_btn.configure(bootstyle=("success" if mode == "cards" else "secondary"))
-        except Exception:
-            pass
-
-    def set_db_view(mode):
-        # toggle off to table if clicking the active mode
-        db_view_mode[0] = "table" if db_view_mode[0] == mode else mode
-        if db_visible[0]:
-            try:
-                _show_current_db_view()
-            except Exception:
-                pass
-        _update_view_buttons()
-
-    card_btn = tb.Button(
-        top,
-        text="Card View",
-        bootstyle="secondary",
-        command=lambda: set_db_view("cards")
-    )
-    card_btn.pack(side="left", padx=(10, 0))
-
-    # Removed Split View per request
+    # Card View toggle moved into Settings; Split View removed per request
 
 
     praca_btn = tb.Button(
@@ -624,6 +603,19 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 _show_detail_popup(v)
             tb.Button(btns, text="Pridať", bootstyle="success", command=_add).pack(side="left")
             tb.Button(btns, text="Detaily", bootstyle="secondary", command=_detail).pack(side="right")
+
+            # Right-click on the card (or its children) to show details
+            try:
+                def _rc_handler(event=None, v=vals):
+                    _show_detail_popup(v, event)
+                card.bind("<Button-3>", _rc_handler)
+                for _ch in card.winfo_children():
+                    try:
+                        _ch.bind("<Button-3>", _rc_handler)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             # Ensure Koef label uses ASCII (avoid corrupted diacritics)
             try:
                 for _w in card.winfo_children():
@@ -670,9 +662,15 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         except Exception:
             pass
 
-    def _show_detail_popup(vals):
+    def _show_detail_popup(vals, event=None):
         win = tk.Toplevel(root)
         win.title("Detail produktu")
+        # Make the popup transient and on top
+        try:
+            win.transient(root)
+            win.attributes("-topmost", True)
+        except Exception:
+            pass
         frm = tb.Frame(win, padding=10)
         frm.pack(fill="both", expand=True)
         fields = [
@@ -692,6 +690,28 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                   command=lambda: add_to_basket_full(vals, basket, conn, cursor, db_type, basket_tree, mark_modified,
                                                     total_spolu_var, total_praca_var, total_material_var)
                   ).grid(row=len(fields), column=0, columnspan=2, sticky="e", padx=5, pady=(10, 0))
+
+        # Position near click if event provided
+        try:
+            if event is not None and hasattr(event, "x_root") and hasattr(event, "y_root"):
+                x = max(0, int(event.x_root) + 10)
+                y = max(0, int(event.y_root) + 10)
+                win.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
+
+        # Close when clicking anywhere else (lose focus)
+        try:
+            def _on_focus_out(e):
+                try:
+                    if win.winfo_exists():
+                        win.destroy()
+                except Exception:
+                    pass
+            win.focus_force()
+            win.bind("<FocusOut>", _on_focus_out)
+        except Exception:
+            pass
 
     # Split view (detail panel) removed per request
 
@@ -784,6 +804,16 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # Pack redo button first so it appears to the right of the undo button
     redo_btn.pack(side="right", padx=(0, 10))
     undo_btn.pack(side="right", padx=(0, 5))
+
+    # Keyboard shortcut: Ctrl+Z triggers Undo
+    def _on_ctrl_z(event=None):
+        try:
+            undo_action()
+        finally:
+            return "break"  # prevent default propagation
+
+    root.bind_all("<Control-z>", _on_ctrl_z)
+    root.bind_all("<Control-Z>", _on_ctrl_z)
 
     basket_tree_container = tb.Frame(basket_frame)
     basket_tree_container.pack(fill="both", expand=True)
@@ -1524,6 +1554,13 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     basket._undo_stack.clear()
     basket._redo_stack.clear()
 
+    # Ensure initial DB view matches saved preference
+    try:
+        if db_visible[0]:
+            _show_current_db_view()
+    except Exception:
+        pass
+
     # ─── Initial filtering of DB results ─────────────────────────────────
     refresh_db_results()
 
@@ -1551,8 +1588,9 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         settings_win = tk.Toplevel(root)
         settings_window[0] = settings_win
         settings_win.title("Nastavenia")
-        settings_win.geometry("1000x350")
-        settings_win.resizable(False, False)
+        # Make settings window wider and taller when Save button exists
+        settings_win.geometry("1200x600")
+        settings_win.resizable(True, True)
 
         container = tk.Frame(settings_win, bg="white")
         container.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1586,6 +1624,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             r = idx // db_cols_per_row
             c = idx % db_cols_per_row
             chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
+
+        # --- Database view mode (Table vs Cards) ------------------------
+        tk.Label(inner, text="Zobrazenie databA�zy:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        view_frame = tk.Frame(inner, bg="white")
+        view_frame.pack(anchor="w", padx=20, pady=(0, 10))
+        db_view_mode_var = tk.StringVar(value=db_view_mode[0])
+        tk.Radiobutton(view_frame, text="Tabu�_ka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
+        tk.Radiobutton(view_frame, text="Karty", value="cards", variable=db_view_mode_var, bg="white").pack(side="left")
 
         # --- Basket column visibility -----------------------------------
         tk.Label(inner, text="Zobraziť stĺpce:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
@@ -1627,7 +1673,20 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             root.option_add("*Font", ("Segoe UI", font_size_var[0]))
-            _save_ui_settings({"table_font_size": font_size_var[0]})
+            # Apply DB view mode selection and persist settings
+            try:
+                db_view_mode[0] = db_view_mode_var.get()
+                if db_visible[0]:
+                    _show_current_db_view()
+            except Exception:
+                pass
+            try:
+                _st = _load_ui_settings()
+            except Exception:
+                _st = {}
+            _st["table_font_size"] = font_size_var[0]
+            _st["db_view_mode"] = db_view_mode[0]
+            _save_ui_settings(_st)
             settings_window[0] = None
             settings_win.destroy()
 
