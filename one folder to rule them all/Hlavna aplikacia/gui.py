@@ -357,6 +357,33 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     definition_entry = tk.Entry(top, width=50)
     definition_entry.insert(0, "")
     definition_entry.pack(side="left")
+    def back_to_archive():
+        try:
+            on_closing()
+        except Exception:
+            return  # ak niečo zlyhá pri ukladaní, zostaneme v GUI
+
+        # ak už root zanikol, spustíme späť Project Selector
+        try:
+            if root.winfo_exists():
+                return  # používateľ dal Cancel -> zostaň v GUI
+        except tk.TclError:
+            # root bol zničený → môžeme otvoriť selector
+            pass
+
+        import subprocess, sys, os
+        selector_path = os.path.join(os.path.dirname(__file__), "project_selector.py")
+        if os.path.isfile(selector_path):
+            subprocess.Popen([sys.executable, selector_path],
+                             cwd=os.path.dirname(selector_path) or None)
+
+    archive_btn = tb.Button(
+        top,
+        text="📂 Archív",
+        bootstyle="secondary",
+        command=back_to_archive
+    )
+    archive_btn.pack(side="right", padx=(5, 10))
 
     # Settings button to configure basket visibility
     settings_btn = tb.Button(
@@ -1425,7 +1452,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         priezvisko_u = user.get("priezvisko", "")
         username_u = user.get("username", "")
         user_id_u = user.get("id")
-        
+
         if priezvisko_u or meno_u:
             author = f"{priezvisko_u} {meno_u[:1]}.".strip()
         elif username_u:
