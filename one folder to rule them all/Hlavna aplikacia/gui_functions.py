@@ -799,22 +799,15 @@ def show_notes_popup(project_name, json_path):
         elif event.num == 5:
             canvas.yview_scroll(1, "units")
 
-    scrollable_frame.bind(
-        "<Enter>",
-        lambda e: (
-            canvas.bind_all("<MouseWheel>", _on_mousewheel),
-            canvas.bind_all("<Button-4>", _on_mousewheel),
-            canvas.bind_all("<Button-5>", _on_mousewheel),
-        )
-    )
-    scrollable_frame.bind(
-        "<Leave>",
-        lambda e: (
-            canvas.unbind_all("<MouseWheel>"),
-            canvas.unbind_all("<Button-4>"),
-            canvas.unbind_all("<Button-5>"),
-        )
-    )
+    # Use local bindings so the notes panel does not capture
+    # the mouse wheel globally and interfere with other views
+    canvas.bind("<MouseWheel>", _on_mousewheel)
+    scrollable_frame.bind("<MouseWheel>", _on_mousewheel)
+    # Linux/X11 scroll events
+    canvas.bind("<Button-4>", _on_mousewheel)
+    canvas.bind("<Button-5>", _on_mousewheel)
+    scrollable_frame.bind("<Button-4>", _on_mousewheel)
+    scrollable_frame.bind("<Button-5>", _on_mousewheel)
 
     canvas.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")

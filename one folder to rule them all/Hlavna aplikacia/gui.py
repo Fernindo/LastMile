@@ -154,29 +154,26 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
     main_frame.grid(row=0, column=0, sticky="nsew")
     
     db_visible = [True]  # Používame list kvôli mutabilite
+    # DB view mode state
+    db_view_mode = ["table"]  # 'table' | 'cards'
+    db_cards_frame = [None]
 
     def toggle_db_view():
         if db_visible[0]:
-            tree_frame.pack_forget()
+            # Hide whichever DB view is active
+            if db_view_mode[0] == "cards":
+                if db_cards_frame[0] and db_cards_frame[0].winfo_manager():
+                    db_cards_frame[0].pack_forget()
+            else:
+                if 'tree_frame' in locals() and tree_frame.winfo_manager():
+                    tree_frame.pack_forget()
             toggle_btn.config(text="🔼 Zobraziť databázu")
         else:
-            if basket_frame.winfo_manager():
-                tree_frame.pack(
-                    in_=main_frame,
-                    before=basket_frame,
-                    fill="both",
-                    expand=True,
-                    padx=10,
-                    pady=10,
-                )
-            else:
-                tree_frame.pack(
-                    in_=main_frame,
-                    fill="both",
-                    expand=True,
-                    padx=10,
-                    pady=10,
-                )
+            # Show current DB view
+            try:
+                _show_current_db_view()
+            except Exception:
+                pass
             toggle_btn.config(text="🔽 Skryť databázu")
         db_visible[0] = not db_visible[0]
 
@@ -210,9 +207,19 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
         pass
 
     # --- Filter panel (create + toggle) --------------------------------------
+    def refresh_db_results():
+        """Apply current filters and update whichever DB view is active."""
+        apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
+        # Mirror data into alternative views as needed
+        if db_view_mode[0] == "cards":
+            try:
+                _rebuild_cards_from_tree()
+            except Exception:
+                pass
+
     filter_container, filter_frame, setup_cat_tree, category_vars, table_vars = create_filter_panel(
         root,
-        lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
+        lambda: refresh_db_results()
     )
     filter_container.config(width=350)
 
@@ -274,6 +281,34 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
     command=toggle_basket_view
     )
     toggle_basket_btn.pack(side="left", padx=(10, 0))
+
+    # View-mode button for Database: Card View
+    def _update_view_buttons():
+        mode = db_view_mode[0]
+        try:
+            card_btn.configure(bootstyle=("success" if mode == "cards" else "secondary"))
+        except Exception:
+            pass
+
+    def set_db_view(mode):
+        # toggle off to table if clicking the active mode
+        db_view_mode[0] = "table" if db_view_mode[0] == mode else mode
+        if db_visible[0]:
+            try:
+                _show_current_db_view()
+            except Exception:
+                pass
+        _update_view_buttons()
+
+    card_btn = tb.Button(
+        top,
+        text="Card View",
+        bootstyle="secondary",
+        command=lambda: set_db_view("cards")
+    )
+    card_btn.pack(side="left", padx=(10, 0))
+
+    # Removed Split View per request
 
 
     praca_btn = tb.Button(
@@ -341,7 +376,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
             root.after_cancel(filter_job[0])
         filter_job[0] = root.after(
             200,
-            lambda: apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree),
+            lambda: refresh_db_results(),
         )
 
     name_entry.bind("<KeyRelease>", on_name_change)
@@ -407,6 +442,246 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
     tree.pack(fill="both", expand=True)
     tree_scroll_y.config(command=tree.yview)
     tree_scroll_x.config(command=tree.xview)
+
+    # ===== Alternate DB Views: Card grid + Split detail panel =====
+    def _build_cards_view_container(parent):
+        wrap = tb.Frame(parent)
+        canvas = tk.Canvas(wrap, highlightthickness=0)
+        vsb = ttk.Scrollbar(wrap, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        inner = tb.Frame(canvas)
+        _win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+        def _on_inner_configure(event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        inner.bind("<Configure>", _on_inner_configure)
+        def _on_canvas_configure(event=None):
+            try:
+                canvas.itemconfig(_win_id, width=canvas.winfo_width())
+            except Exception:
+                pass
+        canvas.bind("<Configure>", _on_canvas_configure)
+        def _on_mousewheel(event):
+            # Support Windows/macOS (event.delta) and Linux/X11 (Button-4/5)
+            units = 0
+            if getattr(event, "delta", 0):
+                try:
+                    units = int(-1 * (event.delta / 120))
+                except Exception:
+                    units = -1 if event.delta > 0 else 1
+                # Fallback for platforms where delta is small (e.g., macOS)
+                if units == 0:
+                    units = -1 if event.delta > 0 else 1
+            else:
+                if getattr(event, "num", None) == 4:
+                    units = -1
+                elif getattr(event, "num", None) == 5:
+                    units = 1
+            if units:
+                canvas.yview_scroll(units, "units")
+            return "break"
+        # Bind to both canvas and inner so scrolling works when hovering them
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        inner.bind("<MouseWheel>", _on_mousewheel)
+        # Linux/X11 scroll buttons
+        canvas.bind("<Button-4>", _on_mousewheel)
+        canvas.bind("<Button-5>", _on_mousewheel)
+        inner.bind("<Button-4>", _on_mousewheel)
+        inner.bind("<Button-5>", _on_mousewheel)
+        # Bind on wrapper and scrollbar too, to cover the whole section area
+        wrap.bind("<MouseWheel>", _on_mousewheel)
+        wrap.bind("<Button-4>", _on_mousewheel)
+        wrap.bind("<Button-5>", _on_mousewheel)
+        try:
+            vsb.bind("<MouseWheel>", _on_mousewheel)
+            vsb.bind("<Button-4>", _on_mousewheel)
+            vsb.bind("<Button-5>", _on_mousewheel)
+        except Exception:
+            pass
+        # Hint focus to canvas when cursor enters cards area (helps on Windows)
+        inner.bind("<Enter>", lambda e: canvas.focus_set())
+        wrap.bind("<Enter>", lambda e: canvas.focus_set())
+        wrap._cards_canvas = canvas
+        wrap._cards_inner = inner
+        # Expose handler so children (cards) can reuse it
+        wrap._cards_on_wheel = _on_mousewheel
+        return wrap
+
+    def _rebuild_cards_from_tree():
+        # Rebuild the card grid based on current tree contents
+        if not db_cards_frame[0] or not db_cards_frame[0].winfo_exists():
+            return
+        inner = db_cards_frame[0]._cards_inner
+        for w in inner.winfo_children():
+            w.destroy()
+        cols = 7
+        # Make 7 equal-width columns
+        for i in range(cols):
+            try:
+                inner.grid_columnconfigure(i, weight=1, uniform="cards")
+            except Exception:
+                pass
+        r = 0
+        c = 0
+        for iid in tree.get_children(""):
+            tags = tree.item(iid, "tags") or ()
+            vals = tree.item(iid, "values")
+            if "header" in tags:
+                # Start new section: put a label separator across columns
+                if c != 0:
+                    r += 1
+                    c = 0
+                header_text = ""
+                if isinstance(vals, (list, tuple)):
+                    for v in vals:
+                        if isinstance(v, str) and v.strip():
+                            header_text = v.strip()
+                            break
+                if header_text.startswith("--") and header_text.endswith("--"):
+                    header_text = header_text.strip("-").strip()
+                lbl = tk.Label(inner, text=header_text or "", font=("Arial", 10, "bold"),
+                               bg="#e0f7fa", fg="#006064", anchor="w")
+                lbl.grid(row=r, column=0, columnspan=cols, sticky="ew", padx=6, pady=(10, 4))
+                try:
+                    sep = ttk.Separator(inner, orient="horizontal")
+                    sep.grid(row=r+1, column=0, columnspan=cols, sticky="ew", padx=6, pady=(0, 8))
+                    r += 2
+                except Exception:
+                    r += 1
+                c = 0
+                continue
+            if not vals:
+                continue
+            try:
+                produkt = vals[0]
+                dodavatel = vals[2]
+                nakup_mat = float(vals[5]) if vals[5] is not None else 0.0
+                cena_prace = float(vals[6]) if vals[6] is not None else 0.0
+            except Exception:
+                continue
+            card = tb.Frame(inner, bootstyle="light", padding=10)
+            card.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
+            tk.Label(card, text=str(produkt), font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x")
+            # Koeficient materiál
+            try:
+                koef_txt = f"{float(vals[4]):.2f}" if vals[4] is not None else ""
+            except Exception:
+                koef_txt = str(vals[4])
+            tk.Label(card, text=f"Koef. materiA�l: {koef_txt}").pack(anchor="w")
+            tk.Label(card, text=f"Dodávateľ: {dodavatel}", anchor="w").pack(fill="x", pady=(2, 0))
+            try:
+                mat_txt = format_currency(nakup_mat)
+            except Exception:
+                mat_txt = str(nakup_mat)
+            try:
+                work_txt = format_currency(cena_prace)
+            except Exception:
+                work_txt = str(cena_prace)
+            tk.Label(card, text=f"Materiál: {mat_txt}").pack(anchor="w")
+            tk.Label(card, text=f"Práca: {work_txt}").pack(anchor="w")
+            btns = tk.Frame(card)
+            btns.pack(fill="x", pady=(6, 0))
+            def _add(v=vals):
+                add_to_basket_full(v, basket, conn, cursor, db_type, basket_tree, mark_modified,
+                                   total_spolu_var, total_praca_var, total_material_var)
+            def _detail(v=vals):
+                _show_detail_popup(v)
+            tb.Button(btns, text="Pridať", bootstyle="success", command=_add).pack(side="left")
+            tb.Button(btns, text="Detaily", bootstyle="secondary", command=_detail).pack(side="right")
+            # Ensure Koef label uses ASCII (avoid corrupted diacritics)
+            try:
+                for _w in card.winfo_children():
+                    if isinstance(_w, tk.Label) and _w.cget("text").startswith("Koef."):
+                        _w.config(text=f"Koef. material: {koef_txt}")
+                        break
+            except Exception:
+                pass
+            # Ensure scrolling works when hovering over any card child widget
+            try:
+                on_wheel = getattr(db_cards_frame[0], "_cards_on_wheel", None)
+                if on_wheel:
+                    def _bind_wheel_recursive(w):
+                        try:
+                            w.bind("<MouseWheel>", on_wheel)
+                            w.bind("<Button-4>", on_wheel)
+                            w.bind("<Button-5>", on_wheel)
+                        except Exception:
+                            pass
+                        for ch in w.winfo_children():
+                            _bind_wheel_recursive(ch)
+                    _bind_wheel_recursive(card)
+            except Exception:
+                pass
+            c += 1
+            if c >= cols:
+                c = 0
+                r += 1
+
+        # Ensure scrolling works when hovering anywhere inside the cards area
+        try:
+            on_wheel = getattr(db_cards_frame[0], "_cards_on_wheel", None)
+            if on_wheel:
+                def _bind_wheel_recursive(w):
+                    try:
+                        w.bind("<MouseWheel>", on_wheel)
+                        w.bind("<Button-4>", on_wheel)
+                        w.bind("<Button-5>", on_wheel)
+                    except Exception:
+                        pass
+                    for ch in w.winfo_children():
+                        _bind_wheel_recursive(ch)
+                _bind_wheel_recursive(inner)
+        except Exception:
+            pass
+
+    def _show_detail_popup(vals):
+        win = tk.Toplevel(root)
+        win.title("Detail produktu")
+        frm = tb.Frame(win, padding=10)
+        frm.pack(fill="both", expand=True)
+        fields = [
+            ("Produkt", 0),
+            ("Jednotky", 1),
+            ("Dodávateľ", 2),
+            ("Odkaz", 3),
+            ("Koef. materiál", 4),
+            ("Nákup materiálu", 5),
+            ("Cena práce", 6),
+            ("Koef. práca", 7),
+        ]
+        for i, (lbl, idx) in enumerate(fields):
+            tk.Label(frm, text=f"{lbl}:").grid(row=i, column=0, sticky="w", padx=5, pady=2)
+            tk.Label(frm, text=str(vals[idx])).grid(row=i, column=1, sticky="w", padx=5, pady=2)
+        tb.Button(frm, text="Pridať do košíka", bootstyle="success",
+                  command=lambda: add_to_basket_full(vals, basket, conn, cursor, db_type, basket_tree, mark_modified,
+                                                    total_spolu_var, total_praca_var, total_material_var)
+                  ).grid(row=len(fields), column=0, columnspan=2, sticky="e", padx=5, pady=(10, 0))
+
+    # Split view (detail panel) removed per request
+
+    def _show_current_db_view():
+        mode = db_view_mode[0]
+        if mode == "table":
+            if db_cards_frame[0] and db_cards_frame[0].winfo_manager():
+                db_cards_frame[0].pack_forget()
+            if basket_frame.winfo_manager():
+                tree_frame.pack(in_=main_frame, before=basket_frame, fill="both", expand=True, padx=10, pady=10)
+            else:
+                tree_frame.pack(in_=main_frame, fill="both", expand=True, padx=10, pady=10)
+        elif mode == "cards":
+            if tree_frame.winfo_manager():
+                tree_frame.pack_forget()
+            if not db_cards_frame[0] or not db_cards_frame[0].winfo_exists():
+                db_cards_frame[0] = _build_cards_view_container(main_frame)
+            if basket_frame.winfo_manager():
+                db_cards_frame[0].pack(in_=main_frame, before=basket_frame, fill="both", expand=True, padx=10, pady=10)
+            else:
+                db_cards_frame[0].pack(in_=main_frame, fill="both", expand=True, padx=10, pady=10)
+            _rebuild_cards_from_tree()
+        # 'split' mode removed
+
+    # No split view selection binding
 
     def adjust_db_columns(event):
         """Resize visible DB columns proportionally to the widget width."""
@@ -1215,7 +1490,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username=""):
     basket._redo_stack.clear()
 
     # ─── Initial filtering of DB results ─────────────────────────────────
-    apply_filters(cursor, db_type, table_vars, category_vars, name_entry, tree)
+    refresh_db_results()
 
     # ─── Ensure basket columns display matches checkboxes ───
     def update_displayed_columns():

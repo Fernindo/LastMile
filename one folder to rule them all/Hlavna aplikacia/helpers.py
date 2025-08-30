@@ -87,12 +87,23 @@ def create_filter_panel(parent, on_mousewheel_callback, width_fraction=0.2, min_
     h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
 
     def _on_enter(event):
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        # Only capture on the filter widgets themselves
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        filter_frame.bind("<MouseWheel>", _on_mousewheel)
+
     def _on_leave(event):
-        canvas.unbind_all("<MouseWheel>")
+        # Release when the pointer leaves the filter
+        canvas.unbind("<MouseWheel>")
+        filter_frame.unbind("<MouseWheel>")
     def _on_mousewheel(event):
+        # Scroll horizontally when Shift is held; otherwise swallow to avoid janky background scrolling
         if event.state & 0x0001:
-            canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
+            try:
+                units = int(-1 * (event.delta / 120))
+            except Exception:
+                units = -1
+            canvas.xview_scroll(units, "units")
+        return "break"
 
     filter_frame.bind("<Enter>", _on_enter)
     filter_frame.bind("<Leave>", _on_leave)
