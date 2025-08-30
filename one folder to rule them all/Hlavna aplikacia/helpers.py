@@ -52,44 +52,15 @@ def format_currency(value: float) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Filter panel UI (from filter_panel.py)
+# Filter panel UI (responsive width)
 # ---------------------------------------------------------------------------
-def create_filter_panel(parent, on_mousewheel_callback, width_fraction=0.2, min_width=250, max_width=450):
-    """Create a horizontally scrollable filter panel."""
+def create_filter_panel(parent, on_mousewheel_callback):
+    """Create a horizontally scrollable filter panel with responsive width.
+
+    The container no longer forces a fixed width; it expands/shrinks based on
+    its grid column weight configured by the caller (gui.py).
+    """
     filter_container = tk.Frame(parent, bg="white")
-    filter_container.pack_propagate(False)
-
-    resize_job = [None]
-    _last_w = [None]
-    _resizing = [False]   # re-entrancy guard to avoid resize feedback loops
-
-    def _set_width(total_w):
-        if _resizing[0]:
-            return
-        _resizing[0] = True
-        try:
-            target = int(total_w * width_fraction)
-            target = max(min(target, max_width), min_width)
-            # Only apply if meaningfully different (prevents 1–2 px thrash)
-            if abs(filter_container.winfo_width() - target) >= 2:
-                filter_container.config(width=target)
-        finally:
-            _resizing[0] = False
-
-    def _adjust_width(event):
-        # Only react if the *width* of the parent changed by ≥ 4 px.
-        w = event.width
-        if _last_w[0] is None or abs(w - _last_w[0]) >= 4:
-            _last_w[0] = w
-            if resize_job[0] is not None:
-                filter_container.after_cancel(resize_job[0])
-            # debounce quick bursts of <Configure> during scroll
-            resize_job[0] = filter_container.after(80, lambda w=w: _set_width(w))
-
-    parent.bind("<Configure>", _adjust_width)
-    parent.update_idletasks()
-    _last_w[0] = parent.winfo_width()
-    _set_width(_last_w[0])
 
 
     canvas = tk.Canvas(filter_container, bg="white", highlightthickness=0)

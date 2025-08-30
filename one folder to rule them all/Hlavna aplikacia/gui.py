@@ -228,24 +228,26 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     setup_cat_tree(category_structure)
 
     filter_visible = [False]  # stav panelu
-
     def toggle_filter():
         if filter_visible[0]:
-            # hide filter, expand main into column 0 and reclaim full width
+            # hide filter
             filter_container.grid_forget()
             main_frame.grid(row=0, column=0, sticky="nsew")
             root.grid_columnconfigure(0, weight=1)
-            # remove extra column so main_frame truly stretches fullscreen
             root.grid_columnconfigure(1, weight=0)
+            root.grid_columnconfigure(0, minsize=0)   # <— add this line
             filter_toggle_btn.config(text="▶")
         else:
-            # show filter in column 0, push main to column 1
-            filter_container.grid(row=0, column=0, sticky="ns")
+            # show filter
+            filter_container.grid(row=0, column=0, sticky="nsew")
             main_frame.grid(row=0, column=1, sticky="nsew")
-            root.grid_columnconfigure(0, weight=0)
-            root.grid_columnconfigure(1, weight=1)
+            # Make filter column responsive and shorter
+            root.grid_columnconfigure(0, weight=1)
+            root.grid_columnconfigure(1, weight=5)
+            root.grid_columnconfigure(0, minsize=220)
             filter_toggle_btn.config(text="◀")
         filter_visible[0] = not filter_visible[0]
+
 
 
     toggle_filter_container = tk.Frame(root, bg="#f0f4f8")
