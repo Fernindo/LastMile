@@ -46,20 +46,30 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         sheet.range("B9:K9").value = [[project_name] * 10]
         sheet.range("B10:K10").value = [[definicia_text] * 10]
 
-        TEMPLATE_ROW = 18
+        TEMPLATE_ROW = 15
         insert_position = TEMPLATE_ROW
         counter = 1
         prev_section = None
         section_start_row = None
         header_row = None
+        # capture the workbook's normal row height from the template row below the header
+        try:
+            default_row_height = sheet.range(f"{TEMPLATE_ROW+1}:{TEMPLATE_ROW+1}").row_height
+        except Exception:
+            default_row_height = None
 
         for idx, item in enumerate(selected_items):
             section = item[0]
             if section != prev_section:
+                # add a single spacer row between sections with height 9.75
                 if prev_section is not None:
                     sheet.range(f"{insert_position}:{insert_position}").insert('down')
+                    sheet.range(f"{insert_position}:{insert_position}").row_height = 9.75
                     insert_position += 1
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
+                # ensure header row keeps normal height (spacer above is custom)
+                if default_row_height:
+                    sheet.range(f"{insert_position}:{insert_position}").row_height = default_row_height
                 sheet.cells(insert_position, 2).value = section
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
@@ -118,7 +128,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             sheet.cells(insert_position, 15).api.Font.Size = 9
             sheet.cells(insert_position, 16).value = f"=G{insert_position}-O{insert_position}"
             sheet.cells(insert_position, 16).api.Font.Size = 9
-            sheet.cells(insert_position, 17).value = f"=P{insert_position}+G{insert_position}"
+            sheet.cells(insert_position, 17).value = f"=P{insert_position}/G{insert_position}"
             sheet.cells(insert_position, 17).api.Font.Size = 9
             sheet.cells(insert_position, 19).value = dodavatel
             sheet.cells(insert_position, 19).api.Font.Size = 9
@@ -136,6 +146,9 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             next_section = selected_items[idx + 1][0] if idx + 1 < len(selected_items) else None
             if next_section != section:
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
+                # summary row should be normal height
+                if default_row_height:
+                    sheet.range(f"{insert_position}:{insert_position}").row_height = default_row_height
                 sheet.cells(insert_position, 2).value = section + "spolu"
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
@@ -157,14 +170,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 sheet.cells(insert_position, 11).api.Font.Size = 10
                 insert_position += 1
 
-                sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                src.api.Copy()
-                dst = sheet.range(f"{insert_position}:{insert_position}")
-                dst.api.PasteSpecial(Paste=-4122)
-                sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = False
-                insert_position += 1
-
-                section_end_row = insert_position - 2
+                section_end_row = insert_position - 1
                 rng = sheet.range(f"B{header_row}:K{section_end_row}")
                 for edge in (BI.xlEdgeLeft, BI.xlEdgeTop, BI.xlEdgeBottom, BI.xlEdgeRight):
                     br = rng.api.Borders(edge)
@@ -172,6 +178,17 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                     br.Weight = BW.xlMedium
                 for inner in (BI.xlInsideVertical, BI.xlInsideHorizontal):
                     br = rng.api.Borders(inner)
+                    br.LineStyle = LineStyle.xlContinuous
+                    br.Weight = BW.xlThin
+
+                # also add borders for the info table from columns M to S
+                rng_info = sheet.range(f"M{header_row}:S{section_end_row}")
+                for edge in (BI.xlEdgeLeft, BI.xlEdgeTop, BI.xlEdgeBottom, BI.xlEdgeRight):
+                    br = rng_info.api.Borders(edge)
+                    br.LineStyle = LineStyle.xlContinuous
+                    br.Weight = BW.xlMedium
+                for inner in (BI.xlInsideVertical, BI.xlInsideHorizontal):
+                    br = rng_info.api.Borders(inner)
                     br.LineStyle = LineStyle.xlContinuous
                     br.Weight = BW.xlThin
 
