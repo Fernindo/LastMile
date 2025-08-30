@@ -2,7 +2,7 @@
   "remember": true,
   "username": "user1",
   "password": "1234",
-  "logged_in": false,
+  "logged_in": true,
   "user": {
     "id": 3,
     "username": "user1",

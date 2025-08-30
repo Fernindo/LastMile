@@ -140,7 +140,7 @@ class LoginApp:
         self.no_launch = no_launch
 
         root.title(APP_TITLE)
-        root.geometry("420x300")
+        root.geometry("420x200")
         root.resizable(False, False)
 
         self.var_username = tk.StringVar()
@@ -184,18 +184,7 @@ class LoginApp:
 
         # Buttons
         btn_login = tb.Button(frm, text="Prihlásiť sa", command=self.on_login, bootstyle=SUCCESS)
-        btn_login.grid(row=4, column=1, sticky="we", pady=(12, 4))
-
-        btn_skip = tb.Button(frm, text="Skip (vývoj)", command=self.on_skip, bootstyle=WARNING)
-        btn_skip.grid(row=4, column=2, sticky="we", pady=(12, 4))
-
-        btn_open_selector = tb.Button(
-            frm,
-            text="Otvoriť Project Selector",
-            command=self.on_open_selector,
-            bootstyle=PRIMARY
-        )
-        btn_open_selector.grid(row=5, column=1, columnspan=2, sticky="we", pady=(4, 0))
+        btn_login.grid(row=4, column=1, columnspan=2, sticky="we", pady=(12, 4))
 
         # Shortcuts
         root.bind("<Return>", lambda e: self.on_login())
@@ -257,39 +246,6 @@ class LoginApp:
 
         # Inak spusti Project Selector a ukonči tento proces
         run_project_selector_and_exit()
-
-    def on_open_selector(self):
-        """
-        Otvorí Project Selector IBA ak sú správne prihlasovacie údaje.
-        (Ponechané kvôli UX – kontroluje meno/heslo rovnako ako Prihlásiť sa.)
-        """
-        username = self.var_username.get().strip()
-        password = self.var_password.get()
-
-        if not username or not password:
-            messagebox.showwarning("Chýbajú údaje", "Zadaj používateľské meno aj heslo.")
-            return
-
-        user = verify_user_online(username, password)
-        if not user:
-            messagebox.showerror("Neplatné údaje", "Prihlásenie zlyhalo. Skontroluj meno/heslo.")
-            return
-
-        self._persist_login_config(username, password, user)
-
-        if self.no_launch:
-            self.root.destroy()
-            return
-
-        run_project_selector_and_exit()
-
-    def on_skip(self):
-        """Skip (vývoj) – bez verifikácie účtu."""
-        if self.no_launch:
-            # ak login spustený zo Selectora -> len zavri
-            self.root.destroy()
-        else:
-            run_project_selector_and_exit()
 
 def main():
     parser = argparse.ArgumentParser()
