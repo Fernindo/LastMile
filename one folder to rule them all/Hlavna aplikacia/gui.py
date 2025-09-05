@@ -1,4 +1,4 @@
-# gui.py
+﻿# gui.py
 
 import sys
 import os
@@ -24,6 +24,8 @@ def _save_ui_settings(data):
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+
+    
 from datetime import datetime
 import tkinter.simpledialog
 from ttkbootstrap import Style
@@ -334,17 +336,55 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             total_material_var,
             sel_ids,
         )
+    
+    
 
-    def on_db_right_click(event):
-        iid = tree.identify_row(event.y)
-        if not iid:
+    def on_basket_right_click(event):
+        iid = basket_tree.identify_row(event.y)
+        if not iid or not basket_tree.parent(iid):
             return
-        tree.selection_set(iid)
-        tree.focus(iid)
         menu = tk.Menu(root, tearoff=0)
+
+        def do_reset():
+            selected = [
+                r for r in basket_tree.selection()
+                if basket_tree.parent(r)
+            ]
+            if iid not in selected:
+                selected = [iid]
+            reset_items(
+                selected,
+                basket_tree,
+                basket,
+                total_spolu_var,
+                mark_modified,
+                total_praca_var,
+                total_material_var,
+            )
+
+        prod_name = basket_tree.item(iid)["values"][0]
+
+        def do_show_recs():
+            show_recommendations_popup(
+                cursor,
+                db_type,
+                prod_name,
+                basket,
+                conn,
+                basket_tree,
+                mark_modified,
+                total_spolu_var,
+                total_praca_var,
+                total_material_var,
+            )
+
         menu.add_command(
-            label="⭐ Odporúčania",
-            command=show_selected_recommendations,
+            label="Reset položky",
+            command=do_reset,
+        )
+        menu.add_command(
+            label="⭐ Odporúčané",
+            command=do_show_recs,
         )
         menu.post(event.x_root, event.y_root)
 
@@ -1024,7 +1064,6 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         recompute_total_spolu(basket, total_spolu_var,
                             total_praca_var, total_material_var)
 
-    basket_tree.bind("<Double-1>", on_basket_double_click)
 
     # Inline cell editor (rebind Double-Click to edit in place)
     _cell_editor = {"widget": None}
@@ -1199,54 +1238,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     basket_tree.bind("<Double-1>", on_basket_cell_double_click)
 
     # -- Right-click context menu to Reset item (Basket) --
-    def on_basket_right_click(event):
-        iid = basket_tree.identify_row(event.y)
-        if not iid or not basket_tree.parent(iid):
-            return
-        menu = tk.Menu(root, tearoff=0)
-
-        def do_reset():
-            selected = [
-                r for r in basket_tree.selection()
-                if basket_tree.parent(r)
-            ]
-            if iid not in selected:
-                selected = [iid]
-            reset_items(
-                selected,
-                basket_tree,
-                basket,
-                total_spolu_var,
-                mark_modified,
-                total_praca_var,
-                total_material_var,
-            )
-
-        prod_name = basket_tree.item(iid)["values"][0]
-
-        def do_show_recs():
-            show_recommendations_popup(
-                cursor,
-                db_type,
-                prod_name,
-                basket,
-                conn,
-                basket_tree,
-                mark_modified,
-                total_spolu_var,
-                total_praca_var,
-                total_material_var,
-            )
-
-        menu.add_command(
-            label="Reset položky",
-            command=do_reset,
-        )
-        menu.add_command(
-            label="⭐ Odporúčané",
-            command=do_show_recs,
-        )
-        menu.post(event.x_root, event.y_root)
+    """on basket right click"""
 
     basket_tree.bind("<Button-3>", on_basket_right_click)
 
@@ -1734,7 +1726,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         )
 
     tree.bind("<Double-1>", on_db_double_click)
-    tree.bind("<Button-3>", on_db_right_click)
+    """tree.bind("<Button-3>", on_db_right_click)"""
     # ───────────────────────────────────────────────────────────────────────────
 
     # ─── Handle window close (“X”) ────────────────────────────────────────
@@ -1857,3 +1849,6 @@ if __name__ == "__main__":
     project_dir = sys.argv[1]
     json_path   = sys.argv[2]
     start(project_dir, json_path)
+
+
+
