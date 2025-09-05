@@ -252,6 +252,29 @@ def main():
     top = tb.Frame(root, padding=10)
     top.pack(side="top", fill="x")
 
+    # Label showing logged-in user's name (auto-updated)
+    login_name_var = tk.StringVar()
+
+    def _compute_login_name() -> str:
+        try:
+            if not load_login_state():
+                return ""
+            u = load_login_user() or {}
+            meno = (u.get("meno") or "").strip()
+            priezvisko = (u.get("priezvisko") or "").strip()
+            if meno or priezvisko:
+                return f"Prihlásený: {meno} {priezvisko}".strip()
+            username = (u.get("username") or "").strip()
+            if username:
+                return f"Prihlásený: {username}"
+            return ""
+        except Exception:
+            return ""
+
+    login_name_var.set(_compute_login_name())
+    login_name_lbl = tb.Label(top, textvariable=login_name_var, bootstyle="secondary")
+    login_name_lbl.pack(side="right", padx=(6, 0))
+
     tb.Label(top, text="Projects Root:").pack(side="left")
     root_entry = tb.Entry(top, textvariable=root.projects_home_state["projects_root"], width=60)
     root_entry.pack(side="left", padx=6)
@@ -317,7 +340,9 @@ def main():
         bootstyle=("success" if load_login_state() else "danger"),
         command=open_login
     )
-    login_btn.pack(side="right", padx=(6, 0))
+    # show login button only when not logged in
+    if not load_login_state():
+        login_btn.pack(side="right", padx=(6, 0))
 
     # Hide legacy 'Presets' popup button; keep only 'Presets DB'
     try:
@@ -342,6 +367,15 @@ def main():
         try:
             is_in = load_login_state()
             login_btn.configure(bootstyle=("success" if is_in else "danger"))
+            login_name_var.set(_compute_login_name())
+            # toggle login button visibility depending on state
+            try:
+                if is_in and login_btn.winfo_ismapped():
+                    login_btn.pack_forget()
+                elif (not is_in) and (not login_btn.winfo_ismapped()):
+                    login_btn.pack(side="right", padx=(6, 0))
+            except Exception:
+                pass
             # voliteľne zmeň text (napr. „Prihlásený“ / „Prihlásenie“):
             # login_btn.configure(text=("Prihlásený" if is_in else "Prihlásenie"))
         except Exception:
@@ -356,6 +390,13 @@ def main():
     def do_logout():
         set_logged_out()
         login_btn.configure(bootstyle="danger")
+        login_name_var.set("")
+        # ensure login button visible after logout
+        try:
+            if not login_btn.winfo_ismapped():
+                login_btn.pack(side="right", padx=(6, 0))
+        except Exception:
+            pass
         # voliteľne môžeš zmeniť aj text
         # login_btn.configure(text="Prihlásenie")
 

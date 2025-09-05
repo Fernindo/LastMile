@@ -1,0 +1,62 @@
+*** Begin Patch
+*** Update File: one folder to rule them all/Hlavna aplikacia/project_selector.py
+@@
+-    # Top bar
++    # Top bar
+     top = tb.Frame(root, padding=10)
+     top.pack(side="top", fill="x")
+@@
+-    # inicializacná štýl podla aktuálneho stavu
++    # Label showing logged-in user's name (updates periodically)
++    login_name_var = tk.StringVar()
++
++    def _compute_login_name() -> str:
++        try:
++            if not load_login_state():
++                return ""
++            u = load_login_user() or {}
++            meno = (u.get("meno") or "").strip()
++            priezvisko = (u.get("priezvisko") or "").strip()
++            if meno or priezvisko:
++                return f"Prihlásený: {meno} {priezvisko}".strip()
++            username = (u.get("username") or "").strip()
++            if username:
++                return f"Prihlásený: {username}"
++            return ""
++        except Exception:
++            return ""
++
++    login_name_var.set(_compute_login_name())
++    login_name_lbl = tb.Label(top, textvariable=login_name_var, bootstyle="secondary")
++    # Place near the right controls but keep some spacing
++    login_name_lbl.pack(side="right", padx=(6, 0))
++
++    # inicializacná štýl podla aktuálneho stavu
+     login_btn = tb.Button(
+         top,
+         text="Prihlásenie",
+         bootstyle=("success" if load_login_state() else "danger"),
+         command=open_login
+@@
+-    def refresh_login_btn():
++    def refresh_login_btn():
+         try:
+             is_in = load_login_state()
+             login_btn.configure(bootstyle=("success" if is_in else "danger"))
+-            # volitelne zmen text (napr. „Prihlásený“ / „Prihlásenie“):
+-            # login_btn.configure(text=("Prihlásený" if is_in else "Prihlásenie"))
++            # Update displayed user name
++            login_name_var.set(_compute_login_name())
+         except Exception:
+             # ak by bol súbor pocas zápisu, ignoruj chybu a skús znova
+             pass
+         finally:
+             root.after(2000, refresh_login_btn)  # každé 2 sekundy
+@@
+     def do_logout():
+         set_logged_out()
+         login_btn.configure(bootstyle="danger")
++        login_name_var.set("")
+         # volitelne môžeš zmenit aj text
+         # login_btn.configure(text="Prihlásenie")
+*** End Patch
