@@ -152,6 +152,212 @@ def _fetch_preset_items(cursor, db_type: str, preset_id: int):
     return cursor.fetchall()
 
 
+def open_preset_detail_basket(win_parent, name: str, preset_id: int,
+                              conn, cur, db_type: str,
+                              basket: Basket | None, basket_tree,
+                              mark_modified,
+                              total_spolu_var, total_praca_var, total_material_var):
+    """Open a detail window for a preset using the same columns as the basket.
+
+    Allows selecting rows and adding them to the main basket.
+    """
+    # Fetch full rows for the preset
+    ph = "%s" if db_type == "postgres" else "?"
+    sql = (
+        "SELECT COALESCE(c.nazov_tabulky,''), p.produkt, p.jednotky, p.dodavatel, p.odkaz,"
+        " p.koeficient_material, p.nakup_materialu, p.cena_prace, p.koeficient_prace,"
+        " i.pocet_materialu, i.pocet_prace"
+        " FROM preset_items i"
+        " JOIN produkty p ON p.id = i.product_id"
+        " LEFT JOIN class c ON c.id = i.section_id"
+        f" WHERE i.preset_id = {ph}"
+        " ORDER BY c.nazov_tabulky NULLS FIRST, p.produkt"
+    )
+    try:
+        cur.execute(sql, (preset_id,))
+        rows = cur.fetchall()
+    except Exception as e:
+        messagebox.showerror("Chyba", f"Nepodarilo sa načítať položky presetu:\n{e}")
+        return
+
+    win2 = tk.Toplevel(win_parent)
+    try:
+        win2.transient(win_parent)
+    except Exception:
+        pass
+    win2.title(f"Preset: {name}")
+    try:
+        win2.geometry("1000x600")
+    except Exception:
+        pass
+
+    basket_cols = (
+        "produkt","jednotky","pocet_mat","k_mat","nakup_mat",
+        "predaj_mat_jedn","nakup_mat_spolu","predaj_mat_spolu","zisk_mat","marza_mat",
+        "pocet_pr","k_pr","cena_pr","nakup_pr_spolu","predaj_pr_jedn","predaj_pr_spolu",
+        "zisk_pr","marza_pr","predaj_spolu","sync"
+    )
+    tree = ttk.Treeview(win2, columns=basket_cols, show="tree headings", selectmode="extended")
+    for c in basket_cols:
+        tree.heading(c, text=c)
+        tree.column(c, anchor="center", stretch=True)
+    tree.column("produkt", anchor="w", width=240)
+    tree.column("jednotky", anchor="center", width=80)
+
+    ysb = ttk.Scrollbar(win2, orient="vertical", command=tree.yview)
+    xsb = ttk.Scrollbar(win2, orient="horizontal", command=tree.xview)
+    tree.configure(yscrollcommand=ysb.set, xscrollcommand=xsb.set)
+    tree.pack(fill="both", expand=True)
+    ysb.pack(side="right", fill="y")
+    xsb.pack(side="bottom", fill="x")
+
+    iid_to_row = {}
+    section_nodes = {}
+    for (section, produkt, jednotky, dodavatel, odkaz, k_mat, nakup_mat, cena_pr, k_pr, pm, pp) in rows:
+        sec = section or "Uncategorized"
+        if sec not in section_nodes:
+            sec_iid = tree.insert("", "end", text=sec)
+            try:
+                tree.item(sec_iid, open=True)
+            except Exception:
+                pass
+            section_nodes[sec] = sec_iid
+
+        try:
+            pm_i = int(pm)
+            pp_i = int(pp)
+            k_mat_f = float(k_mat)
+            nakup_mat_f = float(nakup_mat)
+            k_pr_f = float(k_pr)
+            cena_pr_f = float(cena_pr)
+        except Exception:
+            pm_i = int(pm or 1)
+            pp_i = int(pp or 1)
+            k_mat_f = float(k_mat or 1)
+            nakup_mat_f = float(nakup_mat or 0)
+            k_pr_f = float(k_pr or 1)
+            cena_pr_f = float(cena_pr or 0)
+
+        predaj_mat_jedn = nakup_mat_f * k_mat_f
+        nakup_mat_spolu = nakup_mat_f * pm_i
+        predaj_mat_spolu = predaj_mat_jedn * pm_i
+        predaj_pr_jedn = cena_pr_f * k_pr_f
+        nakup_pr_spolu = cena_pr_f * pp_i
+        predaj_pr_spolu = predaj_pr_jedn * pp_i
+        predaj_spolu = predaj_mat_spolu + predaj_pr_spolu
+        zisk_mat = predaj_mat_spolu - nakup_mat_spolu
+        marza_mat = (zisk_mat / predaj_mat_spolu * 100) if predaj_mat_spolu else 0
+        zisk_pr = predaj_pr_spolu - nakup_pr_spolu
+        marza_pr = (zisk_pr / predaj_pr_spolu * 100) if predaj_pr_spolu else 0
+        sync = ""
+
+        iid = tree.insert(
+            section_nodes[sec],
+            "end",
+            text="",
+            values=(
+                produkt or "",
+                jednotky or "",
+                pm_i,
+                f"{k_mat_f:.2f}",
+                f"{nakup_mat_f:.2f}",
+                f"{predaj_mat_jedn:.2f}",
+                f"{nakup_mat_spolu:.2f}",
+                f"{predaj_mat_spolu:.2f}",
+                f"{zisk_mat:.2f}",
+                f"{marza_mat:.2f}",
+                pp_i,
+                f"{k_pr_f:.2f}",
+                f"{cena_pr_f:.2f}",
+                f"{nakup_pr_spolu:.2f}",
+                f"{predaj_pr_jedn:.2f}",
+                f"{predaj_pr_spolu:.2f}",
+                f"{zisk_pr:.2f}",
+                f"{marza_pr:.2f}",
+                f"{predaj_spolu:.2f}",
+                sync,
+            ),
+        )
+        iid_to_row[iid] = (section, produkt, jednotky, dodavatel, odkaz, k_mat_f, nakup_mat_f, cena_pr_f, k_pr_f, pm_i, pp_i)
+
+    bar = tb.Frame(win2)
+    bar.pack(fill="x")
+    if basket and basket_tree and total_spolu_var is not None:
+        def _add_iid(iid: str, changed_ref: list):
+            data = iid_to_row.get(iid)
+            if not data:
+                return
+            section, produkt, jednotky, dodavatel, odkaz, k_mat_f, nakup_mat_f, cena_pr_f, k_pr_f, pm_i, pp_i = data
+            item = (
+                produkt,
+                jednotky,
+                dodavatel,
+                odkaz,
+                float(k_mat_f),
+                float(nakup_mat_f),
+                float(cena_pr_f),
+                float(k_pr_f),
+                section or None,
+            )
+            try:
+                sec = section or "Uncategorized"
+                existed_before = (sec in basket.items and produkt in basket.items[sec])
+                add_to_basket_full(
+                    item,
+                    basket,
+                    conn,
+                    cur,
+                    db_type,
+                    basket_tree,
+                    mark_modified,
+                    total_spolu_var,
+                    total_praca_var,
+                    total_material_var,
+                )
+                if sec in basket.items and produkt in basket.items[sec]:
+                    bi = basket.items[sec][produkt]
+                    if existed_before:
+                        bi.pocet_materialu += int(pm_i)
+                        bi.pocet_prace += int(pp_i)
+                    else:
+                        bi.pocet_materialu = int(pm_i)
+                        bi.pocet_prace = int(pp_i)
+                        try:
+                            basket.original[sec][produkt].pocet_materialu = int(pm_i)
+                            basket.original[sec][produkt].pocet_prace = int(pp_i)
+                        except Exception:
+                            pass
+                    changed_ref[0] = True
+            except Exception as e:
+                messagebox.showerror("Chyba", f"Problém pri pridávaní '{produkt}':\n{e}")
+
+        def _add_selected_from_detail():
+            sel = tree.selection()
+            if not sel:
+                messagebox.showinfo("Výber", "Najprv vyber položky.", parent=win2)
+                return
+            changed_ref = [False]
+            for iid in sel:
+                if tree.parent(iid) == "":
+                    for child in tree.get_children(iid):
+                        _add_iid(child, changed_ref)
+                else:
+                    _add_iid(iid, changed_ref)
+            if changed_ref[0]:
+                try:
+                    basket.update_tree(basket_tree)
+                    recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+                    mark_modified()
+                except Exception:
+                    pass
+
+        tb.Button(bar, text="Pridať vybrané do košíka", bootstyle="success",
+                  command=_add_selected_from_detail).pack(side="left", padx=6, pady=6)
+        tb.Button(bar, text="Pridať všetko do košíka", bootstyle="success",
+                  command=lambda: (_add_preset_to_basket(preset_id), win2.focus_force())).pack(side="left", padx=6, pady=6)
+    tb.Button(bar, text="Zavrieť", bootstyle="secondary", command=win2.destroy).pack(side="right", padx=6, pady=6)
+
+
 def show_presets_cards_browser(parent=None, **kwargs):
     """Show presets as cards: name, total price, and a few items.
 
@@ -185,13 +391,60 @@ def show_presets_cards_browser(parent=None, **kwargs):
             win.transient()
     except Exception:
         pass
+    # Size the window to roughly match the main GUI, but a bit smaller
+    # so controls (especially bottom toolbar buttons) stay visible.
     try:
-        win.state("zoomed")
+        screen_w = win.winfo_screenwidth()
+        screen_h = win.winfo_screenheight()
     except Exception:
+        screen_w, screen_h = 1920, 1080
+
+    # Determine parent size if available
+    pw, ph = 1000, 650
+    if parent is not None:
         try:
-            win.geometry("1100x700")
+            if parent.winfo_exists():
+                parent.update_idletasks()
+                pw = max(pw, parent.winfo_width())
+                ph = max(ph, parent.winfo_height())
+                if pw <= 1 or ph <= 1:
+                    geo = parent.winfo_geometry()  # e.g. "WxH+X+Y"
+                    wh = (geo.split("+")[0] if geo else "").split("x")
+                    if len(wh) == 2:
+                        pw = int(wh[0]) or pw
+                        ph = int(wh[1]) or ph
         except Exception:
             pass
+
+    # Margins and clamps; target slightly smaller than parent (shorter & thinner)
+    margin_w, margin_h = 60, 100
+    # Reduce minimums so it's clearly thinner/shorter but still usable
+    min_w, min_h = 800, 520
+    target_w = int(pw * 0.85)
+    target_h = int(ph * 0.80)
+    w = max(min_w, min(target_w, screen_w - margin_w))
+    h = max(min_h, min(target_h, screen_h - margin_h))
+
+    # Center near parent if possible
+    try:
+        if parent is not None and parent.winfo_exists():
+            px = parent.winfo_rootx()
+            py = parent.winfo_rooty()
+            x = max(0, px + (pw - w) // 2)
+            y = max(0, py + (ph - h) // 2)
+        else:
+            x = max(0, (screen_w - w) // 2)
+            y = max(0, (screen_h - h) // 2)
+        win.geometry(f"{int(w)}x{int(h)}+{int(x)}+{int(y)}")
+    except Exception:
+        try:
+            win.geometry(f"{int(w)}x{int(h)}")
+        except Exception:
+            pass
+    try:
+        win.minsize(min_w, min_h)
+    except Exception:
+        pass
     win.title("Presety")
 
     # Scrollable cards container (mirrors DB cards style)
@@ -360,6 +613,11 @@ def show_presets_cards_browser(parent=None, **kwargs):
                 pass
 
     def _open_preset_detail(pid: int, name: str):
+        return open_preset_detail_basket(
+            win, name, pid, conn, cur, db_type,
+            basket, basket_tree, mark_modified,
+            total_spolu_var, total_praca_var, total_material_var
+        )
         try:
             rows = _fetch_items_full(pid)
         except Exception as e:
@@ -433,6 +691,29 @@ def show_presets_cards_browser(parent=None, **kwargs):
 
     toolbar = tb.Frame(win)
     toolbar.pack(fill="x", side="bottom")
+
+    def _back_to_main():
+        try:
+            if parent and parent.winfo_exists():
+                try:
+                    parent.deiconify()
+                except Exception:
+                    pass
+                try:
+                    parent.lift()
+                except Exception:
+                    pass
+                try:
+                    parent.focus_force()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            win.destroy()
+        except Exception:
+            pass
+    tb.Button(toolbar, text="Spat do hlavneho okna", bootstyle="secondary", command=_back_to_main).pack(side="left", padx=6, pady=6)
     tb.Button(toolbar, text="Obnoviť", bootstyle="secondary", command=populate_cards).pack(side="left", padx=6, pady=6)
     tb.Button(toolbar, text="Zavrieť", bootstyle="secondary", command=win.destroy).pack(side="right", padx=6, pady=6)
 
