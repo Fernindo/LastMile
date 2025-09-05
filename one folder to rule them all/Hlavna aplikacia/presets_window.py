@@ -13,7 +13,7 @@ from gui_functions import (                         # :contentReference[oaicite:
     add_to_basket_full,
     recompute_total_spolu,
 )
-from helpers import create_filter_panel             # :contentReference[oaicite:2]{index=2}
+from helpers import create_filter_panel, format_currency             # :contentReference[oaicite:2]{index=2}
 
 
 LOGIN_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "login_config.json")
@@ -150,6 +150,291 @@ def _fetch_preset_items(cursor, db_type: str, preset_id: int):
     )
     cursor.execute(query, (preset_id,))
     return cursor.fetchall()
+
+
+def show_presets_cards_browser(parent=None, **kwargs):
+    """Show presets as cards: name, total price, and a few items.
+
+    Optional kwargs (for integration with the main basket):
+    - conn, cursor, db_type
+    - basket, basket_tree
+    - mark_modified
+    - total_spolu_var, total_praca_var, total_material_var
+    """
+    conn = kwargs.get("conn")
+    cur = kwargs.get("cursor")
+    db_type = kwargs.get("db_type")
+    if not (conn and cur and db_type):
+        conn, db_type = get_database_connection()
+        cur = conn.cursor()
+    _ensure_preset_tables(conn, db_type)
+
+    # Basket integration (may be None)
+    basket = kwargs.get("basket")
+    basket_tree = kwargs.get("basket_tree")
+    mark_modified = kwargs.get("mark_modified") or (lambda: None)
+    total_spolu_var = kwargs.get("total_spolu_var")
+    total_praca_var = kwargs.get("total_praca_var")
+    total_material_var = kwargs.get("total_material_var")
+
+    win = tk.Toplevel(parent) if parent else tk.Toplevel()
+    try:
+        if parent:
+            win.transient(parent)
+        else:
+            win.transient()
+    except Exception:
+        pass
+    try:
+        win.state("zoomed")
+    except Exception:
+        try:
+            win.geometry("1100x700")
+        except Exception:
+            pass
+    win.title("Presety")
+
+    # Scrollable cards container (mirrors DB cards style)
+    wrap = tb.Frame(win)
+    wrap.pack(fill="both", expand=True)
+    canvas = tk.Canvas(wrap, highlightthickness=0)
+    vsb = ttk.Scrollbar(wrap, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+    inner = tb.Frame(canvas)
+    _win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+    def _on_inner_configure(_e=None):
+        try:
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        except Exception:
+            pass
+    inner.bind("<Configure>", _on_inner_configure)
+
+    def _on_canvas_configure(_e=None):
+        try:
+            current = canvas.itemcget(_win_id, "width")
+            w = canvas.winfo_width()
+            if not current or abs(int(float(current)) - w) >= 4:
+                canvas.itemconfig(_win_id, width=w)
+        except Exception:
+            pass
+    canvas.bind("<Configure>", _on_canvas_configure)
+
+    def _on_wheel(event):
+        units = 0
+        if getattr(event, "delta", 0):
+            try:
+                units = int(-1 * (event.delta / 120))
+            except Exception:
+                units = -1 if event.delta > 0 else 1
+            if units == 0:
+                units = -1 if event.delta > 0 else 1
+        else:
+            if getattr(event, "num", None) == 4:
+                units = -1
+            elif getattr(event, "num", None) == 5:
+                units = 1
+        if units:
+            canvas.yview_scroll(units, "units")
+        return "break"
+
+    for w in (canvas, inner, wrap, vsb):
+        try:
+            w.bind("<MouseWheel>", _on_wheel)
+            w.bind("<Button-4>", _on_wheel)
+            w.bind("<Button-5>", _on_wheel)
+        except Exception:
+            pass
+    inner.bind("<Enter>", lambda e: canvas.focus_set())
+    wrap.bind("<Enter>", lambda e: canvas.focus_set())
+
+    # Helpers
+    def compute_preset_total(pid: int) -> float:
+        ph = "%s" if db_type == "postgres" else "?"
+        sql = (
+            "SELECT COALESCE(SUM("
+            " p.nakup_materialu * p.koeficient_material * i.pocet_materialu"
+            " + p.cena_prace * p.koeficient_prace * i.pocet_prace"
+            "), 0)"
+            " FROM preset_items i"
+            " JOIN produkty p ON p.id = i.product_id"
+            f" WHERE i.preset_id = {ph}"
+        )
+        try:
+            cur.execute(sql, (pid,))
+            r = cur.fetchone()
+            return float(r[0] or 0.0)
+        except Exception:
+            return 0.0
+
+    def sample_items_text(pid: int, limit: int = 3) -> str:
+        try:
+            rows = _fetch_preset_items(cur, db_type, pid)
+        except Exception:
+            rows = []
+        names = [str(r[1]) for r in rows if r and r[1]]
+        head = names[:limit]
+        more = max(0, len(names) - len(head))
+        if not head:
+            return "(bez položiek)"
+        s = ", ".join(head)
+        if more:
+            s += f" (+{more} ďalšie)"
+        return s
+
+    def _fetch_items_full(pid: int):
+        """Return rows with full product fields for adding to basket."""
+        ph = "%s" if db_type == "postgres" else "?"
+        sql = (
+            "SELECT COALESCE(c.nazov_tabulky,''), p.produkt, p.jednotky, p.dodavatel, p.odkaz,"
+            " p.koeficient_material, p.nakup_materialu, p.cena_prace, p.koeficient_prace,"
+            " i.pocet_materialu, i.pocet_prace"
+            " FROM preset_items i"
+            " JOIN produkty p ON p.id = i.product_id"
+            " LEFT JOIN class c ON c.id = i.section_id"
+            f" WHERE i.preset_id = {ph}"
+            " ORDER BY c.nazov_tabulky NULLS FIRST, p.produkt"
+        )
+        cur.execute(sql, (pid,))
+        return cur.fetchall()
+
+    def _add_preset_to_basket(pid: int):
+        if not (basket and basket_tree and total_spolu_var is not None):
+            messagebox.showinfo("Info", "Otvorené bez košíka – nie je čo pridať.")
+            return
+        try:
+            rows = _fetch_items_full(pid)
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Nepodarilo sa načítať položky presetu:\n{e}")
+            return
+        from gui_functions import add_to_basket_full, recompute_total_spolu
+        changed = False
+        for (section, produkt, jednotky, dodavatel, odkaz,
+             k_mat, nakup_mat, cena_pr, k_pr, pm, pp) in rows:
+            item = (
+                produkt, jednotky, dodavatel, odkaz,
+                float(k_mat), float(nakup_mat), float(cena_pr), float(k_pr),
+                section or None,
+            )
+            try:
+                sec = section or "Uncategorized"
+                existed_before = (sec in basket.items and produkt in basket.items[sec])
+                add_to_basket_full(
+                    item,
+                    basket,
+                    conn,
+                    cur,
+                    db_type,
+                    basket_tree,
+                    mark_modified,
+                    total_spolu_var,
+                    total_praca_var,
+                    total_material_var,
+                )
+                if sec in basket.items and produkt in basket.items[sec]:
+                    bi = basket.items[sec][produkt]
+                    # Update counts (increment if already present)
+                    if existed_before:
+                        bi.pocet_materialu += int(pm)
+                        bi.pocet_prace += int(pp)
+                    else:
+                        bi.pocet_materialu = int(pm)
+                        bi.pocet_prace = int(pp)
+                        try:
+                            basket.original[sec][produkt].pocet_materialu = int(pm)
+                            basket.original[sec][produkt].pocet_prace = int(pp)
+                        except Exception:
+                            pass
+                    changed = True
+            except Exception as e:
+                messagebox.showerror("Chyba", f"Problém pri pridávaní '{produkt}':\n{e}")
+                return
+        if changed:
+            try:
+                basket.update_tree(basket_tree)
+                recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+                mark_modified()
+            except Exception:
+                pass
+
+    def _open_preset_detail(pid: int, name: str):
+        try:
+            rows = _fetch_items_full(pid)
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Nepodarilo sa načítať položky presetu:\n{e}")
+            return
+        win2 = tk.Toplevel(win)
+        try:
+            win2.transient(win)
+        except Exception:
+            pass
+        win2.title(f"Preset: {name}")
+        win2.geometry("900x600")
+        cols = ("section", "produkt", "pocet_mat", "pocet_pr")
+        tree = ttk.Treeview(win2, columns=cols, show="headings")
+        tree.pack(fill="both", expand=True)
+        for c in cols:
+            tree.heading(c, text=c)
+            tree.column(c, anchor="w", stretch=True)
+        for (section, produkt, _, _, _, _, _, _, _, pm, pp) in rows:
+            tree.insert("", "end", values=(section or "", produkt or "", int(pm), int(pp)))
+        bar = tb.Frame(win2)
+        bar.pack(fill="x")
+        if basket and basket_tree and total_spolu_var is not None:
+            tb.Button(bar, text="Pridať všetko do košíka", bootstyle="success",
+                      command=lambda: (_add_preset_to_basket(pid), win2.focus_force())).pack(side="left", padx=6, pady=6)
+        tb.Button(bar, text="Zavrieť", bootstyle="secondary", command=win2.destroy).pack(side="right", padx=6, pady=6)
+
+    def populate_cards():
+        for w in inner.winfo_children():
+            w.destroy()
+        cols = 7
+        for i in range(cols):
+            try:
+                inner.grid_columnconfigure(i, weight=1, uniform="preset_cards")
+            except Exception:
+                pass
+        try:
+            rows = _fetch_all_presets(cur, db_type)
+        except Exception as e:
+            messagebox.showerror("Chyba", str(e), parent=win)
+            rows = []
+
+        r = 0
+        c = 0
+        for (pid, name, _uid, cnt) in rows:
+            total = compute_preset_total(pid)
+            items_preview = sample_items_text(pid)
+
+            card = tb.Frame(inner, bootstyle="light", padding=10)
+            card.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
+            tk.Label(card, text=str(name), font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x")
+            tk.Label(card, text=f"Spolu: {format_currency(total)}", anchor="w").pack(fill="x", pady=(2, 0))
+            tk.Label(card, text=f"Položky: {cnt}", anchor="w").pack(fill="x")
+            tk.Label(card, text=items_preview, anchor="w", wraplength=220, justify="left").pack(fill="x", pady=(4, 0))
+
+            # Actions row
+            btnrow = tb.Frame(card)
+            btnrow.pack(fill="x", pady=(6, 0))
+            tb.Button(btnrow, text="Zobrazi��", bootstyle="secondary",
+                      command=lambda pid=pid, name=name: _open_preset_detail(pid, name)).pack(side="left")
+            if basket and basket_tree and total_spolu_var is not None:
+                tb.Button(btnrow, text="Prida�� do ko��A-ka", bootstyle="success",
+                          command=lambda pid=pid: _add_preset_to_basket(pid)).pack(side="right")
+
+            c += 1
+            if c >= cols:
+                c = 0
+                r += 1
+
+    populate_cards()
+
+    toolbar = tb.Frame(win)
+    toolbar.pack(fill="x", side="bottom")
+    tb.Button(toolbar, text="Obnoviť", bootstyle="secondary", command=populate_cards).pack(side="left", padx=6, pady=6)
+    tb.Button(toolbar, text="Zavrieť", bootstyle="secondary", command=win.destroy).pack(side="right", padx=6, pady=6)
 
 
 def show_presets_browser(parent=None):

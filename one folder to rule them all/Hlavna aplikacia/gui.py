@@ -69,7 +69,7 @@ from gui_functions import (
 )
 
 from tkinter import messagebox, simpledialog
-from presets_window import show_presets_browser
+from presets_window import show_presets_cards_browser as show_presets_browser
 
 def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=None, *, preset_mode: bool=False):
     global CURRENT_USER
@@ -1495,7 +1495,18 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         right_btn_frame,
         text="Presety",
         bootstyle="secondary",
-        command=lambda: show_presets_browser(root),
+        command=lambda: show_presets_browser(
+            root,
+            conn=conn,
+            cursor=cursor,
+            db_type=db_type,
+            basket=basket,
+            basket_tree=basket_tree,
+            mark_modified=mark_modified,
+            total_spolu_var=total_spolu_var,
+            total_praca_var=total_praca_var,
+            total_material_var=total_material_var,
+        ),
     )
     presets_btn.pack(side="left", padx=(0, 10))
 
