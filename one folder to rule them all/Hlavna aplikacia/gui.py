@@ -69,8 +69,9 @@ from gui_functions import (
 )
 
 from tkinter import messagebox, simpledialog
+from presets_window import show_presets_browser
 
-def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=None):
+def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=None, *, preset_mode: bool=False):
     global CURRENT_USER
     CURRENT_USER = {
         "id": user_id,
@@ -1435,6 +1436,42 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     )
     exportVV_btn.pack(side="left", padx=(0, 10))
 
+    # Preset mode: replace export buttons with "Save as preset"
+    if preset_mode:
+        try:
+            exportCPINT_btn.destroy()
+            exportCP_btn.destroy()
+            exportVV_btn.destroy()
+        except Exception:
+            pass
+
+        def save_as_preset_action():
+            reorder_basket_data(basket_tree, basket)
+            if not basket.items:
+                messagebox.showinfo("Info", "Košík je prázdny.")
+                return
+            name = simpledialog.askstring("Preset", "Názov presetu:", parent=root)
+            if not (name and name.strip()):
+                return
+            try:
+                from presets_window import _save_preset_from_basket, _load_logged_in_user_id
+                uid = _load_logged_in_user_id(conn, db_type)
+                if uid is None:
+                    messagebox.showerror("Chyba", "Neviem určiť user_id.")
+                    return
+                pid = _save_preset_from_basket(conn, db_type, name.strip(), uid, basket)
+                messagebox.showinfo("OK", f"Preset '{name}' uložený (ID {pid}).")
+            except Exception as e:
+                messagebox.showerror("Chyba", f"Nepodarilo sa uložiť preset:\n{e}")
+
+        save_preset_btn = tb.Button(
+            left_btn_frame,
+            text="Uložiť ako preset",
+            bootstyle="success",
+            command=save_as_preset_action,
+        )
+        save_preset_btn.pack(side="left", padx=(0, 10))
+
     kontrola_btn = tb.Button(
         right_btn_frame,
         text="Kontrola",
@@ -1452,6 +1489,15 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         ),
     )
     kontrola_btn.pack(side="left", padx=(0, 10))
+
+    # Presets Browser
+    presets_btn = tb.Button(
+        right_btn_frame,
+        text="Presety",
+        bootstyle="secondary",
+        command=lambda: show_presets_browser(root),
+    )
+    presets_btn.pack(side="left", padx=(0, 10))
 
     coeff_set_mat_btn = tb.Button(
         right_btn_frame,

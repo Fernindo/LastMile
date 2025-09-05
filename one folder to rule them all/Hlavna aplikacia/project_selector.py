@@ -9,7 +9,11 @@ from datetime import datetime
 import subprocess
 import sys
 from gui_functions import get_database_connection
-from presets_window import show_presets_window
+
+# Legacy compatibility: some builds still call show_presets_window from the top bar.
+# We keep a no-op stub so the UI can hide the old button without NameError.
+def show_presets_window():
+    pass
 
 
 # Single-app Projects Home embedded in project_selector.py
@@ -206,7 +210,7 @@ def create_project(root, name, street=None, area=None):
 
 # ─────────────────────────── Launch GUI safely ───────────────────────────
 
-def launch_gui_in_same_root(root, project_dir, json_path):
+def launch_gui_in_same_root(root, project_dir, json_path, *, preset_mode: bool=False):
     set_projects_root(root.projects_home_state["projects_root"].get())
 
     for child in list(root.winfo_children()):
@@ -224,7 +228,8 @@ def launch_gui_in_same_root(root, project_dir, json_path):
         json_path,
         meno=u.get("meno", ""),
         priezvisko=u.get("priezvisko", ""),
-        username=u.get("username", "")
+        username=u.get("username", ""),
+        preset_mode=preset_mode
     )
 
 # ──────────────────────────────── Main UI ────────────────────────────────
@@ -261,6 +266,25 @@ def main():
             rescan_projects()
             refresh_projects()
 
+    def open_preset_builder():
+        pr_root = root.projects_home_state["projects_root"].get() or os.getcwd()
+        name = "PresetBuilder"
+        proj_dir = os.path.join(pr_root, name)
+        json_dir = os.path.join(proj_dir, "projects")
+        os.makedirs(json_dir, exist_ok=True)
+        json_path = os.path.join(json_dir, f"{name}.json")
+        if not os.path.exists(json_path):
+            try:
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump({
+                        "project": name,
+                        "created": datetime.now().isoformat(),
+                        "notes": []
+                    }, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+        launch_gui_in_same_root(root, proj_dir, json_path, preset_mode=True)
+
     tb.Button(top, text="Browse…", bootstyle="secondary", command=browse_root).pack(side="left")
     tb.Button(top, text="📦 Presets", bootstyle="secondary", command=show_presets_window).pack(side="left", padx=(6, 0))
     def open_login():
@@ -294,6 +318,24 @@ def main():
         command=open_login
     )
     login_btn.pack(side="right", padx=(6, 0))
+
+    # Hide legacy 'Presets' popup button; keep only 'Presets DB'
+    try:
+        for _w in top.winfo_children():
+            try:
+                txt = _w.cget("text")
+            except Exception:
+                continue
+            if isinstance(txt, str) and ("Presets" in txt) and ("DB" not in txt):
+                try:
+                    _w.pack_forget()
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # Preset Builder (database) — opens the full app in preset mode
+    tb.Button(top, text="Presets DB", bootstyle="secondary", command=open_preset_builder).pack(side="left", padx=(6, 0))
 
     # periodická kontrola súboru login_config.json a aktualizácia farby
     def refresh_login_btn():
