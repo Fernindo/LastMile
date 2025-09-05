@@ -503,9 +503,11 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         canvas.pack(side="left", fill="both", expand=True)
         inner = tb.Frame(canvas)
         _win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
         def _on_inner_configure(event=None):
             canvas.configure(scrollregion=canvas.bbox("all"))
         inner.bind("<Configure>", _on_inner_configure)
+        
         def _on_canvas_configure(event=None):
             try:
                 current = canvas.itemcget(_win_id, "width")
@@ -622,7 +624,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 koef_txt = f"{float(vals[4]):.2f}" if vals[4] is not None else ""
             except Exception:
                 koef_txt = str(vals[4])
-            tk.Label(card, text=f"Koef. materiA�l: {koef_txt}").pack(anchor="w")
+            tk.Label(card, text=f"Koef. materiál: {koef_txt}").pack(anchor="w")
             tk.Label(card, text=f"Dodávateľ: {dodavatel}", anchor="w").pack(fill="x", pady=(2, 0))
             try:
                 mat_txt = format_currency(nakup_mat)
@@ -1618,11 +1620,11 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
         # --- Database view mode (Table vs Cards) ------------------------
-        tk.Label(inner, text="Zobrazenie databA�zy:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        tk.Label(inner, text="Zobrazenie databázy:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         view_frame = tk.Frame(inner, bg="white")
         view_frame.pack(anchor="w", padx=20, pady=(0, 10))
         db_view_mode_var = tk.StringVar(value=db_view_mode[0])
-        tk.Radiobutton(view_frame, text="Tabu�_ka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
+        tk.Radiobutton(view_frame, text="Tabuľka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
         tk.Radiobutton(view_frame, text="Karty", value="cards", variable=db_view_mode_var, bg="white").pack(side="left")
 
         # --- Basket column visibility -----------------------------------
