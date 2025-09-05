@@ -9,6 +9,7 @@ from datetime import datetime
 import subprocess
 import sys
 from gui_functions import get_database_connection
+from presets_window import show_presets_window
 
 
 # Single-app Projects Home embedded in project_selector.py
@@ -261,6 +262,7 @@ def main():
             refresh_projects()
 
     tb.Button(top, text="Browse…", bootstyle="secondary", command=browse_root).pack(side="left")
+    tb.Button(top, text="📦 Presets", bootstyle="secondary", command=show_presets_window).pack(side="left", padx=(6, 0))
     def open_login():
         login_path = os.path.join(os.path.dirname(__file__), "login.py")
         if not os.path.isfile(login_path):
