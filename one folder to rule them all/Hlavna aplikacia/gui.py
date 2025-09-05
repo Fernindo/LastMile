@@ -38,7 +38,7 @@ from helpers import (
 from exportVv import export_vv
 from exportCp import export_cp
 from basket import Basket
-from basket_io import load_basket
+from basket import load_basket
 from doprava import show_doprava_window
 
 
@@ -404,7 +404,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # Settings button to configure basket visibility
     settings_btn = tb.Button(
         top,
-        text="⚙️ Nastavenia",
+        text="⚙️",
         bootstyle="secondary",
         command=lambda: open_settings()
     )
