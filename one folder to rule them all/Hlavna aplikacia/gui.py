@@ -1322,19 +1322,63 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         pass
 
     # Bind Delete key to remove selected items from basket (multi-select supported)
-    basket_tree.bind(
-        "<Delete>",
-        lambda e: (
-            remove_from_basket(basket_tree, basket),
-            recompute_total_spolu(
-                basket,
-                total_spolu_var,
-                total_praca_var,
-                total_material_var,
-            ),
-            mark_modified()
-        )
-    )
+    def on_basket_delete(event=None):
+        # Freeze current selection
+        sel = list(basket_tree.selection())
+        if not sel:
+            focused = basket_tree.focus()
+            if focused:
+                sel = [focused]
+        if not sel:
+            return "break"
+
+        # Snapshot once for undo
+        basket.snapshot()
+
+        sections_to_delete = set()
+        products_to_delete = []  # list of (section, product)
+
+        for iid in sel:
+            parent = basket_tree.parent(iid)
+            if parent == "":
+                # Section header selected
+                sec_name = basket_tree.item(iid, "text")
+                if sec_name:
+                    sections_to_delete.add(sec_name)
+            else:
+                # Product row selected
+                sec_name = basket_tree.item(parent, "text")
+                vals = basket_tree.item(iid, "values")
+                if vals:
+                    prod_name = vals[0]
+                    products_to_delete.append((sec_name, prod_name))
+
+        # Remove entire sections first
+        for sec_name in sections_to_delete:
+            if sec_name in basket.items:
+                try:
+                    del basket.items[sec_name]
+                except Exception:
+                    pass
+
+        # Remove individual products not already covered by section deletion
+        for sec_name, prod_name in products_to_delete:
+            if sec_name in sections_to_delete:
+                continue
+            if sec_name in basket.items and prod_name in basket.items[sec_name]:
+                try:
+                    del basket.items[sec_name][prod_name]
+                    if not basket.items[sec_name]:
+                        del basket.items[sec_name]
+                except Exception:
+                    pass
+
+        update_basket_table(basket_tree, basket)
+        recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
+        mark_modified()
+        return "break"
+
+    basket_tree.bind("<Delete>", on_basket_delete)
 
 
     add_custom_btn = tb.Button(
