@@ -1315,6 +1315,26 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         )
     )
     remove_btn.pack(side="left", padx=(0, 10))
+    # Hide the old remove button; use Delete key instead
+    try:
+        remove_btn.pack_forget()
+    except Exception:
+        pass
+
+    # Bind Delete key to remove selected items from basket (multi-select supported)
+    basket_tree.bind(
+        "<Delete>",
+        lambda e: (
+            remove_from_basket(basket_tree, basket),
+            recompute_total_spolu(
+                basket,
+                total_spolu_var,
+                total_praca_var,
+                total_material_var,
+            ),
+            mark_modified()
+        )
+    )
 
 
     add_custom_btn = tb.Button(
