@@ -298,10 +298,10 @@ def open_preset_detail_basket(win_parent, name: str, preset_id: int,
                 float(cena_pr_f),
                 float(k_pr_f),
                 section or None,
+                int(pm_i),
+                int(pp_i),
             )
             try:
-                sec = section or "Uncategorized"
-                existed_before = (sec in basket.items and produkt in basket.items[sec])
                 add_to_basket_full(
                     item,
                     basket,
@@ -314,20 +314,7 @@ def open_preset_detail_basket(win_parent, name: str, preset_id: int,
                     total_praca_var,
                     total_material_var,
                 )
-                if sec in basket.items and produkt in basket.items[sec]:
-                    bi = basket.items[sec][produkt]
-                    if existed_before:
-                        bi.pocet_materialu += int(pm_i)
-                        bi.pocet_prace += int(pp_i)
-                    else:
-                        bi.pocet_materialu = int(pm_i)
-                        bi.pocet_prace = int(pp_i)
-                        try:
-                            basket.original[sec][produkt].pocet_materialu = int(pm_i)
-                            basket.original[sec][produkt].pocet_prace = int(pp_i)
-                        except Exception:
-                            pass
-                    changed_ref[0] = True
+                changed_ref[0] = True
             except Exception as e:
                 messagebox.showerror("Chyba", f"Problém pri pridávaní '{produkt}':\n{e}")
 
@@ -570,10 +557,9 @@ def show_presets_cards_browser(parent=None, **kwargs):
                 produkt, jednotky, dodavatel, odkaz,
                 float(k_mat), float(nakup_mat), float(cena_pr), float(k_pr),
                 section or None,
+                int(pm), int(pp),
             )
             try:
-                sec = section or "Uncategorized"
-                existed_before = (sec in basket.items and produkt in basket.items[sec])
                 add_to_basket_full(
                     item,
                     basket,
@@ -586,21 +572,7 @@ def show_presets_cards_browser(parent=None, **kwargs):
                     total_praca_var,
                     total_material_var,
                 )
-                if sec in basket.items and produkt in basket.items[sec]:
-                    bi = basket.items[sec][produkt]
-                    # Update counts (increment if already present)
-                    if existed_before:
-                        bi.pocet_materialu += int(pm)
-                        bi.pocet_prace += int(pp)
-                    else:
-                        bi.pocet_materialu = int(pm)
-                        bi.pocet_prace = int(pp)
-                        try:
-                            basket.original[sec][produkt].pocet_materialu = int(pm)
-                            basket.original[sec][produkt].pocet_prace = int(pp)
-                        except Exception:
-                            pass
-                    changed = True
+                changed = True
             except Exception as e:
                 messagebox.showerror("Chyba", f"Problém pri pridávaní '{produkt}':\n{e}")
                 return

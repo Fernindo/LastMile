@@ -1254,7 +1254,12 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         if event.state & 0x4:  # Ctrl held
             if iid and iid not in basket_tree.selection():
                 basket_tree.selection_add(iid)
+            # Ensure both item focus and keyboard focus so keybindings (Delete) work
             basket_tree.focus(iid)
+            try:
+                basket_tree.focus_set()
+            except Exception:
+                pass
             return "break"
 
     basket_tree.bind("<ButtonPress-1>", on_basket_press)

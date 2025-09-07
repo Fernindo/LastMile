@@ -384,11 +384,56 @@ def add_to_basket_full(
         koef_mat, nakup_mat, cena_prace, koef_prace = item[:8]
     section = item[8] if len(item) > 8 and item[8] is not None else "Uncategorized"
 
+    # Optional counts: if provided, expect (.., section, pocet_materialu, pocet_prace)
+    counts_provided = len(item) >= 11
+    pm_supplied = None
+    pp_supplied = None
+    if counts_provided:
+        try:
+            pm_supplied = int(item[9])
+            pp_supplied = int(item[10])
+        except Exception:
+            # Fallback: ignore bad counts
+            counts_provided = False
+
+    # If the product already exists in the section and counts are provided,
+    # merge by incrementing quantities instead of ignoring the add.
+    if section in basket.items and produkt in basket.items[section]:
+        if counts_provided:
+            basket.snapshot()
+            bi = basket.items[section][produkt]
+            try:
+                bi.pocet_materialu = int(bi.pocet_materialu) + int(pm_supplied)
+                bi.pocet_prace = int(bi.pocet_prace) + int(pp_supplied)
+            except Exception:
+                pass
+            basket.update_tree(basket_tree)
+            recompute_total_spolu(
+                basket, total_spolu_var, total_praca_var, total_material_var
+            )
+            mark_modified()
+        return
+
     added = basket.add_item(item, section)
     if added:
+        # If counts were supplied for a new item, set them (override defaults)
+        if counts_provided:
+            try:
+                bi = basket.items[section][produkt]
+                bi.pocet_materialu = int(pm_supplied)
+                bi.pocet_prace = int(pp_supplied)
+                # Keep original in sync for reset functionality
+                try:
+                    basket.original[section][produkt].pocet_materialu = int(pm_supplied)
+                    basket.original[section][produkt].pocet_prace = int(pp_supplied)
+                except Exception:
+                    pass
+            except Exception:
+                pass
         basket.update_tree(basket_tree)
-        recompute_total_spolu(basket, total_spolu_var,
-                              total_praca_var, total_material_var)
+        recompute_total_spolu(
+            basket, total_spolu_var, total_praca_var, total_material_var
+        )
         mark_modified()
 
 
