@@ -1,13 +1,13 @@
 {
   "remember": true,
-  "username": "Gehrman Sparrow",
-  "password": "Crimson",
+  "username": "admin_user",
+  "password": "Admin",
   "logged_in": true,
   "user": {
-    "id": 7,
-    "username": "Gehrman Sparrow",
-    "meno": "Gehrman",
-    "priezvisko": "Sparrow"
+    "id": 1,
+    "username": "admin_user",
+    "meno": "Matko",
+    "priezvisko": "Velky"
   },
   "skip_login": true
 }

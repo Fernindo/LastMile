@@ -581,8 +581,7 @@ def main():
                 suffix += f"  |  {who}"
             archive_list.insert("end", f"{ts}{suffix}")
 
-        archive_list._files = files  # <-- pridaj
-
+        archive_list._files = files  
 
 
     def open_selected():
@@ -616,7 +615,7 @@ def main():
         proj_path = os.path.abspath(proj["path"])
         projects_root = os.path.abspath(root.projects_home_state["projects_root"].get())
 
-        # Safety checks: ensure project is under projects_root
+       
         try:
             if os.path.commonpath([proj_path, projects_root]) != projects_root:
                 messagebox.showerror("Safety check failed", "Project path is outside the Projects Root. Aborting.")
@@ -625,7 +624,7 @@ def main():
             messagebox.showerror("Safety check failed", "Invalid paths detected. Aborting.")
             return
 
-        # Confirm irreversible delete
+        
         ok = messagebox.askyesno(
             "Delete Project",
             f"Delete the entire project '{proj_name}'?\n\n"
@@ -636,22 +635,22 @@ def main():
         if not ok:
             return
 
-        # Perform delete
+        
         try:
             shutil.rmtree(proj_path)
         except Exception as e:
             messagebox.showerror("Delete failed", f"Could not delete project:\n{e}")
             return
 
-        # Refresh lists
+       
         rescan_projects()
         refresh_projects()
         messagebox.showinfo("Project deleted", f"'{proj_name}' was deleted.")
 
-    # List bindings
-    proj_list.bind("<<ListboxSelect>>", on_project_select)                 # ONLY selects and populates Archive
-    archive_list.bind("<Double-Button-1>", lambda e: open_selected())      # double-click Archive -> open
-    archive_list.bind("<Return>", lambda e: open_selected())               # Enter on Archive -> open
+    
+    proj_list.bind("<<ListboxSelect>>", on_project_select)                 
+    archive_list.bind("<Double-Button-1>", lambda e: open_selected())     
+    archive_list.bind("<Return>", lambda e: open_selected())               
 
     open_btn.configure(command=open_selected)
     delete_btn.configure(command=delete_selected_project, state="disabled")

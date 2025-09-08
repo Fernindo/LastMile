@@ -6,7 +6,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import ttkbootstrap as tb
 import json
-
+import subprocess
 UI_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "ui_settings.json")
 
 def _load_ui_settings():
@@ -92,7 +92,72 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         sync_postgres_to_sqlite(conn)
     else:
         ensure_indexes(conn)
+    def _is_admin(conn, user_id, db_type, username="") -> bool:
+        cur = conn.cursor()
+        # 1) podľa user_id (ak je k dispozícii)
+        if user_id:
+            try:
+                if db_type == "postgres":
+                    cur.execute("""
+                        SELECT r.name
+                        FROM role r
+                        JOIN users u ON u.role_id = r.id
+                        WHERE u.id = %s
+                    """, (user_id,))
+                else:
+                    cur.execute("""
+                        SELECT r.name
+                        FROM role r
+                        JOIN users u ON u.role_id = r.id
+                        WHERE u.id = ?
+                    """, (user_id,))
+                row = cur.fetchone()
+                return bool(row and str(row[0]).lower() == "admin")
+            except Exception:
+                try: conn.rollback()
+                except: pass
 
+        # 2) fallback podľa username (ak user_id nie je)
+        if username:
+            try:
+                if db_type == "postgres":
+                    cur.execute("""
+                        SELECT r.name
+                        FROM role r
+                        JOIN users u ON u.role_id = r.id
+                        WHERE u.username = %s
+                    """, (username,))
+                else:
+                    cur.execute("""
+                        SELECT r.name
+                        FROM role r
+                        JOIN users u ON u.role_id = r.id
+                        WHERE u.username = ?
+                    """, (username,))
+                row = cur.fetchone()
+                return bool(row and str(row[0]).lower() == "admin")
+            except Exception:
+                try: conn.rollback()
+                except: pass
+
+        return False
+
+
+
+
+    def _open_admin_panel():
+        # admin_apk/main_admin.py je vedľa aktuálneho súboru
+        base_dir = os.path.dirname(__file__)
+        admin_dir = os.path.join(base_dir, "admin_apk")
+        main_admin_path = os.path.join(admin_dir, "main_admin.py")
+
+        if not os.path.isfile(main_admin_path):
+            messagebox.showerror("Admin", f"Nenašiel som súbor:\n{main_admin_path}")
+            return
+        try:
+            subprocess.Popen([sys.executable, main_admin_path], cwd=admin_dir)
+        except Exception as e:
+            messagebox.showerror("Admin", f"Nepodarilo sa spustiť Admin panel:\n{e}")
     # ─── Create main window via ttkbootstrap ─────────────────────────────
     style = Style(theme="litera")
     root  = style.master
@@ -450,6 +515,28 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         command=lambda: open_settings()
     )
     settings_btn.pack(side="right", padx=(5, 10))
+   
+    print("[DEBUG] CURRENT_USER:", CURRENT_USER, "db_type:", db_type)
+
+    # Admin button (len pre adminov) – vľavo od Nastavení
+    try:
+        is_admin = _is_admin(conn,
+                            CURRENT_USER.get("id"),
+                            db_type,
+                            username=CURRENT_USER.get("username"))
+        if is_admin:
+            admin_btn = tb.Button(
+                top,
+                text="🧰 Admin",
+                bootstyle="danger",
+                command=_open_admin_panel
+            )
+            # packni ho pred settings_btn, aby bol vľavo
+            admin_btn.pack(side="right", padx=(5, 0))
+    except Exception as e:
+        print("[ADMIN BTN]", e)
+
+
 
     # ─── Database Treeview (DB results) ───────────────────────────────────
     tree_frame = tb.Frame(main_frame)
@@ -1870,6 +1957,12 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 root.destroy()
             return
 
+        # Ak sa nič nemenilo, neukladaj nový súbor
+        if not basket_modified[0]:
+            if root.winfo_exists():
+                root.destroy()
+            return
+
         reorder_basket_data(basket_tree, basket)
         default_base = "basket"
         fname = tk.simpledialog.askstring(
@@ -1895,18 +1988,15 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         notes_list = get_current_notes(project_name, commit_file)
 
         history_entry = {"timestamp": datetime.now().isoformat(), "notes": notes_list}
-        if os.path.exists(commit_file):
-            try:
-                with open(commit_file, "r", encoding="utf-8") as cf:
-                    prev = json.load(cf)
-                    notes_history = prev.get("notes_history", [])
-            except Exception:
-                notes_history = []
-        else:
+        try:
+            with open(commit_file, "r", encoding="utf-8") as cf:
+                prev = json.load(cf)
+                notes_history = prev.get("notes_history", [])
+        except Exception:
             notes_history = []
         notes_history.append(history_entry)
 
-        # autor z CURRENT_USER (stabilný – nemení sa pri neskorších prihláseniach)
+        # autor len ak sa niečo editovalo
         user = globals().get("CURRENT_USER", {}) or {}
         meno_u = user.get("meno", "")
         priezvisko_u = user.get("priezvisko", "")
@@ -1920,13 +2010,12 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         else:
             author = ""
 
+        # Údaje pre archívny súbor (s autorom)
         out = {
-            
-            "author": author,            # pre rýchle čítanie
-            "user_id": user_id_u,        # pre DB mapovanie
-            "username": username_u, 
-            "project": project_name,
             "author": author,
+            "user_id": user_id_u,
+            "username": username_u,
+            "project": project_name,
             "items": [],
             "notes": notes_list,
             "notes_history": notes_history,
@@ -1951,10 +2040,20 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             out["items"].append(sec_obj)
 
         try:
+            # uložiť iba nový archívny súbor s autorom
             with open(fullpath, "w", encoding="utf-8") as f:
                 json.dump(out, f, ensure_ascii=False, indent=2)
+
+            # commit_file prepíš BEZ autora a user údajov
+            commit_copy = {
+                "project": project_name,
+                "items": out["items"],
+                "notes": notes_list,
+                "notes_history": notes_history,
+            }
             with open(commit_file, "w", encoding="utf-8") as cf:
-                json.dump(out, cf, ensure_ascii=False, indent=2)
+                json.dump(commit_copy, cf, ensure_ascii=False, indent=2)
+
             UNSAVED_NOTES.pop(project_name, None)
         except Exception as e:
             messagebox.showerror(
@@ -1965,6 +2064,20 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
         if root.winfo_exists():
             root.destroy()
+
+        if root.winfo_exists():
+            root.destroy()
+
+        
+        try:
+            import subprocess, sys, os
+            selector_path = os.path.join(os.path.dirname(__file__), "project_selector.py")
+            if os.path.isfile(selector_path):
+                subprocess.Popen([sys.executable, selector_path],
+                                 cwd=os.path.dirname(selector_path) or None)
+        except Exception as e:
+            messagebox.showerror("Chyba", f"Nepodarilo sa spustiť Project Selector:\n{e}")
+
 
 
 
