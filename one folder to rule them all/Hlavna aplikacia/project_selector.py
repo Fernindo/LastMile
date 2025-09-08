@@ -320,18 +320,7 @@ def main():
                              cwd=os.path.dirname(login_path) or None)
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa spustiť login.py:\n{e}")
-    # po vytvorení logout_btn
-    skip_var = tk.BooleanVar(value=load_skip_login())
-    def on_toggle_skip():
-        set_skip_login(skip_var.get())
-    skip_chk = tb.Checkbutton(
-        top,
-        text="Skip prihlásenia",
-        variable=skip_var,
-        bootstyle="secondary",
-        command=on_toggle_skip
-    )
-    skip_chk.pack(side="right", padx=(6, 0))
+    
 
     # inicializačný štýl podľa aktuálneho stavu
     login_btn = tb.Button(
