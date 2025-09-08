@@ -8,6 +8,7 @@ from tkinter import messagebox, filedialog, simpledialog
 from datetime import datetime
 import subprocess
 import sys
+import re
 from gui_functions import get_database_connection
 
 # Legacy compatibility: some builds still call show_presets_window from the top bar.
@@ -149,6 +150,67 @@ def resolve_author_from_json(json_path: str) -> str:
 
     return ""
 
+# override with full-name resolution preferred over abbreviated author
+def resolve_author_from_json(json_path: str) -> str:
+    username = ""
+    user_id = None
+    author_str = ""
+    created_by = ""
+    cb_username = ""
+    cb_user_id = None
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            author_str = str(data.get("author") or "").strip()
+            username = (data.get("username") or "").strip()
+            user_id = data.get("user_id")
+            created_by = str(data.get("created_by") or "").strip()
+            cb_username = (data.get("created_by_username") or "").strip()
+            cb_user_id = data.get("created_by_id")
+    except Exception:
+        pass
+
+    # Prefer resolving full name from DB if we have any identifier
+    cand_user_id = user_id if (user_id is not None) else cb_user_id
+    cand_username = username or cb_username
+    if cand_user_id is not None or cand_username:
+        try:
+            conn, db_type = get_database_connection()
+            cur = conn.cursor()
+            if cand_user_id is not None:
+                sql = (
+                    "SELECT COALESCE(meno,''), COALESCE(priezvisko,'') FROM users WHERE id = %s"
+                    if db_type == "postgres"
+                    else "SELECT COALESCE(meno,''), COALESCE(priezvisko,'') FROM users WHERE id = ?"
+                )
+                cur.execute(sql, (cand_user_id,))
+            else:
+                sql = (
+                    "SELECT COALESCE(meno,''), COALESCE(priezvisko,'') FROM users WHERE username = %s LIMIT 1"
+                    if db_type == "postgres"
+                    else "SELECT COALESCE(meno,''), COALESCE(priezvisko,'') FROM users WHERE username = ? LIMIT 1"
+                )
+                cur.execute(sql, (cand_username,))
+            row = cur.fetchone()
+            conn.close()
+            if row:
+                meno, priezvisko = row[0] or "", row[1] or ""
+                full = f"{meno} {priezvisko}".strip()
+                if full:
+                    return full
+        except Exception:
+            pass
+
+    if cand_username:
+        return cand_username
+    if created_by:
+        return created_by
+    if author_str:
+        return author_str
+    return ""
+
 def discover_projects(root):
     """Rýchlejšie prehľadanie priečinka pomocou os.scandir."""
     items = []
@@ -198,12 +260,35 @@ def create_project(root, name, street=None, area=None):
     # Seed one main JSON if missing
     main_json = os.path.join(json_dir, f"{safe}.json")
     if not os.path.exists(main_json):
+        # Capture current logged-in user to mark the creator
+        try:
+            u = load_login_user() if load_login_state() else {}
+        except Exception:
+            u = {}
+
+        meno = (u.get("meno") or "").strip()
+        priezvisko = (u.get("priezvisko") or "").strip()
+        username = (u.get("username") or "").strip()
+        user_id = u.get("id")
+        creator = f"{meno} {priezvisko}".strip() if (meno or priezvisko) else (username or "")
+
         payload = {
             "project": safe,
             "street": (street or "").strip() if isinstance(street, str) else street,
             "area": area,
             "created": datetime.now().isoformat(),
         }
+        # Add creator/author metadata if available
+        if creator:
+            payload.update({
+                "author": creator,
+                "username": username,
+                "user_id": user_id,
+                # Persist original creator explicitly so it can survive later saves
+                "created_by": creator,
+                "created_by_username": username,
+                "created_by_id": user_id,
+            })
         with open(main_json, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
     return {"name": safe, "path": proj_dir, "json": main_json}
@@ -272,8 +357,36 @@ def main():
             return ""
 
     login_name_var.set(_compute_login_name())
-    login_name_lbl = tb.Label(top, textvariable=login_name_var, bootstyle="secondary")
-    login_name_lbl.pack(side="right", padx=(6, 0))
+    # Replace static label with a bordered, clickable user menu
+    user_menu_btn = tb.Menubutton(
+        top,
+        textvariable=login_name_var,
+        bootstyle="secondary-outline"
+    )
+    user_menu = tk.Menu(user_menu_btn, tearoff=False)
+    def do_logout():
+        set_logged_out()
+        login_btn.configure(bootstyle="danger")
+        login_name_var.set("")
+        # re-show login button and hide user menu on logout
+        try:
+            if not login_btn.winfo_ismapped():
+                login_btn.pack(side="right", padx=(6, 0))
+        except Exception:
+            pass
+        try:
+            if user_menu_btn.winfo_ismapped():
+                user_menu_btn.pack_forget()
+        except Exception:
+            pass
+    user_menu.add_command(label="Odhlásiť sa", command=do_logout)
+    try:
+        user_menu_btn["menu"] = user_menu
+    except Exception:
+        pass
+    # show only when logged in
+    if load_login_state() and login_name_var.get():
+        user_menu_btn.pack(side="right", padx=(6, 0))
 
     tb.Label(top, text="Projects Root:").pack(side="left")
     root_entry = tb.Entry(top, textvariable=root.projects_home_state["projects_root"], width=60)
@@ -298,14 +411,36 @@ def main():
         json_path = os.path.join(json_dir, f"{name}.json")
         if not os.path.exists(json_path):
             try:
+                # Capture current logged-in user to mark the creator
+                try:
+                    u = load_login_user() if load_login_state() else {}
+                except Exception:
+                    u = {}
+                meno = (u.get("meno") or "").strip()
+                priezvisko = (u.get("priezvisko") or "").strip()
+                username = (u.get("username") or "").strip()
+                user_id = u.get("id")
+                creator = f"{meno} {priezvisko}".strip() if (meno or priezvisko) else (username or "")
+
+                payload = {
+                    "project": name,
+                    "created": datetime.now().isoformat(),
+                    "notes": []
+                }
+                if creator:
+                    payload.update({
+                        "author": creator,
+                        "username": username,
+                        "user_id": user_id,
+                        "created_by": creator,
+                        "created_by_username": username,
+                        "created_by_id": user_id,
+                    })
                 with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump({
-                        "project": name,
-                        "created": datetime.now().isoformat(),
-                        "notes": []
-                    }, f, ensure_ascii=False, indent=2)
+                    json.dump(payload, f, ensure_ascii=False, indent=2)
             except Exception:
                 pass
+            
         launch_gui_in_same_root(root, proj_dir, json_path, preset_mode=True)
 
     tb.Button(top, text="Browse…", bootstyle="secondary", command=browse_root).pack(side="left")
@@ -373,10 +508,27 @@ def main():
         finally:
             root.after(2000, refresh_login_btn)  # každé 2 sekundy
 
+    def refresh_user_menu_btn():
+        try:
+            is_in = load_login_state()
+            login_name_var.set(_compute_login_name())
+            try:
+                if is_in and (not user_menu_btn.winfo_ismapped()) and login_name_var.get():
+                    user_menu_btn.pack(side="right", padx=(6, 0))
+                elif (not is_in) and user_menu_btn.winfo_ismapped():
+                    user_menu_btn.pack_forget()
+            except Exception:
+                pass
+        except Exception:
+            pass
+        finally:
+            root.after(2000, refresh_user_menu_btn)
+
+    refresh_user_menu_btn()
     refresh_login_btn()
     
     # tlačidlo Odhlásiť (X)
-    def do_logout():
+    def _do_logout_legacy_unused():
         set_logged_out()
         login_btn.configure(bootstyle="danger")
         login_name_var.set("")
@@ -389,14 +541,7 @@ def main():
         # voliteľne môžeš zmeniť aj text
         # login_btn.configure(text="Prihlásenie")
 
-    logout_btn = tb.Button(
-        top,
-        text="X",
-        width=3,
-        bootstyle="danger",
-        command=do_logout
-    )
-    logout_btn.pack(side="right", padx=(6, 0))
+    # removed old logout (X) button; handled via user name menu
 
 
     def create_project_dialog():
@@ -576,10 +721,14 @@ def main():
             base = os.path.basename(fp)
             ts = datetime.fromtimestamp(os.path.getmtime(fp)).strftime("%Y-%m-%d %H:%M")
             who = resolve_author_from_json(fp)
-            suffix = f"  |  {base}"
+            # Strip extension and trailing timestamp suffix from filename, keep only save name
+            stem = base[:-5] if base.lower().endswith('.json') else base
+            m = re.match(r"^(?P<name>.+?)_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$", stem)
+            nice_name = m.group('name') if m else stem
+            line = f"{ts}  |  {nice_name}"
             if who:
-                suffix += f"  |  {who}"
-            archive_list.insert("end", f"{ts}{suffix}")
+                line += f"  |  {who}"
+            archive_list.insert("end", line)
 
         archive_list._files = files  
 

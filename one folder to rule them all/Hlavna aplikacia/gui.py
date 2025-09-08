@@ -84,6 +84,11 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # ─── Prepare paths and DB ────────────────────────────────────────────
     project_name = os.path.basename(project_dir)
     json_dir     = os.path.join(project_dir, "projects")
+    # Ensure target directory for archived baskets exists
+    try:
+        os.makedirs(json_dir, exist_ok=True)
+    except Exception:
+        pass
     commit_file  = json_path
 
     conn, db_type = get_database_connection()
@@ -493,7 +498,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             # root bol zničený → môžeme otvoriť selector
             pass
 
-        import subprocess, sys, os
+        import subprocess, sys
         selector_path = os.path.join(os.path.dirname(__file__), "project_selector.py")
         if os.path.isfile(selector_path):
             subprocess.Popen([sys.executable, selector_path],
@@ -1953,14 +1958,18 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         if resp is None:
             return  # Cancel
         if resp is False:
-            if root.winfo_exists():
+            try:
                 root.destroy()
+            except tk.TclError:
+                pass
             return
 
         # Ak sa nič nemenilo, neukladaj nový súbor
         if not basket_modified[0]:
-            if root.winfo_exists():
+            try:
                 root.destroy()
+            except tk.TclError:
+                pass
             return
 
         reorder_basket_data(basket_tree, basket)
@@ -1988,10 +1997,17 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         notes_list = get_current_notes(project_name, commit_file)
 
         history_entry = {"timestamp": datetime.now().isoformat(), "notes": notes_list}
+        # Preserve original creator metadata from the commit file if present
+        _prev_created_by = ""
+        _prev_created_by_username = ""
+        _prev_created_by_id = None
         try:
             with open(commit_file, "r", encoding="utf-8") as cf:
                 prev = json.load(cf)
                 notes_history = prev.get("notes_history", [])
+                _prev_created_by = str(prev.get("created_by") or "").strip()
+                _prev_created_by_username = str(prev.get("created_by_username") or "").strip()
+                _prev_created_by_id = prev.get("created_by_id")
         except Exception:
             notes_history = []
         notes_history.append(history_entry)
@@ -2051,6 +2067,13 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 "notes": notes_list,
                 "notes_history": notes_history,
             }
+            # Keep original creator info in the main commit file (if it exists)
+            if _prev_created_by:
+                commit_copy["created_by"] = _prev_created_by
+            if _prev_created_by_username:
+                commit_copy["created_by_username"] = _prev_created_by_username
+            if _prev_created_by_id is not None:
+                commit_copy["created_by_id"] = _prev_created_by_id
             with open(commit_file, "w", encoding="utf-8") as cf:
                 json.dump(commit_copy, cf, ensure_ascii=False, indent=2)
 
@@ -2062,15 +2085,15 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             )
             return
 
-        if root.winfo_exists():
+        # Safely close the window (avoid TclError if already destroyed)
+        try:
             root.destroy()
-
-        if root.winfo_exists():
-            root.destroy()
+        except tk.TclError:
+            pass
 
         
         try:
-            import subprocess, sys, os
+            import subprocess, sys
             selector_path = os.path.join(os.path.dirname(__file__), "project_selector.py")
             if os.path.isfile(selector_path):
                 subprocess.Popen([sys.executable, selector_path],
