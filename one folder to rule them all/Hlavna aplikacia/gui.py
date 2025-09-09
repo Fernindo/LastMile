@@ -193,6 +193,11 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     ui_settings = _load_ui_settings()
     font_size_var = [int(ui_settings.get("table_font_size", int(10 * scale)))]
     row_h = int(2.4 * font_size_var[0])
+    try:
+        _area_default = float(ui_settings.get("area_m2", 0.0))
+    except Exception:
+        _area_default = 0.0
+    area_var = tk.DoubleVar(value=_area_default)
 
     style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
     style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
@@ -1800,7 +1805,6 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         settings_win = tk.Toplevel(root)
         settings_window[0] = settings_win
         settings_win.title("Nastavenia")
-        # Make settings window wider and taller when Save button exists
         settings_win.geometry("1200x600")
         settings_win.resizable(True, True)
 
@@ -1819,7 +1823,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
         label_font = ("Segoe UI", 10, "bold")
 
-        # --- Database column visibility ---------------------------------
+        # --- Stĺpce databázy ------------------------------------------------
         tk.Label(inner, text="Stĺpce databázy", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(5, 0))
         db_chk_frame = tk.Frame(inner, bg="white")
         db_chk_frame.pack(anchor="w", padx=20, pady=(0, 10))
@@ -1837,7 +1841,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             c = idx % db_cols_per_row
             chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
-        # --- Database view mode (Table vs Cards) ------------------------
+        # --- Zobrazenie databázy (Tabuľka/Karty) ---------------------------
         tk.Label(inner, text="Zobrazenie databázy:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         view_frame = tk.Frame(inner, bg="white")
         view_frame.pack(anchor="w", padx=20, pady=(0, 10))
@@ -1845,7 +1849,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         tk.Radiobutton(view_frame, text="Tabuľka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
         tk.Radiobutton(view_frame, text="Karty", value="cards", variable=db_view_mode_var, bg="white").pack(side="left")
 
-        # --- Basket column visibility -----------------------------------
+        # --- Zobraziť stĺpce (Košík) ---------------------------------------
         tk.Label(inner, text="Zobraziť stĺpce:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         basket_chk_frame = tk.Frame(inner, bg="white")
         basket_chk_frame.pack(anchor="w", padx=20, pady=(0, 10))
@@ -1863,44 +1867,88 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             c = idx % basket_cols_per_row
             chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
-        # --- Table font size -------------------------------------------
+        # --- Veľkosť textu tabuliek ----------------------------------------
         tk.Label(inner, text="Veľkosť textu tabuliek:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         font_frame = tk.Frame(inner, bg="white")
         font_frame.pack(anchor="w", padx=20, pady=(0, 10))
 
+        # Pozn.: spin je v outer scope close_settings() — nechávame nezmenené
         spin = tk.Spinbox(font_frame, from_=8, to=24, textvariable=tk.IntVar(value=font_size_var[0]), width=5)
         spin.pack(side="left", padx=5)
 
-        # --- Save button -----------------------------------------------
+        # --- Plocha projektu (m²) — EDIT len tu ----------------------------
+        tk.Label(inner, text="Plocha (m²):", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        area_frame = tk.Frame(inner, bg="white")
+        area_frame.pack(anchor="w", padx=20, pady=(0, 10))
+
+        # Validácia čísla (podporí aj čiarku)
+        def _validate_area(P):
+            if P.strip() == "":
+                return True
+            try:
+                float(P.replace(",", "."))
+                return True
+            except ValueError:
+                return False
+
+        vcmd = (settings_win.register(_validate_area), "%P")
+
+        # Dôležité: používame EXISTUJÚCE area_var (žiadne nové Var!)
+        area_spin = tk.Spinbox(
+            area_frame,
+            from_=0.0,
+            to=1_000_000.0,
+            increment=1.0,
+            textvariable=area_var,   # <-- zdieľaná premená
+            width=10,
+            validate="key",
+            validatecommand=vcmd
+        )
+        area_spin.pack(side="left", padx=5)
+        tk.Label(area_frame, text="m²", bg="white").pack(side="left", padx=(6, 0))
+
+        # --- Tlačidlo Uložiť ------------------------------------------------
         btn_frame = tk.Frame(inner, bg="white")
         btn_frame.pack(pady=15)
 
         def close_settings():
             update_displayed_columns()
+            # font
             try:
                 font_size_var[0] = int(spin.get())
             except Exception:
-                font_size_var[0] = font_size_var[0]
+                pass
             row_h = int(2.4 * font_size_var[0])
             style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             root.option_add("*Font", ("Segoe UI", font_size_var[0]))
-            # Apply DB view mode selection and persist settings
+
+            # režim DB zobrazenia
             try:
                 db_view_mode[0] = db_view_mode_var.get()
                 if db_visible[0]:
                     _show_current_db_view()
             except Exception:
                 pass
+
+            # persist settings (vrátane area_m2)
             try:
-                _st = _load_ui_settings()
+                _st = _load_ui_settings() or {}
             except Exception:
                 _st = {}
             _st["table_font_size"] = font_size_var[0]
             _st["db_view_mode"] = db_view_mode[0]
+            try:
+                _st["area_m2"] = float(str(area_var.get()).replace(",", "."))
+            except Exception:
+                pass
             _save_ui_settings(_st)
+
             settings_window[0] = None
-            settings_win.destroy()
+            try:
+                settings_win.destroy()
+            except Exception:
+                pass
 
         save_btn = tk.Button(
             btn_frame,
@@ -1915,6 +1963,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         save_btn.pack()
 
         settings_win.protocol("WM_DELETE_WINDOW", close_settings)
+
+
 
 
         
