@@ -1807,6 +1807,13 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         settings_win.title("Nastavenia")
         settings_win.geometry("1200x600")
         settings_win.resizable(True, True)
+        # Make settings modal so it won't minimize on focus changes
+        try:
+            settings_win.transient(root)
+            settings_win.grab_set()
+            settings_win.focus_set()
+        except Exception:
+            pass
 
         container = tk.Frame(settings_win, bg="white")
         container.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1946,6 +1953,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
             settings_window[0] = None
             try:
+                settings_win.grab_release()
+            except Exception:
+                pass
+            try:
                 settings_win.destroy()
             except Exception:
                 pass
@@ -1963,6 +1974,19 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         save_btn.pack()
 
         settings_win.protocol("WM_DELETE_WINDOW", close_settings)
+        # If settings window gets iconified/minimized, bring it back
+        def _prevent_iconify(_e=None):
+            try:
+                if settings_win.state() == "iconic":
+                    settings_win.deiconify()
+                    settings_win.lift()
+                    settings_win.focus_force()
+            except Exception:
+                pass
+        try:
+            settings_win.bind("<Unmap>", _prevent_iconify)
+        except Exception:
+            pass
 
 
 
