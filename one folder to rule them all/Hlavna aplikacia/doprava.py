@@ -2,8 +2,15 @@ import tkinter as tk
 from tkinter import StringVar
 import json
 import os
+from helpers import ensure_writable_config
 
-SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "doprava_settings.json")
+SETTINGS_FILE = ensure_writable_config("doprava_settings.json", default_content={
+    "cena_vyjazd": "30.00",
+    "pocet_vyjazdov": "0",
+    "cena_km": "0.55",
+    "vzdialenost": "0.0",
+    "pocet_ciest": "0"
+})
 
 
 def _load_settings():

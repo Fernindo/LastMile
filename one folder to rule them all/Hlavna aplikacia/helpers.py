@@ -1,11 +1,68 @@
 # Consolidated helper functions and widgets
 import os
+import sys
 import json
+import shutil
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 
 from ttkbootstrap import Button
+
+
+# ---------------------------------------------------------------------------
+# App/resource paths and config bootstrap (PyInstaller-friendly)
+# ---------------------------------------------------------------------------
+def is_frozen() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
+def app_dir() -> str:
+    """Writable directory for app data (next to EXE when frozen)."""
+    if is_frozen():
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def resources_dir() -> str:
+    """Bundled resources dir (resources/ inside _MEIPASS when frozen)."""
+    base = sys._MEIPASS if is_frozen() else os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, "resources")
+
+
+def resource_path(rel_path: str) -> str:
+    """Full path to a resource in the bundled resources directory."""
+    return os.path.join(resources_dir(), rel_path)
+
+
+def ensure_writable_config(filename: str, default_content: dict | None = None) -> str:
+    """Ensure a writable copy of a config JSON exists next to the EXE.
+
+    - If `<app_dir>/<filename>` doesn't exist, copy default from resources
+      (`resources/<filename>`) when available, otherwise write `default_content`
+      (or `{}` if not provided).
+    - Returns the full writable path.
+    """
+    dest = os.path.join(app_dir(), filename)
+    if not os.path.exists(dest):
+        os.makedirs(app_dir(), exist_ok=True)
+        src = resource_path(filename)
+        if os.path.exists(src):
+            try:
+                shutil.copyfile(src, dest)
+            except Exception:
+                pass
+        if not os.path.exists(dest):
+            try:
+                with open(dest, "w", encoding="utf-8") as f:
+                    json.dump(default_content or {}, f, ensure_ascii=False, indent=2)
+            except Exception:
+                # last resort: create empty file
+                try:
+                    open(dest, "a").close()
+                except Exception:
+                    pass
+    return dest
 
 
 def parse_float(text: str) -> float:

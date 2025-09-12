@@ -1,0 +1,12 @@
+{
+  "logged_in": true,
+  "user": {
+    "id": 7,
+    "username": "Gehrman Sparrow",
+    "meno": "Gehrman",
+    "priezvisko": "Sparrow"
+  },
+  "remember": true,
+  "username": "Gehrman Sparrow",
+  "password": "Crimson"
+}

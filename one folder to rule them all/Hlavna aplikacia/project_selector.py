@@ -10,6 +10,7 @@ import subprocess
 import sys
 import re
 from gui_functions import get_database_connection
+from helpers import ensure_writable_config
 
 # Legacy compatibility: some builds still call show_presets_window from the top bar.
 # We keep a no-op stub so the UI can hide the old button without NameError.
@@ -20,7 +21,7 @@ def show_presets_window():
 # Single-app Projects Home embedded in project_selector.py
 # No new code files. Only creates project JSONs when you make a new project.
 
-UI_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "ui_settings.json")
+UI_SETTINGS_FILE = ensure_writable_config("ui_settings.json")
 
 # ───────────────────────── Helpers: settings ─────────────────────────
 
@@ -32,7 +33,7 @@ def load_settings():
         except Exception:
             return {}
     return {}
-LOGIN_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "login_config.json")
+LOGIN_CONFIG_FILE = ensure_writable_config("login_config.json")
 def load_login_user():
     try:
         with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -93,8 +94,8 @@ def save_settings(data):
 
 def get_projects_root():
     st = load_settings()
-    # fallback to a local "workspace" folder, but we won't auto-create it
-    return st.get("projects_root", os.path.abspath(os.path.join(os.path.dirname(__file__), "workspace")))
+    # fallback to a local "workspace" folder next to the EXE
+    return st.get("projects_root", os.path.abspath(os.path.join(os.path.dirname(UI_SETTINGS_FILE), "workspace")))
 
 def set_projects_root(path):
     st = load_settings()
@@ -297,12 +298,18 @@ def create_project(root, name, street=None, area=None):
 
 def launch_gui_in_same_root(root, project_dir, json_path, *, preset_mode: bool=False):
     set_projects_root(root.projects_home_state["projects_root"].get())
-
-    for child in list(root.winfo_children()):
-        try:
-            child.destroy()
-        except Exception:
-            pass
+    try:
+        # If this is a Toplevel (has a parent), destroy it; otherwise
+        # it's the Tk root, so just withdraw to keep the app alive.
+        if root.winfo_parent():
+            try:
+                root.destroy()
+            except Exception:
+                root.withdraw()
+        else:
+            root.withdraw()
+    except Exception:
+        pass
 
     # načítaj prihláseného používateľa (ak skip, nech je prázdny)
     u = load_login_user() if load_login_state() else {}
@@ -331,23 +338,16 @@ def main(parent=None):
         root.geometry("980x600")
         owns_root = True
     else:
+        # Create a child window on the existing Tk root
         root = tb.Toplevel(parent)
         root.title("Projects Home")
         root.geometry("980x600")
         owns_root = False
-
-    # Keep a small state dict on the root so helper functions can access it
-    root.projects_home_state = {
-        "projects_root": tk.StringVar(value=get_projects_root()),
-        "projects": [],
-        "selected_project": None,
-        "filter_text": tk.StringVar(),
-    }
-
-    style = Style(theme="litera")
-    root = style.master
-    root.title("Projects Home")
-    root.geometry("980x600")
+        # Closing the selector should close the whole app
+        try:
+            root.protocol("WM_DELETE_WINDOW", parent.destroy)
+        except Exception:
+            pass
 
     # Keep a small state dict on the root so helper functions can access it
     root.projects_home_state = {
@@ -425,9 +425,7 @@ def main(parent=None):
             # Rescan filesystem only when root changes
             rescan_projects()
             refresh_projects()
-            
-            if owns_root:
-                root.mainloop()
+            # no extra mainloop() calls here
 
     def open_preset_builder():
         pr_root = root.projects_home_state["projects_root"].get() or os.getcwd()
@@ -833,7 +831,8 @@ def main(parent=None):
 
     rescan_projects()
     refresh_projects()
-    root.mainloop()
+    if owns_root:
+        root.mainloop()
 
 if __name__ == "__main__":
     main()

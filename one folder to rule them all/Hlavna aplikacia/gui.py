@@ -7,7 +7,9 @@ import tkinter.ttk as ttk
 import ttkbootstrap as tb
 import json
 import subprocess
-UI_SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "ui_settings.json")
+from helpers import ensure_writable_config
+
+UI_SETTINGS_FILE = ensure_writable_config("ui_settings.json")
 
 def _load_ui_settings():
     if os.path.exists(UI_SETTINGS_FILE):
@@ -166,6 +168,15 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # ─── Create main window via ttkbootstrap ─────────────────────────────
     style = Style(theme="litera")
     root  = style.master
+    # If the Tk root already has widgets (e.g., login UI packed),
+    # create a separate Toplevel as our container to avoid mixing
+    # geometry managers on the same master.
+    try:
+        has_children = any(w.winfo_manager() for w in root.winfo_children())
+    except Exception:
+        has_children = False
+    if has_children:
+        root = tk.Toplevel(root)
     style.configure(
         "Main.Treeview.Heading",
         background="#e6e6fa",
@@ -202,7 +213,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
     style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
     root.title(f"Project: {project_name}")
-    root.state("zoomed")
+    try:
+        root.state("zoomed")
+    except Exception:
+        pass
     root.option_add("*Font", ("Segoe UI", font_size_var[0]))
 
     root.grid_rowconfigure(0, weight=1)

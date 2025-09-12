@@ -4,6 +4,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import ttkbootstrap as tb
 from tkinter import messagebox, simpledialog
+from helpers import ensure_writable_config
 
 # Reuse your existing app pieces
 from basket import Basket                           # :contentReference[oaicite:0]{index=0}
@@ -16,7 +17,13 @@ from gui_functions import (                         # :contentReference[oaicite:
 from helpers import create_filter_panel, format_currency             # :contentReference[oaicite:2]{index=2}
 
 
-LOGIN_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "login_config.json")
+def app_dir():
+    import sys
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+LOGIN_CONFIG_FILE = ensure_writable_config("login_config.json")
 
 
 def _load_logged_in_user_id(conn, db_type: str) -> int | None:

@@ -1,0 +1,46 @@
+{
+  "author": "Sparrow G.",
+  "user_id": null,
+  "username": "Gehrman Sparrow",
+  "project": "test",
+  "items": [
+    {
+      "section": "WiFi prístupové body",
+      "products": [
+        {
+          "produkt": "UniFi AP AC Lite",
+          "jednotky": "ks",
+          "dodavatel": "",
+          "odkaz": "",
+          "koeficient_material": 1.2,
+          "nakup_materialu": 75.0,
+          "koeficient_prace": 1.0,
+          "cena_prace": 10.0,
+          "pocet_prace": 1,
+          "pocet_materialu": 1,
+          "sync": true
+        },
+        {
+          "produkt": "Mikrotik cAP",
+          "jednotky": "ks",
+          "dodavatel": "",
+          "odkaz": "",
+          "koeficient_material": 1.1,
+          "nakup_materialu": 55.0,
+          "koeficient_prace": 1.0,
+          "cena_prace": 8.0,
+          "pocet_prace": 1,
+          "pocet_materialu": 1,
+          "sync": true
+        }
+      ]
+    }
+  ],
+  "notes": [],
+  "notes_history": [
+    {
+      "timestamp": "2025-09-12T11:52:21.733907",
+      "notes": []
+    }
+  ]
+}

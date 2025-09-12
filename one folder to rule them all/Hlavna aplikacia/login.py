@@ -10,6 +10,7 @@ import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 
 from gui_functions import get_database_connection  # tvoje napojenie na online DB
+from helpers import ensure_writable_config
 
 import project_selector 
 import gui_functions
@@ -28,23 +29,40 @@ PROJECT_SELECTOR_FILE = "project_selector.py"  # po prihlásení spúšťame sel
 # ───────────────────────── Helpery ─────────────────────────
 
 def resource_path(rel_path: str) -> str:
-    """Get absolute path for resource (works for dev + PyInstaller)."""
+    """Get absolute path for bundled, read-only resources (dev + PyInstaller)."""
     if getattr(sys, "frozen", False):
         base_dir = sys._MEIPASS
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_dir, rel_path)
 
+def app_dir() -> str:
+    """Directory of the app/executable (writable location)."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+def config_path(filename: str) -> str:
+    """Path for app settings persisted next to the EXE (writable)."""
+    return os.path.join(app_dir(), filename)
+
 def load_config() -> dict:
     try:
-        with open(resource_path(CONFIG_FILE), "r", encoding="utf-8") as f:
+        cfg_path = ensure_writable_config(CONFIG_FILE, default_content={
+            "logged_in": False,
+            "remember": False,
+            "username": "",
+            "password": "",
+            "user": {}
+        })
+        with open(cfg_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}
 
 def save_config(cfg_updates: dict):
     """Bezpečne uloží/aktualizuje login_config.json tak, aby sa nezmazali iné kľúče."""
-    path = resource_path(CONFIG_FILE)
+    path = ensure_writable_config(CONFIG_FILE)
     current = {}
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -135,15 +153,15 @@ def run_project_selector_and_exit(root=None):
     try:
         import project_selector
 
-        # Close the login window
+        # Hide the login window (keep Tk app alive)
         if root is not None:
             try:
-                root.destroy()
+                root.withdraw()
             except Exception:
                 pass
 
-        # Now start the selector with its own root
-        project_selector.main(parent=None)
+        # Now start the selector as a child of the existing root
+        project_selector.main(parent=root)
 
     except Exception as e:
         messagebox.showerror("Chyba", f"Nepodarilo sa spustiť Project Selector:\n{e}")
@@ -265,7 +283,7 @@ class LoginApp:
             return
 
         # Inak spusti Project Selector a ukonči tento proces
-        run_project_selector_and_exit()
+        run_project_selector_and_exit(self.root)
 
 def main():
     parser = argparse.ArgumentParser()
