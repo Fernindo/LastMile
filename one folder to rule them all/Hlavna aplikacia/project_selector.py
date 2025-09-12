@@ -10,7 +10,14 @@ import subprocess
 import sys
 import re
 from gui_functions import get_database_connection
-from helpers import ensure_user_config, secure_load_json, secure_save_json
+from helpers import (
+    ensure_user_config,
+    secure_load_json,
+    secure_save_json,
+    enable_high_dpi_awareness,
+    calibrate_tk_scaling,
+    apply_ttk_base_font,
+)
 
 # Legacy compatibility: some builds still call show_presets_window from the top bar.
 # We keep a no-op stub so the UI can hide the old button without NameError.
@@ -293,8 +300,20 @@ def main(parent=None):
     # If launched from login.py, we pass parent
     # If run directly, create its own root window
     if parent is None:
+        try:
+            enable_high_dpi_awareness()
+        except Exception:
+            pass
         style = Style(theme="litera")
         root = style.master
+        try:
+            calibrate_tk_scaling(root)
+        except Exception:
+            pass
+        try:
+            apply_ttk_base_font(style, family="Segoe UI", size=11)
+        except Exception:
+            pass
         root.title("Projects Home")
         root.geometry("980x600")
         owns_root = True

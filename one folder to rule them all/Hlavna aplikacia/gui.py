@@ -7,6 +7,7 @@ import tkinter.ttk as ttk
 import ttkbootstrap as tb
 import json
 import subprocess
+from PIL import Image, ImageTk
 from helpers import ensure_user_config, secure_load_json, secure_save_json
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
@@ -33,6 +34,9 @@ from helpers import (
     create_filter_panel,
     askfloat_locale,
     format_currency,
+    enable_high_dpi_awareness,
+    calibrate_tk_scaling,
+    apply_ttk_base_font,
     
 )
 from exportVv import export_vv
@@ -162,6 +166,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         except Exception as e:
             messagebox.showerror("Admin", f"Nepodarilo sa spustiť Admin panel:\n{e}")
     # ─── Create main window via ttkbootstrap ─────────────────────────────
+    try:
+        enable_high_dpi_awareness()
+    except Exception:
+        pass
     style = Style(theme="litera")
     master = style.master  # underlying Tk root (may already host other UI)
     root  = master
@@ -199,6 +207,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     
 
+    try:
+        calibrate_tk_scaling(root)
+    except Exception:
+        pass
     root.tk.call("tk", "scaling", scale)
 
     ui_settings = _load_ui_settings()
@@ -212,6 +224,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
     style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
+    try:
+        apply_ttk_base_font(style, family="Segoe UI", size=font_size_var[0])
+    except Exception:
+        pass
     root.title(f"Project: {project_name}")
     try:
         root.state("zoomed")
@@ -1943,6 +1959,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             root.option_add("*Font", ("Segoe UI", font_size_var[0]))
+            try:
+                apply_ttk_base_font(style, family="Segoe UI", size=font_size_var[0])
+            except Exception:
+                pass
 
             # režim DB zobrazenia
             try:

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 import ttkbootstrap as tb
 from ttkbootstrap import Style
+from helpers import enable_high_dpi_awareness, calibrate_tk_scaling, apply_ttk_base_font
 import psycopg2
 import subprocess
 import os
@@ -136,7 +137,19 @@ class login_app:
             os.remove(self.credentials_file)
 
 if __name__ == "__main__":
+    try:
+        enable_high_dpi_awareness()
+    except Exception:
+        pass
     style = Style(theme="flatly")
     root = style.master
+    try:
+        calibrate_tk_scaling(root)
+    except Exception:
+        pass
+    try:
+        apply_ttk_base_font(style, family="Segoe UI", size=11)
+    except Exception:
+        pass
     login_app(root)
     root.mainloop()

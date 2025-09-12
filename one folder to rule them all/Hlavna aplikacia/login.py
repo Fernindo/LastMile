@@ -10,7 +10,16 @@ import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 
 from gui_functions import get_database_connection  # tvoje napojenie na online DB
-from helpers import (ensure_user_config, encrypt_string_for_user, decrypt_string_if_encrypted, secure_load_config, secure_save_config)
+from helpers import (
+    ensure_user_config,
+    encrypt_string_for_user,
+    decrypt_string_if_encrypted,
+    secure_load_config,
+    secure_save_config,
+    enable_high_dpi_awareness,
+    calibrate_tk_scaling,
+    apply_ttk_base_font,
+)
 
 import project_selector 
 import gui_functions
@@ -20,6 +29,13 @@ import gui
 
 
 
+
+
+# Ensure DPI awareness early (before any Tk roots are created)
+try:
+    enable_high_dpi_awareness()
+except Exception:
+    pass
 
 
 APP_TITLE = "Prihlásenie"
@@ -297,6 +313,21 @@ def main():
     root = style.master
     try:
         root.tk.call("tk", "scaling", 1.15)
+    except Exception:
+        pass
+
+    # Ensure high-DPI awareness and calibrate Tk scaling consistently
+    try:
+        enable_high_dpi_awareness()
+    except Exception:
+        pass
+    try:
+        calibrate_tk_scaling(root)
+    except Exception:
+        pass
+    try:
+        # Make ttk/ttkbootstrap widgets (incl. Buttons) follow base font size
+        apply_ttk_base_font(style, family="Segoe UI", size=11)
     except Exception:
         pass
 
