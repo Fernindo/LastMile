@@ -108,8 +108,10 @@ class login_app:
                 self.clear_credentials()
 
             import project_selector
-            self.root.destroy()  # close login window
-            project_selector.main()
+            self.root.quit()      # stop login mainloop
+            self.root.destroy()   # close login window fully
+            project_selector.main(parent=None)  # start project selector fresh
+
         else:
             messagebox.showerror("Odmietnutý prístup", "Admin nemá povolený prístup.")
 

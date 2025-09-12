@@ -322,8 +322,8 @@ def launch_gui_in_same_root(root, project_dir, json_path, *, preset_mode: bool=F
 
 
 def main(parent=None):
-    # If launched from login.py, pass parent=login_root
-    # If run directly (python project_selector.py), create its own root
+    # If launched from login.py, we pass parent
+    # If run directly, create its own root window
     if parent is None:
         style = Style(theme="litera")
         root = style.master
@@ -331,7 +331,6 @@ def main(parent=None):
         root.geometry("980x600")
         owns_root = True
     else:
-        # Embed into a new window
         root = tb.Toplevel(parent)
         root.title("Projects Home")
         root.geometry("980x600")
@@ -344,6 +343,7 @@ def main(parent=None):
         "selected_project": None,
         "filter_text": tk.StringVar(),
     }
+
     style = Style(theme="litera")
     root = style.master
     root.title("Projects Home")
@@ -425,6 +425,9 @@ def main(parent=None):
             # Rescan filesystem only when root changes
             rescan_projects()
             refresh_projects()
+            
+            if owns_root:
+                root.mainloop()
 
     def open_preset_builder():
         pr_root = root.projects_home_state["projects_root"].get() or os.getcwd()

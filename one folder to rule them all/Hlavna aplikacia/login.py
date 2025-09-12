@@ -130,29 +130,27 @@ def verify_user_online(username: str, password: str):
 def run_project_selector_and_exit(root=None):
     """
     Closes the login window and launches the Project Selector
-    inside the same process (single EXE).
+    in a fresh root (single EXE).
     """
     try:
         import project_selector
 
-        # Close the login window before opening the selector
+        # Close the login window
         if root is not None:
             try:
                 root.destroy()
             except Exception:
                 pass
 
-        # Launch Project Selector (parent=None → it makes its own root window)
+        # Now start the selector with its own root
         project_selector.main(parent=None)
 
     except Exception as e:
         messagebox.showerror("Chyba", f"Nepodarilo sa spustiť Project Selector:\n{e}")
     finally:
-        # Ensure login process ends cleanly
-        try:
-            sys.exit(0)
-        except Exception:
-            pass
+        # Don’t kill the process here! (otherwise selector dies too)
+        pass
+
 
 # ───────────────────────── UI ─────────────────────────
 
