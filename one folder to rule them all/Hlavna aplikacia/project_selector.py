@@ -311,17 +311,52 @@ def main(parent=None):
         except Exception:
             pass
         try:
-            apply_ttk_base_font(style, family="Segoe UI", size=11)
+            # Base font for ttk widgets in Project Selector
+            apply_ttk_base_font(style, family="Segoe UI", size=10)
+        except Exception:
+            pass
+        # Make ttk buttons a bit more compact (reduce padding)
+        try:
+            for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
+                try:
+                    style.configure(_btn_style, padding=(6, 3))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Ensure classic Tk widgets (e.g., Listbox) also use size 13
+        try:
+            root.option_add("*Font", ("Segoe UI", 10))
         except Exception:
             pass
         root.title("Projects Home")
-        root.geometry("980x600")
+        root.geometry("960x670")
+        try:
+            root.minsize(720, 420)
+            root.resizable(True, True)
+        except Exception:
+            pass
         owns_root = True
     else:
         # Create a child window on the existing Tk root
         root = tb.Toplevel(parent)
+        # Ensure we get a Style object to tweak paddings for this window too
+        try:
+            style = Style()
+            for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
+                try:
+                    style.configure(_btn_style, padding=(6, 3))
+                except Exception:
+                    pass
+        except Exception:
+            pass
         root.title("Projects Home")
-        root.geometry("980x600")
+        root.geometry("860x520")
+        try:
+            root.minsize(720, 420)
+            root.resizable(True, True)
+        except Exception:
+            pass
         owns_root = False
         # Closing the selector should close the whole app
         try:

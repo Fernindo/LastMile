@@ -519,6 +519,19 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     definition_entry = tk.Entry(top, width=50)
     definition_entry.insert(0, "")
     definition_entry.pack(side="left")
+
+    # Slightly enlarge labels for Vyhladavanie / Systémy / Objekt
+    try:
+        for _w in top.winfo_children():
+            try:
+                if isinstance(_w, tk.Label):
+                    _txt = _w.cget("text")
+                    if isinstance(_txt, str) and ("Vyhlad" in _txt or "Syst" in _txt or "Objekt" in _txt):
+                        _w.configure(font=("Segoe UI", font_size_var[0] + 1))
+            except Exception:
+                pass
+    except Exception:
+        pass
     def back_to_archive():
         try:
             on_closing()
