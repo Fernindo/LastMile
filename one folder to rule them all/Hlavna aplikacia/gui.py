@@ -173,6 +173,19 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     style = Style(theme="litera")
     master = style.master  # underlying Tk root (may already host other UI)
     root  = master
+
+    # --- DPI / Scaling fix for packaged app ---
+    # Calibrate Tk scaling to real DPI; enforce a minimum of 1.25
+    try:
+        scale = float(calibrate_tk_scaling(root))
+    except Exception:
+        scale = 1.25
+
+    try:
+        # Smaller baseline font for the overall UI
+        apply_ttk_base_font(style, family="Segoe UI", size=int(9 * scale))
+    except Exception:
+        pass
     # If the Tk root already has widgets (e.g., login UI packed),
     # create a separate Toplevel as our container to avoid mixing
     # geometry managers on the same master.
@@ -198,24 +211,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         relief="flat"
     )
 
-    # --- Dynamic scaling based on screen size -----------------------------
-    screen_w = root.winfo_screenwidth()
+    # scaling already calibrated; avoid additional screen-width based scaling
 
-    # Use a slightly smaller reference width so laptops don't scale down
-    base_w = 1600
-    scale = max(1.0, min(1.5, screen_w / base_w))
-
-    
-
-    try:
-        calibrate_tk_scaling(root)
-    except Exception:
-        pass
-    root.tk.call("tk", "scaling", scale)
+    # No additional tk scaling adjustments here; 'scale' is already set
 
     ui_settings = _load_ui_settings()
-    font_size_var = [int(ui_settings.get("table_font_size", int(10 * scale)))]
-    row_h = int(2.4 * font_size_var[0])
+    # Default to a smaller table font; users can still adjust in Settings
+    font_size_var = [int(ui_settings.get("table_font_size", int(9 * scale)))]
+    row_h = int(2.1 * font_size_var[0])
     try:
         _area_default = float(ui_settings.get("area_m2", 0.0))
     except Exception:
@@ -280,8 +283,12 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 if db_cards_frame[0] and db_cards_frame[0].winfo_manager():
                     db_cards_frame[0].pack_forget()
             else:
-                if 'tree_frame' in locals() and tree_frame.winfo_manager():
-                    tree_frame.pack_forget()
+                # Ensure we properly reference the outer tree_frame and guard calls
+                try:
+                    if tree_frame.winfo_manager():
+                        tree_frame.pack_forget()
+                except Exception:
+                    pass
             toggle_btn.config(text="🔼 Zobraziť databázu")
         else:
             # Show current DB view
@@ -370,13 +377,13 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         toggle_filter_container,
         text="▶",
         font=("Segoe UI", int(12 * scale), "bold"),
-        width=2,
-        height=1,
+        
+        
         bg="#e0e0e0",
         relief="flat",
         command=toggle_filter
     )
-    filter_toggle_btn.pack()
+    filter_toggle_btn.pack(ipadx=6, ipady=2)
 
     # ─── Main Area (right) ────────────────────────────────────────────────
     # Top bar (Home button + Search entry)
@@ -386,7 +393,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     toggle_btn = tb.Button(
         top,
         text="🔽 Skryť databázu",
-        bootstyle="seconwarningdary",
+        bootstyle="secondary",
         command=toggle_db_view
     )
     toggle_btn.pack(side="left", padx=(10, 0))

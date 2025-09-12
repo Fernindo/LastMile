@@ -65,15 +65,10 @@ def show_doprava_window():
         btn_frame = tk.Frame(row)
         btn_frame.pack(side="right")
 
-        Button(btn_frame, text="−", width=3, bootstyle="warning",
-               command=lambda: var.set(str(max(min_value, int(var.get() or "0") - step))))
-        Button(btn_frame, text="+", width=3, bootstyle="warning",
-               command=lambda: var.set(str(int(var.get() or "0") + step)))
-
-        Button(btn_frame, text="−", width=3, bootstyle="warning",
-               command=lambda: var.set(str(max(min_value, int(var.get() or "0") - step)))).pack(side="left", padx=1)
-        Button(btn_frame, text="+", width=3, bootstyle="warning",
-               command=lambda: var.set(str(int(var.get() or "0") + step))).pack(side="left", padx=1)
+        Button(btn_frame, text="−", bootstyle="warning",
+               command=lambda: var.set(str(max(min_value, int(var.get() or "0") - step)))).pack(side="left", padx=1, ipadx=6, ipady=2)
+        Button(btn_frame, text="+", bootstyle="warning",
+               command=lambda: var.set(str(int(var.get() or "0") + step))).pack(side="left", padx=1, ipadx=6, ipady=2)
 
     win = tk.Toplevel()
     win.title("Výpočet dopravy")

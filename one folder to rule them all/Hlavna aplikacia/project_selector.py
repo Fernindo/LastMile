@@ -332,12 +332,12 @@ def main(parent=None):
         style = Style(theme="litera")
         root = style.master
         try:
-            calibrate_tk_scaling(root)
+            scale = float(calibrate_tk_scaling(root))
         except Exception:
-            pass
+            scale = 1.25
         try:
-            # Base font for ttk widgets in Project Selector
-            apply_ttk_base_font(style, family="Segoe UI", size=10)
+            # Base font for ttk widgets in Project Selector (smaller baseline)
+            apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
         except Exception:
             pass
         # Make ttk buttons a bit more compact (reduce padding)
@@ -349,14 +349,14 @@ def main(parent=None):
                     pass
         except Exception:
             pass
-        # Ensure classic Tk widgets (e.g., Listbox) also use size 13
+        # Ensure classic Tk widgets (e.g., Listbox) also use scaled base size (smaller)
         try:
-            root.option_add("*Font", ("Segoe UI", 10))
+            root.option_add("*Font", ("Segoe UI", int(8 * scale)))
         except Exception:
             pass
         root.title("Projects Home")
-        # Make window a bit taller for more vertical space
-        root.geometry("1100x800")
+        # Slightly smaller default geometry
+        root.geometry("1000x700")
         try:
             root.minsize(900, 600)
             root.resizable(True, True)
@@ -369,6 +369,14 @@ def main(parent=None):
         # Ensure we get a Style object to tweak paddings for this window too
         try:
             style = Style()
+            try:
+                scale = float(calibrate_tk_scaling(root))
+            except Exception:
+                scale = 1.25
+            try:
+                apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
+            except Exception:
+                pass
             for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
                 try:
                     style.configure(_btn_style, padding=(6, 3))

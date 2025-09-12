@@ -35,9 +35,9 @@ class login_app:
         self.password_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         self.toggle_button = tb.Button(
-            frame, text="●", width=2, relief="flat", command=self.toggle_password_visibility
+            frame, text="●", relief="flat", command=self.toggle_password_visibility
         )
-        self.toggle_button.grid(row=1, column=2, padx=0, sticky="w")
+        self.toggle_button.grid(row=1, column=2, padx=0, sticky="w", ipadx=6, ipady=2)
 
         # Zapamätať prihlásenie
         self.remember_var = tk.BooleanVar()
@@ -45,8 +45,8 @@ class login_app:
         self.remember_check.grid(row=2, column=1, sticky="w", padx=5, pady=(0, 5))
 
         # Login button
-        login_btn = tb.Button(frame, text="Prihlásiť sa", width=20, bootstyle="success", command=self.login)
-        login_btn.grid(row=3, column=0, columnspan=3, pady=10)
+        login_btn = tb.Button(frame, text="Prihlásiť sa", bootstyle="success", command=self.login)
+        login_btn.grid(row=3, column=0, columnspan=3, pady=10, ipadx=12, ipady=6)
 
         self.root.bind("<Return>", lambda event: self.login())
 
@@ -144,11 +144,11 @@ if __name__ == "__main__":
     style = Style(theme="flatly")
     root = style.master
     try:
-        calibrate_tk_scaling(root)
+        scale = float(calibrate_tk_scaling(root))
     except Exception:
-        pass
+        scale = 1.25
     try:
-        apply_ttk_base_font(style, family="Segoe UI", size=11)
+        apply_ttk_base_font(style, family="Segoe UI", size=int(9 * scale))
     except Exception:
         pass
     login_app(root)

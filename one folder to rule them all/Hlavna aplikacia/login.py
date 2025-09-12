@@ -210,17 +210,17 @@ class LoginApp:
         frm = tb.Frame(root, padding=pad)
         frm.pack(fill="both", expand=True)
 
-        title = tb.Label(frm, text="Prihlásenie", font=("Segoe UI", 16, "bold"))
+        title = tb.Label(frm, text="Prihlásenie", font=("Segoe UI", 12, "bold"))
         title.grid(row=0, column=0, columnspan=3, pady=(0, 10), sticky="w")
 
         # Username
         tb.Label(frm, text="Používateľ:").grid(row=1, column=0, sticky="w")
-        self.ent_user = tb.Entry(frm, textvariable=self.var_username, width=28, bootstyle=INFO)
+        self.ent_user = tb.Entry(frm, textvariable=self.var_username, width=22, bootstyle=INFO)
         self.ent_user.grid(row=1, column=1, columnspan=2, sticky="we", pady=(0, 6))
 
         # Password
         tb.Label(frm, text="Heslo:").grid(row=2, column=0, sticky="w")
-        self.ent_pass = tb.Entry(frm, textvariable=self.var_password, show="•", width=28, bootstyle=INFO)
+        self.ent_pass = tb.Entry(frm, textvariable=self.var_password, show="•", width=22, bootstyle=INFO)
         self.ent_pass.grid(row=2, column=1, sticky="we", pady=(0, 6))
         chk_show = tb.Checkbutton(
             frm, text="Zobraziť heslo",
@@ -311,10 +311,6 @@ def main():
     # jednotný vzhľad s tvojím GUI
     style = tb.Style(theme="litera")
     root = style.master
-    try:
-        root.tk.call("tk", "scaling", 1.15)
-    except Exception:
-        pass
 
     # Ensure high-DPI awareness and calibrate Tk scaling consistently
     try:
@@ -322,12 +318,12 @@ def main():
     except Exception:
         pass
     try:
-        calibrate_tk_scaling(root)
+        scale = float(calibrate_tk_scaling(root))
     except Exception:
-        pass
+        scale = 1.25
     try:
-        # Make ttk/ttkbootstrap widgets (incl. Buttons) follow base font size
-        apply_ttk_base_font(style, family="Segoe UI", size=11)
+        # Smaller base font specifically for the login window
+        apply_ttk_base_font(style, family="Segoe UI", size=int(7 * scale))
     except Exception:
         pass
 

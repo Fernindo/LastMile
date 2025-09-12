@@ -227,7 +227,7 @@ def enable_high_dpi_awareness() -> None:
         pass
 
 
-def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.0) -> float:
+def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.25, max_scale: float = 2.0) -> float:
     """Calibrate Tk text/pixel scaling based on real screen DPI.
 
     Returns the scale applied. Keeps scale within [min_scale, max_scale].
