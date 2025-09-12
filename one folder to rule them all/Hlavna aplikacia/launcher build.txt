@@ -1,7 +1,0 @@
-pyinstaller --onefile --noconsole --add-data "Vzorova_CP3.xlsx;." --distpath . launcher.py
-
-
-
-
-
-pyinstaller --noconsole --onefile project_selector.py --add-data "gui.py;." --add-data "gui_functions.py;." --add-data "helpers.py;." --add-data "launcher.exe;."

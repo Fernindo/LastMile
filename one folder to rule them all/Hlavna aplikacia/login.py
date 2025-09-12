@@ -11,6 +11,16 @@ from ttkbootstrap.constants import *
 
 from gui_functions import get_database_connection  # tvoje napojenie na online DB
 
+import project_selector 
+import gui_functions
+import excel_processing
+import doprava
+import gui
+
+
+
+
+
 APP_TITLE = "Prihlásenie"
 CONFIG_FILE = "login_config.json"              # lokálne ukladanie "zapamätaj si" a logged_in
 PROJECT_SELECTOR_FILE = "project_selector.py"  # po prihlásení spúšťame selector (ak nie je --no-launch)
