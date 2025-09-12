@@ -266,16 +266,31 @@ def create_project(root, name, street=None, area=None):
 
 def launch_gui_in_same_root(root, project_dir, json_path, *, preset_mode: bool=False):
     set_projects_root(root.projects_home_state["projects_root"].get())
+    master_obj = root
     try:
-        # If this is a Toplevel (has a parent), destroy it; otherwise
-        # it's the Tk root, so just withdraw to keep the app alive.
+        # If selector was opened from login (Toplevel with a parent),
+        # destroy only the selector Toplevel and keep the master alive.
+        # Otherwise (standalone root), just withdraw it so GUI can run
+        # within the same Tcl interpreter safely.
         if root.winfo_parent():
             try:
                 root.destroy()
             except Exception:
-                root.withdraw()
+                try:
+                    root.withdraw()
+                except Exception:
+                    pass
+            # Keep the parent (e.g., login root) withdrawn
+            try:
+                root.master.withdraw()
+                master_obj = root.master
+            except Exception:
+                pass
         else:
-            root.withdraw()
+            try:
+                root.withdraw()
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -283,14 +298,24 @@ def launch_gui_in_same_root(root, project_dir, json_path, *, preset_mode: bool=F
     u = load_login_user() if load_login_state() else {}
 
     import gui
-    gui.start(
-        project_dir,
-        json_path,
-        meno=u.get("meno", ""),
-        priezvisko=u.get("priezvisko", ""),
-        username=u.get("username", ""),
-        preset_mode=preset_mode
-    )
+    try:
+        master_obj.after(0, lambda: gui.start(
+            project_dir,
+            json_path,
+            meno=u.get("meno", ""),
+            priezvisko=u.get("priezvisko", ""),
+            username=u.get("username", ""),
+            preset_mode=preset_mode
+        ))
+    except Exception:
+        gui.start(
+            project_dir,
+            json_path,
+            meno=u.get("meno", ""),
+            priezvisko=u.get("priezvisko", ""),
+            username=u.get("username", ""),
+            preset_mode=preset_mode
+        )
 
 # ──────────────────────────────── Main UI ────────────────────────────────
 
@@ -330,9 +355,10 @@ def main(parent=None):
         except Exception:
             pass
         root.title("Projects Home")
-        root.geometry("960x670")
+        # Make window a bit taller for more vertical space
+        root.geometry("1100x800")
         try:
-            root.minsize(720, 420)
+            root.minsize(900, 600)
             root.resizable(True, True)
         except Exception:
             pass
@@ -351,9 +377,10 @@ def main(parent=None):
         except Exception:
             pass
         root.title("Projects Home")
-        root.geometry("860x520")
+        # Child window a bit taller as well
+        root.geometry("1024x700")
         try:
-            root.minsize(720, 420)
+            root.minsize(900, 600)
             root.resizable(True, True)
         except Exception:
             pass
@@ -428,7 +455,8 @@ def main(parent=None):
         user_menu_btn.pack(side="right", padx=(6, 0))
 
     tb.Label(top, text="Projects Root:").pack(side="left")
-    root_entry = tb.Entry(top, textvariable=root.projects_home_state["projects_root"], width=60)
+    # Wider entry so long paths don't feel cramped
+    root_entry = tb.Entry(top, textvariable=root.projects_home_state["projects_root"], width=72)
     root_entry.pack(side="left", padx=6)
 
     def browse_root():
@@ -678,15 +706,19 @@ def main(parent=None):
     body.pack(fill="both", expand=True)
 
     left = tb.Labelframe(body, text="Projects", padding=8)
-    left.pack(side="left", fill="y")
+    # Slimmer left panel for projects list
+    left.config(width=300)
+    left.pack_propagate(False)
+    left.pack(side="left", fill="y", padx=(0, 12))
     tb.Label(left, text="Filter:").pack(anchor="w")
     filter_entry = tb.Entry(left, textvariable=root.projects_home_state["filter_text"])
     filter_entry.pack(fill="x", pady=(0, 6))
     right = tb.Labelframe(body, text="Archive", padding=8)
-    right.pack(side="left", fill="both", expand=True, padx=(10, 0))
+    right.pack(side="left", fill="both", expand=True)
 
-    proj_list = tk.Listbox(left, width=32, height=22)
-    proj_list.pack(fill="y")
+    # Let the list expand to fill the left panel
+    proj_list = tk.Listbox(left, height=24)
+    proj_list.pack(fill="both", expand=True)
 
     # Project action buttons
     proj_btns = tb.Frame(left)

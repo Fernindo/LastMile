@@ -233,7 +233,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         root.state("zoomed")
     except Exception:
         pass
-    root.option_add("*Font", ("Segoe UI", font_size_var[0]))
+    # Keep global Tk font unchanged to avoid scaling search bar
 
     root.grid_rowconfigure(0, weight=1)
     # Start with the filter hidden so the main area spans the full width
@@ -527,7 +527,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 if isinstance(_w, tk.Label):
                     _txt = _w.cget("text")
                     if isinstance(_txt, str) and ("Vyhlad" in _txt or "Syst" in _txt or "Objekt" in _txt):
-                        _w.configure(font=("Segoe UI", font_size_var[0] + 1))
+                        # Do not enlarge topbar labels
+                        pass
             except Exception:
                 pass
     except Exception:
@@ -964,6 +965,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # ─── Basket Area ───────────────────────────────────────────────────────
     basket_frame = tb.Frame(main_frame, padding=5)
     basket_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+    
 
     basket_header = tk.Frame(basket_frame)
     basket_header.pack(fill="x")
@@ -1971,7 +1974,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             row_h = int(2.4 * font_size_var[0])
             style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
-            root.option_add("*Font", ("Segoe UI", font_size_var[0]))
+            # Do not change global Tk font; keep top search bar static
             try:
                 apply_ttk_base_font(style, family="Segoe UI", size=font_size_var[0])
             except Exception:
@@ -2072,28 +2075,33 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     # ─── Handle window close (“X”) ────────────────────────────────────────
     def _return_to_selector_or_exit():
-        """Bring back the Project Selector if it exists, otherwise exit cleanly."""
+        """Always relaunch Project Selector in a fresh process and close this process cleanly."""
         try:
-            if has_children:
-                if hasattr(master, "projects_home_state"):
-                    try:
-                        master.deiconify(); master.lift(); master.focus_force()
-                    except Exception:
-                        pass
+            # Start selector as a separate process so its fonts/styles are independent
+            try:
+                selector_path = os.path.join(os.path.dirname(__file__), "project_selector.py")
+                if os.path.isfile(selector_path):
+                    subprocess.Popen([sys.executable, selector_path],
+                                     cwd=os.path.dirname(selector_path) or None)
                 else:
+                    # Fallback: try in-process launch (should rarely be needed)
                     try:
                         import project_selector
-                        master.after(0, lambda: project_selector.main(parent=master))
+                        master.after(0, lambda: project_selector.main(parent=None))
                     except Exception:
                         pass
-            else:
-                try:
-                    master.quit()
-                except Exception:
-                    pass
+            except Exception:
+                pass
         finally:
+            # Close our windows to let Tk mainloop exit even if a hidden master exists
             try:
                 root.destroy()
+            except Exception:
+                pass
+            try:
+                # If there is a separate master (e.g., hidden login root), destroy it too
+                if master is not root:
+                    master.destroy()
             except Exception:
                 pass
 

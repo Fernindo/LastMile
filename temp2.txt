@@ -1,0 +1,60 @@
+            return
+
+        try:
+            info = create_project(
+                root.projects_home_state["projects_root"].get(),
+                result["name"],
+                street=result.get("street"),
+                area=result.get("area"),
+            )
+        except Exception as e:
+            messagebox.showerror("Vytvorenie projektu zlyhalo", str(e))
+            return
+        rescan_projects()
+        refresh_projects()
+        select_project_by_name(info["name"])
+
+    # Moved Create Project button into the left panel above Delete
+
+    # Body: left projects list (with Delete), right archive list
+    body = tb.Frame(root, padding=10)
+    body.pack(fill="both", expand=True)
+
+    left = tb.Labelframe(body, text="Projects", padding=8)
+    # Keep the left panel a comfortable fixed width and spacing
+    left.config(width=360)
+    left.pack_propagate(False)
+    left.pack(side="left", fill="y", padx=(0, 12))
+    tb.Label(left, text="Filter:").pack(anchor="w")
+    filter_entry = tb.Entry(left, textvariable=root.projects_home_state["filter_text"])
+    filter_entry.pack(fill="x", pady=(0, 6))
+    right = tb.Labelframe(body, text="Archive", padding=8)
+    right.pack(side="left", fill="both", expand=True)
+
+    # Let the list expand to fill the left panel
+    proj_list = tk.Listbox(left, height=24)
+    proj_list.pack(fill="both", expand=True)
+
+    # Project action buttons
+    proj_btns = tb.Frame(left)
+    proj_btns.pack(fill="x", pady=(8, 0))
+    create_btn = tb.Button(proj_btns, text="Vytvoriť projekt", bootstyle="success", command=create_project_dialog)
+    create_btn.pack(fill="x")
+    delete_btn = tb.Button(proj_btns, text="Delete Project", bootstyle="danger")
+    delete_btn.pack(fill="x", pady=(6, 0))
+
+    archive_list = tk.Listbox(right)
+    archive_list.pack(fill="both", expand=True)
+
+    buttons = tb.Frame(right)
+    buttons.pack(fill="x", pady=6)
+    open_btn = tb.Button(buttons, text="Open Selected", bootstyle="info")
+    open_btn.pack(side="left")
+
+    # ─────────────────────────── Behaviors ───────────────────────────
+
+    def refresh_projects(*_):
+        """Refresh only the UI list from in-memory projects and current filter."""
+        projects = root.projects_home_state["projects"]
+        proj_list.delete(0, "end")
+        flt = root.projects_home_state["filter_text"].get().lower()

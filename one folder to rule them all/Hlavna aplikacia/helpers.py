@@ -255,31 +255,25 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
 
 
 def apply_ttk_base_font(style: ttk.Style, *, family: str = "Segoe UI", size: int = 10) -> None:
-    """Apply a base font to ttk (and ttkbootstrap) widgets, including buttons.
+    """Apply a base font to common ttk widgets, but do NOT change buttons.
 
-    - Configures '.' so most ttk widgets inherit the font
-    - Ensures buttons/labels/entries/checkbuttons/radiobuttons/treeviews get it
-    - Updates Tk named default fonts to keep classic widgets in sync
+    - Intentionally skips all `TButton` variants so top bars don't grow when
+      changing table/font settings.
+    - Applies to labels/entries/checkbuttons/radiobuttons/treeviews.
+    - Updates Tk named default fonts to keep classic widgets in sync.
     """
     try:
-        style.configure(".", font=(family, size))
-        # Ensure common widget classes get the font if theme overrides are present
-        button_classes = [
-            "TButton",
-            "Toolbutton",
-            # ttkbootstrap bootstyle variants commonly used
-            "primary.TButton", "secondary.TButton", "success.TButton", "info.TButton",
-            "warning.TButton", "danger.TButton", "light.TButton", "dark.TButton",
-            "outline.TButton", "link.TButton",
-        ]
-        for cls in button_classes + ["TLabel", "TEntry", "TCheckbutton", "TRadiobutton", "Treeview"]:
+        # Do NOT set the global '.' font, because many themes let buttons inherit
+        # from it. Instead, set specific non-button classes.
+        for cls in ("TLabel", "TEntry", "TCheckbutton", "TRadiobutton", "Treeview"):
             try:
                 style.configure(cls, font=(family, size))
             except Exception:
                 pass
         # Update Tk named fonts so non-ttk widgets also follow the size
         try:
-            for name in ("TkDefaultFont", "TkTextFont", "TkHeadingFont", "TkMenuFont", "TkSmallCaptionFont"):
+            # Avoid changing TkDefaultFont because many ttk buttons inherit it.
+            for name in ("TkTextFont", "TkHeadingFont", "TkMenuFont", "TkSmallCaptionFont"):
                 try:
                     nf = tkfont.nametofont(name)
                     nf.configure(family=family, size=size)
