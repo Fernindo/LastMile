@@ -59,4 +59,105 @@
 +        login_name_var.set("")
          # volitelne môžeš zmenit aj text
          # login_btn.configure(text="Prihlásenie")
+*** End Patch*** Begin Patch
+*** Update File: one folder to rule them all/Hlavna aplikacia/gui.py
+@@
+-    style = Style(theme="litera")
+-    root  = style.master
++    style = Style(theme="litera")
++    master = style.master  # underlying Tk root (may already host other UI)
++    root  = master
+@@
+-    try:
+-        has_children = any(w.winfo_manager() for w in root.winfo_children())
++    try:
++        has_children = any(w.winfo_manager() for w in master.winfo_children())
+     except Exception:
+         has_children = False
+     if has_children:
+-        root = tk.Toplevel(root)
++        # If the Tk root already has widgets (e.g., Project Selector),
++        # open the main app in a child window and keep a reference to master.
++        root = tk.Toplevel(master)
+@@
+-    def on_closing():
++    def _return_to_selector_or_exit():
++        """Bring back the Project Selector if it exists, otherwise exit cleanly."""
++        try:
++            # If running as a child window (selector hidden or destroyed),
++            # prefer revealing the existing selector on the Tk master.
++            if has_children:
++                # If the selector (or its state) lives on the Tk root, just show it back.
++                if hasattr(master, "projects_home_state"):
++                    try:
++                        master.deiconify()
++                        master.lift()
++                        master.focus_force()
++                    except Exception:
++                        pass
++                else:
++                    # No selector present on this master (likely launched from login root):
++                    # start the selector as a child of the existing master (same process).
++                    try:
++                        import project_selector
++                        # Schedule after we return to the event loop for safety
++                        master.after(0, lambda: project_selector.main(parent=master))
++                    except Exception:
++                        pass
++            else:
++                # We owned the Tk root; closing this window should end the app.
++                try:
++                    master.quit()
++                except Exception:
++                    pass
++        finally:
++            # Ensure our window is gone either way
++            try:
++                root.destroy()
++            except Exception:
++                pass
++
++    def on_closing():
+         resp = tk.messagebox.askyesnocancel(
+             "Ulozit zmeny?",
+             "Chces ulozit zmeny pred zatvoren?m kos?ka?"
+         )
+         if resp is None:
+             return  # Cancel
+         if resp is False:
+-            try:
+-                root.destroy()
+-            except tk.TclError:
+-                pass
+-            return
++            _return_to_selector_or_exit()
++            return
+@@
+-        if not basket_modified[0]:
+-            try:
+-                root.destroy()
+-            except tk.TclError:
+-                pass
+-            return
++        if not basket_modified[0]:
++            _return_to_selector_or_exit()
++            return
+@@
+-        # Safely close the window (avoid TclError if already destroyed)
+-        try:
+-            root.destroy()
+-        except tk.TclError:
+-            pass
+-
+-        
+-        try:
+-            import subprocess, sys
+-            selector_path = os.path.join(os.path.dirname(__file__), "project_selector.py")
+-            if os.path.isfile(selector_path):
+-                subprocess.Popen([sys.executable, selector_path],
+-                                 cwd=os.path.dirname(selector_path) or None)
+-        except Exception as e:
+-            messagebox.showerror("Chyba", f"Nepodarilo sa spustit Project Selector:\n{e}")
++        # Close current window and return to selector (same process)
++        _return_to_selector_or_exit()
 *** End Patch

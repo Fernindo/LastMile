@@ -163,16 +163,20 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             messagebox.showerror("Admin", f"Nepodarilo sa spustiť Admin panel:\n{e}")
     # ─── Create main window via ttkbootstrap ─────────────────────────────
     style = Style(theme="litera")
-    root  = style.master
+    master = style.master  # underlying Tk root (may already host other UI)
+    root  = master
     # If the Tk root already has widgets (e.g., login UI packed),
     # create a separate Toplevel as our container to avoid mixing
     # geometry managers on the same master.
     try:
-        has_children = any(w.winfo_manager() for w in root.winfo_children())
+        has_children = any(w.winfo_manager() for w in master.winfo_children())
     except Exception:
         has_children = False
     if has_children:
-        root = tk.Toplevel(root)
+        # If the Tk root already has widgets (e.g., login UI packed),
+        # create a separate Toplevel as our container to avoid mixing
+        # geometry managers on the same master.
+        root = tk.Toplevel(master)
     style.configure(
         "Main.Treeview.Heading",
         background="#e6e6fa",
@@ -2034,6 +2038,32 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # ───────────────────────────────────────────────────────────────────────────
 
     # ─── Handle window close (“X”) ────────────────────────────────────────
+    def _return_to_selector_or_exit():
+        """Bring back the Project Selector if it exists, otherwise exit cleanly."""
+        try:
+            if has_children:
+                if hasattr(master, "projects_home_state"):
+                    try:
+                        master.deiconify(); master.lift(); master.focus_force()
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        import project_selector
+                        master.after(0, lambda: project_selector.main(parent=master))
+                    except Exception:
+                        pass
+            else:
+                try:
+                    master.quit()
+                except Exception:
+                    pass
+        finally:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+
     def on_closing():
         resp = tk.messagebox.askyesnocancel(
             "Uložiť zmeny?",
@@ -2042,18 +2072,12 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         if resp is None:
             return  # Cancel
         if resp is False:
-            try:
-                root.destroy()
-            except tk.TclError:
-                pass
+            _return_to_selector_or_exit()
             return
 
         # Ak sa nič nemenilo, neukladaj nový súbor
         if not basket_modified[0]:
-            try:
-                root.destroy()
-            except tk.TclError:
-                pass
+            _return_to_selector_or_exit()
             return
 
         reorder_basket_data(basket_tree, basket)
@@ -2159,6 +2183,9 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             secure_save_json(commit_file, commit_copy)
 
             UNSAVED_NOTES.pop(project_name, None)
+            # After successful save, return to selector within this process
+            _return_to_selector_or_exit()
+            return
         except Exception as e:
             messagebox.showerror(
                 "Chyba pri ukladaní",

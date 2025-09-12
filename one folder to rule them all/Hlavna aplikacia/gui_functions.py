@@ -2,6 +2,7 @@
 
 import socket
 import os
+import sys
 import sqlite3
 import psycopg2
 import decimal
@@ -42,6 +43,31 @@ def is_online(host="8.8.8.8", port=53, timeout=3):
     except Exception:
         return False
 
+def _get_appdata_dir(app_name: str = "Merlin") -> str:
+    """Return a suitable per-user application data directory and ensure it exists.
+
+    On Windows uses %LOCALAPPDATA% (falls back to %APPDATA%/home if missing),
+    on macOS uses ~/Library/Application Support, and on Linux ~/.local/share.
+    """
+    if os.name == "nt":
+        base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA") or os.path.expanduser("~")
+        target = os.path.join(base, app_name)
+    elif sys.platform == "darwin":
+        target = os.path.expanduser(os.path.join("~", "Library", "Application Support", app_name))
+    else:
+        target = os.path.expanduser(os.path.join("~", ".local", "share", app_name))
+    os.makedirs(target, exist_ok=True)
+    return target
+
+
+def get_offline_db_path() -> str:
+    """Path to the local SQLite backup DB under the user's AppData.
+
+    Example on Windows: C:\\Users\\<user>\\AppData\\Local\\Merlin\\local_backup.db
+    """
+    return os.path.join(_get_appdata_dir(), "local_backup.db")
+
+
 def get_database_connection():
     """
     Try connecting to PostgreSQL; if that fails, fall back to SQLite.
@@ -61,8 +87,8 @@ def get_database_connection():
             return conn, 'postgres'
         except Exception as e:
             print("PostgreSQL connection failed:", e)
-    # fallback to local SQLite
-    conn = sqlite3.connect("local_backup.db", check_same_thread=False)
+    # fallback to local SQLite stored under AppData
+    conn = sqlite3.connect(get_offline_db_path(), check_same_thread=False)
     print("🕠 Using local SQLite database (offline mode)")
     return conn, 'sqlite'
 
@@ -94,10 +120,10 @@ def ensure_indexes(sqlite_conn: sqlite3.Connection) -> None:
 
 def sync_postgres_to_sqlite(pg_conn):
     """
-    Pull key tables from Postgres into ``local_backup.db`` so the application
+    Pull key tables from Postgres into the local AppData SQLite file so the application
     can run in offline mode. Existing tables are dropped and recreated.
     """
-    sqlite_conn   = sqlite3.connect("local_backup.db")
+    sqlite_conn   = sqlite3.connect(get_offline_db_path())
     sqlite_cursor = sqlite_conn.cursor()
     pg_cursor     = pg_conn.cursor()
 
