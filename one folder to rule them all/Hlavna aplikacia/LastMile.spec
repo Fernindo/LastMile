@@ -5,7 +5,7 @@ a = Analysis(
     ['login.py'],
     pathex=[],
     binaries=[],
-    datas=[('project_selector.py', '.')],
+    datas=[('*.xlsx', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

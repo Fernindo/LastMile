@@ -28,9 +28,9 @@ PROJECT_SELECTOR_FILE = "project_selector.py"  # po prihlásení spúšťame sel
 # ───────────────────────── Helpery ─────────────────────────
 
 def resource_path(rel_path: str) -> str:
-    """Absolútna cesta fungujúca v skripte aj po pyinstaller-e."""
+    """Get absolute path for resource (works for dev + PyInstaller)."""
     if getattr(sys, "frozen", False):
-        base_dir = os.path.dirname(sys.executable)
+        base_dir = sys._MEIPASS
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_dir, rel_path)
@@ -126,21 +126,33 @@ def verify_user_online(username: str, password: str):
         return user
     return None
 
-def run_project_selector_and_exit():
-    """Spustí project_selector.py a bezpečne ukončí login proces."""
-    selector_path = resource_path(PROJECT_SELECTOR_FILE)
-    if not os.path.isfile(selector_path):
-        messagebox.showerror("Chyba", f"Nenašiel som '{PROJECT_SELECTOR_FILE}'.")
-        return
+
+def run_project_selector_and_exit(root=None):
+    """
+    Closes the login window and launches the Project Selector
+    inside the same process (single EXE).
+    """
     try:
-        subprocess.Popen([sys.executable, selector_path],
-                         cwd=os.path.dirname(selector_path) or None)
+        import project_selector
+
+        # Close the login window before opening the selector
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+
+        # Launch Project Selector (parent=None → it makes its own root window)
+        project_selector.main(parent=None)
+
     except Exception as e:
         messagebox.showerror("Chyba", f"Nepodarilo sa spustiť Project Selector:\n{e}")
-        return
     finally:
-        # Bezpečne ukončí login proces (aby nezostal visieť paralelný Tk root)
-        os._exit(0)
+        # Ensure login process ends cleanly
+        try:
+            sys.exit(0)
+        except Exception:
+            pass
 
 # ───────────────────────── UI ─────────────────────────
 

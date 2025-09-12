@@ -319,7 +319,31 @@ def launch_gui_in_same_root(root, project_dir, json_path, *, preset_mode: bool=F
 
 # ──────────────────────────────── Main UI ────────────────────────────────
 
-def main():
+
+
+def main(parent=None):
+    # If launched from login.py, pass parent=login_root
+    # If run directly (python project_selector.py), create its own root
+    if parent is None:
+        style = Style(theme="litera")
+        root = style.master
+        root.title("Projects Home")
+        root.geometry("980x600")
+        owns_root = True
+    else:
+        # Embed into a new window
+        root = tb.Toplevel(parent)
+        root.title("Projects Home")
+        root.geometry("980x600")
+        owns_root = False
+
+    # Keep a small state dict on the root so helper functions can access it
+    root.projects_home_state = {
+        "projects_root": tk.StringVar(value=get_projects_root()),
+        "projects": [],
+        "selected_project": None,
+        "filter_text": tk.StringVar(),
+    }
     style = Style(theme="litera")
     root = style.master
     root.title("Projects Home")

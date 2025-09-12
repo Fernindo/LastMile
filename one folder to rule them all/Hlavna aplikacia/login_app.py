@@ -107,9 +107,9 @@ class login_app:
             else:
                 self.clear_credentials()
 
-            self.root.destroy()
-            script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "project_selector.py")
-            subprocess.Popen([sys.executable, script_path])
+            import project_selector
+            self.root.destroy()  # close login window
+            project_selector.main()
         else:
             messagebox.showerror("Odmietnutý prístup", "Admin nemá povolený prístup.")
 
