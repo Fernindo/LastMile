@@ -24,6 +24,7 @@ from helpers import (
     parse_float,
     askfloat_locale,
     format_currency,
+    secure_load_json,
 )
 from excel_processing import update_excel
 
@@ -792,12 +793,11 @@ def show_notes_popup(project_name, json_path):
                 items.append((int(n.get("state", 0)), text))
     elif os.path.exists(json_path):
         try:
-            with open(json_path, "r", encoding="utf-8") as jf:
-                data = json.load(jf)
-                for n in data.get("notes", []):
-                    text = n.get("text", "")
-                    if text:
-                        items.append((int(n.get("state", 0)), text))
+            data = secure_load_json(json_path, default={})
+            for n in data.get("notes", []):
+                text = n.get("text", "")
+                if text:
+                    items.append((int(n.get("state", 0)), text))
         except Exception:
             items = []
 
@@ -964,9 +964,8 @@ def get_current_notes(project_name, json_path):
     notes = []
     if os.path.exists(json_path):
         try:
-            with open(json_path, "r", encoding="utf-8") as jf:
-                data = json.load(jf)
-                for n in data.get("notes", []):
+            data = secure_load_json(json_path, default={})
+            for n in data.get("notes", []):
                     text = n.get("text", "")
                     if text:
                         notes.append({"state": int(n.get("state", 0)), "text": text})

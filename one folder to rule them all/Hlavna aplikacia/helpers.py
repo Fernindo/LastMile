@@ -3,6 +3,9 @@ import os
 import sys
 import json
 import shutil
+import base64
+import ctypes
+from ctypes import wintypes
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
@@ -63,6 +66,212 @@ def ensure_writable_config(filename: str, default_content: dict | None = None) -
                 except Exception:
                     pass
     return dest
+
+
+# ---------------------------------------------------------------------------
+# AppData/Roaming config with defaults from resources
+# ---------------------------------------------------------------------------
+def user_config_dir(app_name: str = "LastMile") -> str:
+    """Return a per-user config directory, preferring AppData/Roaming on Windows."""
+    if os.name == "nt":
+        base = os.environ.get("APPDATA") or os.path.expanduser("~\\AppData\\Roaming")
+        return os.path.join(base, app_name)
+    # Cross-platform fallback: ~/.config/<app_name>
+    return os.path.join(os.path.expanduser("~/.config"), app_name)
+
+
+def ensure_user_config(filename: str, default_content: dict | None = None, app_name: str = "LastMile") -> str:
+    """Ensure a writable JSON config exists under the user config dir.
+
+    If missing, copy a bundled default from resources/<filename> when present,
+    otherwise write default_content or empty JSON.
+    Returns the absolute path to the config file.
+    """
+    cfg_dir = user_config_dir(app_name)
+    os.makedirs(cfg_dir, exist_ok=True)
+    dest = os.path.join(cfg_dir, filename)
+    if not os.path.exists(dest):
+        src = resource_path(filename)
+        if os.path.exists(src):
+            try:
+                shutil.copyfile(src, dest)
+            except Exception:
+                pass
+        if not os.path.exists(dest):
+            try:
+                with open(dest, "w", encoding="utf-8") as f:
+                    json.dump(default_content or {}, f, ensure_ascii=False, indent=2)
+            except Exception:
+                try:
+                    open(dest, "a").close()
+                except Exception:
+                    pass
+    return dest
+
+
+# ---------------------------------------------------------------------------
+# Lightweight per-user protection for secrets (Windows DPAPI when available)
+# ---------------------------------------------------------------------------
+
+class DATA_BLOB(ctypes.Structure):
+    _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_byte))]
+
+
+def _bytes_to_blob(b: bytes):
+    if not isinstance(b, (bytes, bytearray)):
+        b = (b or b"")
+    buf = ctypes.create_string_buffer(b, len(b))
+    blob = DATA_BLOB()
+    blob.cbData = len(b)
+    blob.pbData = ctypes.cast(buf, ctypes.POINTER(ctypes.c_byte))
+    return blob, buf  # keep buf alive
+
+
+def _blob_to_bytes(blob: DATA_BLOB) -> bytes:
+    return ctypes.string_at(blob.pbData, blob.cbData)
+
+
+def _local_free(ptr) -> None:
+    try:
+        ctypes.windll.kernel32.LocalFree(ptr)
+    except Exception:
+        pass
+
+
+def dpapi_protect(data: bytes) -> bytes:
+    """Protect bytes with Windows DPAPI for current user. Fallback: base64."""
+    if os.name == "nt":
+        try:
+            crypt32 = ctypes.windll.crypt32
+            in_blob, _buf = _bytes_to_blob(data)
+            out_blob = DATA_BLOB()
+            if crypt32.CryptProtectData(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
+                try:
+                    return _blob_to_bytes(out_blob)
+                finally:
+                    _local_free(out_blob.pbData)
+        except Exception:
+            pass
+    # Fallback obfuscation
+    return base64.b64encode(data)
+
+
+def dpapi_unprotect(data: bytes) -> bytes:
+    if os.name == "nt":
+        try:
+            crypt32 = ctypes.windll.crypt32
+            in_blob, _buf = _bytes_to_blob(data)
+            out_blob = DATA_BLOB()
+            if crypt32.CryptUnprotectData(ctypes.byref(in_blob), None, None, None, None, 0, ctypes.byref(out_blob)):
+                try:
+                    return _blob_to_bytes(out_blob)
+                finally:
+                    _local_free(out_blob.pbData)
+        except Exception:
+            pass
+    # Fallback obfuscation reverse
+    try:
+        return base64.b64decode(data)
+    except Exception:
+        return b""
+
+
+def encrypt_string_for_user(text: str) -> str:
+    raw = text.encode("utf-8") if isinstance(text, str) else b""
+    enc = dpapi_protect(raw)
+    return "enc:" + base64.b64encode(enc).decode("ascii")
+
+
+def decrypt_string_if_encrypted(value: str) -> str:
+    if isinstance(value, str) and value.startswith("enc:"):
+        try:
+            blob = base64.b64decode(value[4:].encode("ascii"))
+            plain = dpapi_unprotect(blob)
+            return plain.decode("utf-8", errors="ignore")
+        except Exception:
+            return ""
+    return value if isinstance(value, str) else ""
+
+
+# ---------------------------------------------------------------------------
+# Encrypted JSON helpers (file-level encryption for all settings)
+# ---------------------------------------------------------------------------
+
+_SECURE_MAGIC = b"ENC1:"
+
+
+def secure_save_json(path: str, data: dict) -> None:
+    """Save dict as encrypted JSON using Windows DPAPI (base64-wrapped).
+
+    File format: b'ENC1:' + base64(DPAPI(encrypted_bytes))
+    """
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    except Exception:
+        pass
+    try:
+        plain = json.dumps(data or {}, ensure_ascii=False, indent=2).encode("utf-8")
+    except Exception:
+        # Fallback to compact dump if non-serializable default shows up
+        plain = json.dumps(data or {}, ensure_ascii=False).encode("utf-8")
+    enc = dpapi_protect(plain)
+    b64 = base64.b64encode(enc)
+    try:
+        with open(path, "wb") as f:
+            f.write(_SECURE_MAGIC + b64)
+    except Exception:
+        # As last resort, write plain to reduce data loss (not preferred)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(data or {}, ensure_ascii=False, indent=2))
+        except Exception:
+            pass
+
+
+def secure_load_json(path: str, default: dict | None = None) -> dict:
+    """Load encrypted JSON; transparently migrate plain JSON to encrypted.
+
+    - If file starts with ENC1:, decrypt and parse JSON.
+    - If plain JSON, parse it and re-save in encrypted form.
+    - If missing or error, return default or {}.
+    """
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except FileNotFoundError:
+        return dict(default or {})
+    except Exception:
+        return dict(default or {})
+
+    try:
+        if raw.startswith(_SECURE_MAGIC):
+            b64 = raw[len(_SECURE_MAGIC):]
+            enc = base64.b64decode(b64)
+            plain = dpapi_unprotect(enc)
+            return json.loads(plain.decode("utf-8", errors="ignore"))
+        else:
+            # Plain JSON; migrate to encrypted
+            text = raw.decode("utf-8", errors="ignore")
+            data = json.loads(text)
+            try:
+                secure_save_json(path, data)
+            except Exception:
+                pass
+            return data
+    except Exception:
+        return dict(default or {})
+
+
+def secure_load_config(filename: str, default_content: dict | None = None, app_name: str = "LastMile") -> dict:
+    """Ensure a user config file exists and load it (encrypted)."""
+    path = ensure_user_config(filename, default_content=default_content, app_name=app_name)
+    return secure_load_json(path, default=default_content or {})
+
+
+def secure_save_config(filename: str, data: dict, app_name: str = "LastMile") -> None:
+    """Save an encrypted user config file."""
+    path = ensure_user_config(filename, app_name=app_name)
+    secure_save_json(path, data or {})
 
 
 def parse_float(text: str) -> float:
@@ -213,8 +422,7 @@ def create_notes_panel(parent, project_name, json_path):
         data = {}
         if os.path.exists(json_path):
             try:
-                with open(json_path, "r", encoding="utf-8") as jf:
-                    data = json.load(jf)
+                data = secure_load_json(json_path, default={})
             except Exception:
                 data = {}
 
@@ -228,8 +436,7 @@ def create_notes_panel(parent, project_name, json_path):
         })
         data["history"] = history
 
-        with open(json_path, "w", encoding="utf-8") as jf:
-            json.dump(data, jf, ensure_ascii=False, indent=2)
+        secure_save_json(json_path, data)
         print(f"📝 Notes saved to {json_path}")
 
     def on_text_change(event):
@@ -239,9 +446,8 @@ def create_notes_panel(parent, project_name, json_path):
 
     if os.path.exists(json_path):
         try:
-            with open(json_path, "r", encoding="utf-8") as jf:
-                data = json.load(jf)
-                text_widget.insert("1.0", data.get("notes_text", ""))
+            data = secure_load_json(json_path, default={})
+            text_widget.insert("1.0", data.get("notes_text", ""))
             text_widget.edit_modified(False)
         except Exception:
             pass

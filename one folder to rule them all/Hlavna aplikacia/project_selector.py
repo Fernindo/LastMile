@@ -10,7 +10,7 @@ import subprocess
 import sys
 import re
 from gui_functions import get_database_connection
-from helpers import ensure_writable_config
+from helpers import ensure_user_config, secure_load_json, secure_save_json
 
 # Legacy compatibility: some builds still call show_presets_window from the top bar.
 # We keep a no-op stub so the UI can hide the old button without NameError.
@@ -21,74 +21,38 @@ def show_presets_window():
 # Single-app Projects Home embedded in project_selector.py
 # No new code files. Only creates project JSONs when you make a new project.
 
-UI_SETTINGS_FILE = ensure_writable_config("ui_settings.json")
+UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
 # ───────────────────────── Helpers: settings ─────────────────────────
 
 def load_settings():
-    if os.path.exists(UI_SETTINGS_FILE):
-        try:
-            with open(UI_SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
+    return secure_load_json(UI_SETTINGS_FILE, default={})
     return {}
-LOGIN_CONFIG_FILE = ensure_writable_config("login_config.json")
+LOGIN_CONFIG_FILE = ensure_user_config("login_config.json")
 def load_login_user():
-    try:
-        with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("user") or {}
-    except Exception:
-        return {}
+    data = secure_load_json(LOGIN_CONFIG_FILE, default={})
+    return (data or {}).get("user") or {}
 
 def load_skip_login() -> bool:
-    try:
-        with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return bool(data.get("skip_login", False))
-    except Exception:
-        return False
+    data = secure_load_json(LOGIN_CONFIG_FILE, default={})
+    return bool((data or {}).get("skip_login", False))
 
 def set_skip_login(value: bool):
-    try:
-        if os.path.exists(LOGIN_CONFIG_FILE):
-            with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        else:
-            data = {}
-        data["skip_login"] = bool(value)
-        with open(LOGIN_CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
+    data = secure_load_json(LOGIN_CONFIG_FILE, default={})
+    data["skip_login"] = bool(value)
+    secure_save_json(LOGIN_CONFIG_FILE, data)
 
 def load_login_state() -> bool:
-    """Bezpečne načíta boolean stav prihlásenia z login_config.json."""
-    try:
-        with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return bool(data.get("logged_in", False))
-    except Exception:
-        return False
+    data = secure_load_json(LOGIN_CONFIG_FILE, default={})
+    return bool((data or {}).get("logged_in", False))
 def set_logged_out():
-    """Zapíše logged_in=False do login_config.json."""
-    try:
-        if os.path.exists(LOGIN_CONFIG_FILE):
-            with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        else:
-            data = {}
-        data["logged_in"] = False
-        with open(LOGIN_CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    except Exception:
-        pass
+    data = secure_load_json(LOGIN_CONFIG_FILE, default={})
+    data["logged_in"] = False
+    secure_save_json(LOGIN_CONFIG_FILE, data)
 
 def save_settings(data):
     try:
-        with open(UI_SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        secure_save_json(UI_SETTINGS_FILE, data)
     except Exception as e:
         messagebox.showerror("Error", f"Cannot save settings:\n{e}")
 
@@ -113,8 +77,7 @@ def resolve_author_from_json(json_path: str) -> str:
     user_id = None
 
     try:
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = secure_load_json(json_path, default={})
         if isinstance(data, dict):
             # Ak už nové GUI zapisuje 'author', stačí ho použiť
             if data.get("author"):
@@ -161,8 +124,7 @@ def resolve_author_from_json(json_path: str) -> str:
     cb_user_id = None
 
     try:
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = secure_load_json(json_path, default={})
         if isinstance(data, dict):
             author_str = str(data.get("author") or "").strip()
             username = (data.get("username") or "").strip()
@@ -290,8 +252,7 @@ def create_project(root, name, street=None, area=None):
                 "created_by_username": username,
                 "created_by_id": user_id,
             })
-        with open(main_json, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
+        secure_save_json(main_json, payload)
     return {"name": safe, "path": proj_dir, "json": main_json}
 
 # ─────────────────────────── Launch GUI safely ───────────────────────────
@@ -461,8 +422,7 @@ def main(parent=None):
                         "created_by_username": username,
                         "created_by_id": user_id,
                     })
-                with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, ensure_ascii=False, indent=2)
+                secure_save_json(json_path, payload)
             except Exception:
                 pass
             
@@ -836,3 +796,4 @@ def main(parent=None):
 
 if __name__ == "__main__":
     main()
+

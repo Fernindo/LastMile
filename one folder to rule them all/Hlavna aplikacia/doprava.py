@@ -2,9 +2,9 @@ import tkinter as tk
 from tkinter import StringVar
 import json
 import os
-from helpers import ensure_writable_config
+from helpers import ensure_user_config, secure_load_json, secure_save_json
 
-SETTINGS_FILE = ensure_writable_config("doprava_settings.json", default_content={
+SETTINGS_FILE = ensure_user_config("doprava_settings.json", default_content={
     "cena_vyjazd": "30.00",
     "pocet_vyjazdov": "0",
     "cena_km": "0.55",
@@ -14,19 +14,15 @@ SETTINGS_FILE = ensure_writable_config("doprava_settings.json", default_content=
 
 
 def _load_settings():
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+    try:
+        return secure_load_json(SETTINGS_FILE, default={})
+    except Exception:
+        return {}
 
 
 def _save_settings(data):
     try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        secure_save_json(SETTINGS_FILE, data)
     except Exception as e:
         print(f"Chyba pri ukladaní nastavení dopravy: {e}")
 

@@ -10,7 +10,7 @@ import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 
 from gui_functions import get_database_connection  # tvoje napojenie na online DB
-from helpers import ensure_writable_config
+from helpers import (ensure_user_config, encrypt_string_for_user, decrypt_string_if_encrypted, secure_load_config, secure_save_config)
 
 import project_selector 
 import gui_functions
@@ -47,34 +47,32 @@ def config_path(filename: str) -> str:
     return os.path.join(app_dir(), filename)
 
 def load_config() -> dict:
-    try:
-        cfg_path = ensure_writable_config(CONFIG_FILE, default_content={
+    """Load encrypted login config from the user config directory.
+    Decrypt stored password for use in the UI (if present).
+    """
+    data = secure_load_config(
+        CONFIG_FILE,
+        default_content={
             "logged_in": False,
             "remember": False,
             "username": "",
             "password": "",
-            "user": {}
-        })
-        with open(cfg_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+            "user": {},
+        },
+    )
+    if isinstance(data, dict) and "password" in data:
+        data["password"] = decrypt_string_if_encrypted(data.get("password", ""))
+    return data or {}
+
 
 def save_config(cfg_updates: dict):
-    """Bezpečne uloží/aktualizuje login_config.json tak, aby sa nezmazali iné kľúče."""
-    path = ensure_writable_config(CONFIG_FILE)
-    current = {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            current = json.load(f)
-    except Exception:
-        current = {}
-    current.update(cfg_updates)
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(current, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    """Safely merge and persist encrypted login config."""
+    current = secure_load_config(CONFIG_FILE, default_content={})
+    upd = dict(cfg_updates or {})
+    if isinstance(upd.get("password"), str) and upd["password"]:
+        upd["password"] = encrypt_string_for_user(upd["password"])
+    current.update(upd)
+    secure_save_config(CONFIG_FILE, current)
 
 def verify_user_online(username: str, password: str):
     """
@@ -307,3 +305,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

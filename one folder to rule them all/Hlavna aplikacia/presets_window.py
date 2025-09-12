@@ -4,7 +4,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 import ttkbootstrap as tb
 from tkinter import messagebox, simpledialog
-from helpers import ensure_writable_config
+from helpers import ensure_user_config, secure_load_json
 
 # Reuse your existing app pieces
 from basket import Basket                           # :contentReference[oaicite:0]{index=0}
@@ -23,7 +23,7 @@ def app_dir():
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
-LOGIN_CONFIG_FILE = ensure_writable_config("login_config.json")
+LOGIN_CONFIG_FILE = ensure_user_config("login_config.json")
 
 
 def _load_logged_in_user_id(conn, db_type: str) -> int | None:
@@ -31,10 +31,9 @@ def _load_logged_in_user_id(conn, db_type: str) -> int | None:
     Try to read user id from login_config.json -> users table.
     Falls back to asking user for a numeric id if not found.
     """
-    # 1) read login_config.json
+    # 1) read login_config.json (encrypted)
     try:
-        with open(LOGIN_CONFIG_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = secure_load_json(LOGIN_CONFIG_FILE, default={})
         u = (data or {}).get("user") or {}
         username = (u.get("username") or "").strip()
         uid = u.get("id")

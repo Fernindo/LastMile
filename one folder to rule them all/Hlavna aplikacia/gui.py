@@ -7,23 +7,19 @@ import tkinter.ttk as ttk
 import ttkbootstrap as tb
 import json
 import subprocess
-from helpers import ensure_writable_config
+from helpers import ensure_user_config, secure_load_json, secure_save_json
 
-UI_SETTINGS_FILE = ensure_writable_config("ui_settings.json")
+UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
 def _load_ui_settings():
-    if os.path.exists(UI_SETTINGS_FILE):
-        try:
-            with open(UI_SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+    try:
+        return secure_load_json(UI_SETTINGS_FILE, default={})
+    except Exception:
+        return {}
 
 def _save_ui_settings(data):
     try:
-        with open(UI_SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        secure_save_json(UI_SETTINGS_FILE, data)
     except Exception:
         pass
 
@@ -2090,12 +2086,11 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         _prev_created_by_username = ""
         _prev_created_by_id = None
         try:
-            with open(commit_file, "r", encoding="utf-8") as cf:
-                prev = json.load(cf)
-                notes_history = prev.get("notes_history", [])
-                _prev_created_by = str(prev.get("created_by") or "").strip()
-                _prev_created_by_username = str(prev.get("created_by_username") or "").strip()
-                _prev_created_by_id = prev.get("created_by_id")
+            prev = secure_load_json(commit_file, default={})
+            notes_history = prev.get("notes_history", [])
+            _prev_created_by = str(prev.get("created_by") or "").strip()
+            _prev_created_by_username = str(prev.get("created_by_username") or "").strip()
+            _prev_created_by_id = prev.get("created_by_id")
         except Exception:
             notes_history = []
         notes_history.append(history_entry)
@@ -2145,8 +2140,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
         try:
             # uložiť iba nový archívny súbor s autorom
-            with open(fullpath, "w", encoding="utf-8") as f:
-                json.dump(out, f, ensure_ascii=False, indent=2)
+            secure_save_json(fullpath, out)
 
             # commit_file prepíš BEZ autora a user údajov
             commit_copy = {
@@ -2162,8 +2156,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 commit_copy["created_by_username"] = _prev_created_by_username
             if _prev_created_by_id is not None:
                 commit_copy["created_by_id"] = _prev_created_by_id
-            with open(commit_file, "w", encoding="utf-8") as cf:
-                json.dump(commit_copy, cf, ensure_ascii=False, indent=2)
+            secure_save_json(commit_file, commit_copy)
 
             UNSAVED_NOTES.pop(project_name, None)
         except Exception as e:

@@ -7,6 +7,7 @@ import copy
 import os
 import glob
 import json
+from helpers import secure_load_json, secure_save_json
 from datetime import datetime
 
 from tkinter import filedialog, messagebox
@@ -355,8 +356,7 @@ def save_basket(
         out["items"].append(sec_obj)
 
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(out, f, ensure_ascii=False, indent=2)
+        secure_save_json(file_path, out)
         return True
     except Exception as e:
         messagebox.showerror("Chyba pri ukladaní", f"Nepodarilo sa uložiť súbor:\n{e}")
@@ -372,8 +372,7 @@ def load_basket(project_path: str, project_name: str, file_path: Optional[str] =
             return OrderedDict(), ""
         path = max(candidates, key=os.path.getmtime)
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = secure_load_json(path, default={})
     except Exception:
         return OrderedDict(), ""
 
