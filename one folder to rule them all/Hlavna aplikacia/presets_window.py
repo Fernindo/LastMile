@@ -206,7 +206,7 @@ def open_preset_detail_basket(win_parent, name: str, preset_id: int,
     tree = ttk.Treeview(win2, columns=basket_cols, show="tree headings", selectmode="extended")
     for c in basket_cols:
         tree.heading(c, text=c)
-        tree.column(c, anchor="center", stretch=False)
+        tree.column(c, anchor="center", stretch=True)
     tree.column("produkt", anchor="w", width=240)
     tree.column("jednotky", anchor="center", width=80)
 
@@ -608,16 +608,12 @@ def show_presets_cards_browser(parent=None, **kwargs):
             pass
         win2.title(f"Preset: {name}")
         win2.geometry("900x600")
-        try:
-            win2.resizable(False, False)
-        except Exception:
-            pass
         cols = ("section", "produkt", "pocet_mat", "pocet_pr")
         tree = ttk.Treeview(win2, columns=cols, show="headings")
         tree.pack(fill="both", expand=True)
         for c in cols:
             tree.heading(c, text=c)
-            tree.column(c, anchor="w", stretch=False)
+            tree.column(c, anchor="w", stretch=True)
         for (section, produkt, _, _, _, _, _, _, _, pm, pp) in rows:
             tree.insert("", "end", values=(section or "", produkt or "", int(pm), int(pp)))
         bar = tb.Frame(win2)
@@ -715,11 +711,10 @@ def show_presets_browser(parent=None):
             win.transient()
         except Exception:
             pass
-    win.geometry("1000x650")
     try:
-        win.resizable(False, False)
+        win.state("zoomed")
     except Exception:
-        pass
+        win.geometry("1000x650")
 
     # Layout: left list of presets, right items
     win.grid_rowconfigure(0, weight=1)
@@ -737,7 +732,7 @@ def show_presets_browser(parent=None):
     presets_tree = ttk.Treeview(left, columns=presets_cols, show="headings", selectmode="browse")
     presets_tree.heading("name", text="Názov")
     presets_tree.heading("count", text="Položky")
-    presets_tree.column("name", stretch=False, anchor="w")
+    presets_tree.column("name", stretch=True, anchor="w")
     presets_tree.column("count", width=80, anchor="center")
     y1 = ttk.Scrollbar(left, orient="vertical", command=presets_tree.yview)
     presets_tree.configure(yscrollcommand=y1.set)
@@ -908,11 +903,13 @@ def show_presets_window():
         win.transient()
     win.title("📦 Preset Builder")
     win.title("📦 Preset Builder")
-    win.geometry("1100x700")
     try:
-        win.resizable(False, False)
+        win.state("zoomed")
     except Exception:
-        pass
+        try:
+            win.geometry("1100x700")
+        except Exception:
+            pass
 
     # ── Layout: left (DB), right (basket)
     root = win
@@ -967,7 +964,7 @@ def show_presets_window():
     db_tree = ttk.Treeview(left, columns=cols, show="headings", selectmode="extended")
     for c in cols:
         db_tree.heading(c, text=c.capitalize())
-        db_tree.column(c, anchor="center", stretch=False)
+        db_tree.column(c, anchor="center", stretch=True)
     ysb = ttk.Scrollbar(left, orient="vertical", command=db_tree.yview)
     xsb = ttk.Scrollbar(left, orient="horizontal", command=db_tree.xview)
     db_tree.configure(yscrollcommand=ysb.set, xscrollcommand=xsb.set)
@@ -996,7 +993,7 @@ def show_presets_window():
     basket_tree = ttk.Treeview(right, columns=basket_cols, show="tree headings", selectmode="extended")
     for c in basket_cols:
         basket_tree.heading(c, text=c)
-        basket_tree.column(c, anchor="center", stretch=False)
+        basket_tree.column(c, anchor="center", stretch=True)
     ysb2 = ttk.Scrollbar(right, orient="vertical", command=basket_tree.yview)
     xsb2 = ttk.Scrollbar(right, orient="horizontal", command=basket_tree.xview)
     basket_tree.configure(yscrollcommand=ysb2.set, xscrollcommand=xsb2.set)

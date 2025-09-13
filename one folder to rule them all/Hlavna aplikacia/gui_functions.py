@@ -14,6 +14,7 @@ import copy
 import json
 import tkinter.ttk as ttk
 from basket import Basket, BasketItem
+from types import SimpleNamespace
 
 # Keep track of open notes widgets so we can grab the latest values
 NOTES_UI_STATE: dict[str, list[tuple[tk.IntVar, object]]] = {}
@@ -717,7 +718,6 @@ def add_custom_item(basket_tree, basket: Basket,
     popup.transient()
     popup.grab_set()
     popup.configure(bg="#FFF4E5")  # svetlá oranžová
-    popup.resizable(False, False)
 
     header = tk.Label(popup, text="⚠️ Zadajte údaje o novej položke", font=("Arial", 14, "bold"),
                       bg="#FFD580", fg="#663300", pady=10)
@@ -846,7 +846,6 @@ def show_notes_popup(project_name, json_path):
     notes_window = tk.Toplevel()
     notes_window.title("Poznámky")
     notes_window.geometry("450x400")
-    notes_window.resizable(False, False)
 
     main_frame = tk.Frame(notes_window)
     main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -1083,9 +1082,7 @@ def show_recommendations_popup(
     tree = ttk.Treeview(win, columns=cols, show="headings", displaycolumns=display_cols)
     for c in display_cols:
         tree.heading(c, text=c.capitalize())
-        anchor = "w" if c in ("produkt", "section") else "center"
-        default_w = 220 if c == "produkt" else (180 if c == "section" else (200 if c == "odkaz" else 110))
-        tree.column(c, anchor=anchor, width=default_w, minwidth=80, stretch=False)
+        tree.column(c, anchor="center")
 
     # Normalize rows to include the section name (last column)
     normalized = [
@@ -1123,9 +1120,32 @@ def show_recommendations_popup(
 
     tree.pack(fill="both", expand=True, padx=10, pady=10)
 
+    def adjust_cols(event):
+        total = event.width
+        proportions = {
+            "produkt":             0.22,
+            "jednotky":            0.15,
+            "dodavatel":           0.12,
+            "odkaz":               0.20,
+            "koeficient_material": 0.10,
+            "nakup_materialu":     0.13,
+            "cena_prace":          0.08,
+            "koeficient_prace":    0.08,
+        }
+        total_pct = sum(proportions.get(c, 0) for c in display_cols)
+        if total_pct == 0:
+            total_pct = len(display_cols)
+        for c in display_cols:
+            pct = proportions.get(c, 1 / len(display_cols))
+            width = int(total * pct / total_pct)
+            tree.column(c, width=width, stretch=True)
+
+    tree.bind("<Configure>", adjust_cols)
+    win.update_idletasks()
+    adjust_cols(SimpleNamespace(width=tree.winfo_width()))
+
     tk.Button(win, text="Zatvoriť", command=win.destroy).pack(pady=5)
     win.geometry("1000x450")
-    win.resizable(False, False)
     win.transient()
     win.grab_set()
     win.wait_window()
@@ -1251,14 +1271,15 @@ def check_type_dependencies(
 
     # Treeview uses a tree column (#0) to show section headers above items
     tree = ttk.Treeview(win, columns=cols, show="tree headings", displaycolumns=cols)
-    # Configure the tree (section) column and data columns with fixed widths
+    # Configure the tree (section) column and data columns to be resizable from the start
     tree.heading("#0", text="Sekcia")
-    tree.column("#0", width=180, minwidth=120, stretch=False, anchor="w")
+    tree.column("#0", width=180, minwidth=120, stretch=True, anchor="w")
     for c in cols:
         tree.heading(c, text=c.capitalize())
         anchor = "w" if c == "produkt" else "center"
+        # Give sane default widths and allow stretch
         default_w = 220 if c == "produkt" else (200 if c == "odkaz" else 110)
-        tree.column(c, anchor=anchor, width=default_w, minwidth=80, stretch=False)
+        tree.column(c, anchor=anchor, width=default_w, minwidth=80, stretch=True)
 
     # Normalize rows into (8 item fields + section) and group by section
     display_rows = [
@@ -1332,8 +1353,21 @@ def check_type_dependencies(
 
     tk.Button(win, text="Pridať všetko", command=add_all).pack(pady=5)
 
-    win.geometry("1000x550")
-    win.resizable(False, False)
+    # Set a slightly narrower, screen-fitting window size for the Kontrola popup
+    win.update_idletasks()
+    screen_w = win.winfo_screenwidth()
+    screen_h = win.winfo_screenheight()
+    # Aim for a moderate width; ensure it fits on smaller screens
+    w = min(1000, max(800, screen_w - 120))
+    h = min(600, max(450, screen_h - 200))
+    x = (screen_w - w) // 2
+    y = (screen_h - h) // 2
+    try:
+        win.geometry(f"{int(w)}x{int(h)}+{int(x)}+{int(y)}")
+    except Exception:
+        # Fallback to a safe default if geometry fails
+        win.geometry("1000x550")
+
     win.transient()
     win.grab_set()
     win.wait_window()
