@@ -200,59 +200,6 @@ def decrypt_string_if_encrypted(value: str) -> str:
 
 _SECURE_MAGIC = b"ENC1:"
 
-# ---------------------------------------------------------------------------
-# High-DPI helpers (consistent font/scaling when packaged)
-# ---------------------------------------------------------------------------
-
-def enable_high_dpi_awareness() -> None:
-    """Enable per-monitor DPI awareness on Windows so Tk can scale correctly.
-
-    Safe to call multiple times and on non-Windows platforms (no-op).
-    """
-    try:
-        if os.name != "nt":
-            return
-        try:
-            # Windows 8.1+ (per-monitor aware)
-            ctypes.windll.shcore.SetProcessDpiAwareness(2)
-            return
-        except Exception:
-            pass
-        try:
-            # Windows Vista/7 fallback (system DPI aware)
-            ctypes.windll.user32.SetProcessDPIAware()
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-
-def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.25, max_scale: float = 2.0) -> float:
-    """Calibrate Tk text/pixel scaling based on real screen DPI.
-
-    Returns the scale applied. Keeps scale within [min_scale, max_scale].
-    """
-    try:
-        # 1 inch in Tk terms is 72 points; fpixels('1i') gives device pixels
-        pixels_per_inch = float(root.winfo_fpixels("1i"))
-        scale = pixels_per_inch / 72.0
-        if min_scale is not None:
-            scale = max(min_scale, scale)
-        if max_scale is not None:
-            scale = min(max_scale, scale)
-        try:
-            root.tk.call("tk", "scaling", scale)
-        except Exception:
-            pass
-        return float(scale)
-    except Exception:
-        # Fallback to a reasonable default
-        try:
-            root.tk.call("tk", "scaling", 1.25)
-        except Exception:
-            pass
-        return 1.25
-
 
 def apply_ttk_base_font(style: ttk.Style, *, family: str = "Segoe UI", size: int = 10) -> None:
     """Apply a base font to common ttk widgets, but do NOT change buttons.

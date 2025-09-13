@@ -14,8 +14,6 @@ from helpers import (
     ensure_user_config,
     secure_load_json,
     secure_save_json,
-    enable_high_dpi_awareness,
-    calibrate_tk_scaling,
     apply_ttk_base_font,
 )
 
@@ -325,19 +323,11 @@ def main(parent=None):
     # If launched from login.py, we pass parent
     # If run directly, create its own root window
     if parent is None:
-        try:
-            enable_high_dpi_awareness()
-        except Exception:
-            pass
         style = Style(theme="litera")
         root = style.master
         try:
-            scale = float(calibrate_tk_scaling(root))
-        except Exception:
-            scale = 1.25
-        try:
-            # Base font for ttk widgets in Project Selector (smaller baseline)
-            apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
+            # Base font for ttk widgets in Project Selector
+            apply_ttk_base_font(style, family="Segoe UI", size=8)
         except Exception:
             pass
         # Make ttk buttons a bit more compact (reduce padding)
@@ -349,32 +339,24 @@ def main(parent=None):
                     pass
         except Exception:
             pass
-        # Ensure classic Tk widgets (e.g., Listbox) also use scaled base size (smaller)
         try:
-            root.option_add("*Font", ("Segoe UI", int(8 * scale)))
+            root.option_add("*Font", ("Segoe UI", 8))
         except Exception:
             pass
         root.title("Projects Home")
-        # Slightly smaller default geometry
         root.geometry("1000x700")
         try:
             root.minsize(900, 600)
-            root.resizable(True, True)
+            root.resizable(False, False)
         except Exception:
             pass
         owns_root = True
     else:
-        # Create a child window on the existing Tk root
         root = tb.Toplevel(parent)
-        # Ensure we get a Style object to tweak paddings for this window too
         try:
             style = Style()
             try:
-                scale = float(calibrate_tk_scaling(root))
-            except Exception:
-                scale = 1.25
-            try:
-                apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
+                apply_ttk_base_font(style, family="Segoe UI", size=8)
             except Exception:
                 pass
             for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
@@ -385,15 +367,13 @@ def main(parent=None):
         except Exception:
             pass
         root.title("Projects Home")
-        # Child window a bit taller as well
         root.geometry("1024x700")
         try:
             root.minsize(900, 600)
-            root.resizable(True, True)
+            root.resizable(False, False)
         except Exception:
             pass
         owns_root = False
-        # Closing the selector should close the whole app
         try:
             root.protocol("WM_DELETE_WINDOW", parent.destroy)
         except Exception:

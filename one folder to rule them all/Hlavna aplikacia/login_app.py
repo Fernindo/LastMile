@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 import ttkbootstrap as tb
 from ttkbootstrap import Style
-from helpers import enable_high_dpi_awareness, calibrate_tk_scaling, apply_ttk_base_font
+from helpers import apply_ttk_base_font
 import psycopg2
 import subprocess
 import os
@@ -16,6 +16,7 @@ class login_app:
         self.root = root
         self.root.title("Prihlásenie")
         self.root.geometry("420x200")
+        self.root.resizable(False, False)
         self.center_window(self.root)
 
         self.credentials_file = "saved_credentials.json"
@@ -137,18 +138,10 @@ class login_app:
             os.remove(self.credentials_file)
 
 if __name__ == "__main__":
-    try:
-        enable_high_dpi_awareness()
-    except Exception:
-        pass
     style = Style(theme="flatly")
     root = style.master
     try:
-        scale = float(calibrate_tk_scaling(root))
-    except Exception:
-        scale = 1.25
-    try:
-        apply_ttk_base_font(style, family="Segoe UI", size=int(9 * scale))
+        apply_ttk_base_font(style, family="Segoe UI", size=9)
     except Exception:
         pass
     login_app(root)
