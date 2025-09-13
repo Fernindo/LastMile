@@ -30,30 +30,6 @@ def show_presets_window():
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
-# Global scale multiplier for Project Selector UI.
-# Increase (>1.0) to make items larger; e.g. 1.15 = +15%.
-project_scale = 1.4
-
-# --- UI profile helpers (auto-detected only) --------------------------------
-def _get_ui_profile(root: tk.Misc) -> str:
-    # Always auto-detect based on screen width; manual options removed
-    try:
-        sw = int(root.winfo_screenwidth())
-    except Exception:
-        sw = 1920
-    return "27" if sw >= 2300 else "13"
-
-def _profile_scale(profile: str, root: tk.Misc) -> float:
-    if profile == "27":
-        return 1.35
-    if profile == "13":
-        return 1.00
-    try:
-        sw = int(root.winfo_screenwidth())
-    except Exception:
-        sw = 1920
-    return 1.35 if sw >= 2300 else 1.00
-
 # ───────────────────────── Helpers: settings ─────────────────────────
 
 def load_settings():
@@ -355,64 +331,20 @@ def main(parent=None):
             pass
         style = Style(theme="litera")
         root = style.master
-        # Calibrate for DPI, then apply 13"/27" profile scaling
         try:
-            calibrate_tk_scaling(root)
+            scale = float(calibrate_tk_scaling(root))
         except Exception:
-            pass
-        ui_profile = _get_ui_profile(root)
-        scale = _profile_scale(ui_profile, root)
-        try:
-            scale = float(scale) * float(project_scale)
-        except Exception:
-            pass
-        try:
-            root.tk.call("tk", "scaling", float(scale))
-        except Exception:
-            pass
+            scale = 1.25
         try:
             # Base font for ttk widgets in Project Selector (smaller baseline)
             apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
         except Exception:
             pass
-        # Make ttk buttons scale with the global scale; keep 13" compact baseline
+        # Make ttk buttons a bit more compact (reduce padding)
         try:
-            if ui_profile == "13":
-                for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
-                    try:
-                        style.configure(_btn_style, padding=(6, 3))
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-        try:
-            pad_x = max(10, int(12 * float(scale)))
-            pad_y = max(6, int(6 * float(scale)))
-            btn_font_size = max(11, int(2 * float(scale)))
-            _btn_styles = (
-                "TButton",
-                "primary.TButton",
-                "secondary.TButton",
-                "success.TButton",
-                "danger.TButton",
-                "info.TButton",
-                "warning.TButton",
-                "light.TButton",
-                "primary.Outline.TButton",
-                "secondary.Outline.TButton",
-                "success.Outline.TButton",
-                "danger.Outline.TButton",
-                "info.Outline.TButton",
-                "warning.Outline.TButton",
-                "light.Outline.TButton",
-                # Menubutton styles for user menu
-                "TMenubutton",
-                "primary.TMenubutton",
-                "secondary.TMenubutton",
-            )
-            for _s in _btn_styles:
+            for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
                 try:
-                    style.configure(_s, padding=(pad_x, pad_y), font=("Segoe UI", btn_font_size))
+                    style.configure(_btn_style, padding=(6, 3))
                 except Exception:
                     pass
         except Exception:
@@ -423,27 +355,13 @@ def main(parent=None):
         except Exception:
             pass
         root.title("Projects Home")
-        # Dynamic geometry based on screen size (centers window)
+        # Slightly smaller default geometry
+        root.geometry("1000x700")
         try:
-            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-            margin = 80
-            # Scale window relative to screen with sane bounds
-            target_w = int(min(max(int(sw * 0.75), 900), sw - margin))
-            target_h = int(min(max(int(sh * 0.75), 600), sh - margin))
-            x = max(0, (sw - target_w) // 2)
-            y = max(0, (sh - target_h) // 2)
-            root.geometry(f"{target_w}x{target_h}+{x}+{y}")
-            # Allow resizing, but ensure minimum fits smaller displays
-            root.minsize(min(900, sw - margin), min(600, sh - margin))
+            root.minsize(900, 600)
             root.resizable(True, True)
         except Exception:
-            # Fallback geometry if anything goes wrong
-            root.geometry("1000x700")
-            try:
-                root.minsize(900, 600)
-                root.resizable(True, True)
-            except Exception:
-                pass
+            pass
         owns_root = True
     else:
         # Create a child window on the existing Tk root
@@ -451,83 +369,29 @@ def main(parent=None):
         # Ensure we get a Style object to tweak paddings for this window too
         try:
             style = Style()
-            # Calibrate for DPI, then apply 13"/27" profile scaling
             try:
-                calibrate_tk_scaling(root)
+                scale = float(calibrate_tk_scaling(root))
             except Exception:
-                pass
-            ui_profile = _get_ui_profile(root)
-            scale = _profile_scale(ui_profile, root)
-            try:
-                scale = float(scale) * float(project_scale)
-            except Exception:
-                pass
-            try:
-                root.tk.call("tk", "scaling", float(scale))
-            except Exception:
-                pass
+                scale = 1.25
             try:
                 apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
             except Exception:
                 pass
             for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
                 try:
-                    if ui_profile == "13":
-                        style.configure(_btn_style, padding=(6, 3))
+                    style.configure(_btn_style, padding=(6, 3))
                 except Exception:
                     pass
-            try:
-                pad_x = max(10, int(12 * float(scale)))
-                pad_y = max(6, int(6 * float(scale)))
-                btn_font_size = max(11, int(12 * float(scale)))
-                _btn_styles = (
-                    "TButton",
-                    "primary.TButton",
-                    "secondary.TButton",
-                    "success.TButton",
-                    "danger.TButton",
-                    "info.TButton",
-                    "warning.TButton",
-                    "light.TButton",
-                    "primary.Outline.TButton",
-                    "secondary.Outline.TButton",
-                    "success.Outline.TButton",
-                    "danger.Outline.TButton",
-                    "info.Outline.TButton",
-                    "warning.Outline.TButton",
-                    "light.Outline.TButton",
-                    "TMenubutton",
-                    "primary.TMenubutton",
-                    "secondary.TMenubutton",
-                )
-                for _s in _btn_styles:
-                    try:
-                        style.configure(_s, padding=(pad_x, pad_y), font=("Segoe UI", btn_font_size))
-                    except Exception:
-                        pass
-            except Exception:
-                pass
         except Exception:
             pass
         root.title("Projects Home")
-        # Dynamic geometry for child window as well
+        # Child window a bit taller as well
+        root.geometry("1024x700")
         try:
-            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
-            margin = 80
-            target_w = int(min(max(int(sw * 0.75), 900), sw - margin))
-            target_h = int(min(max(int(sh * 0.75), 600), sh - margin))
-            x = max(0, (sw - target_w) // 2)
-            y = max(0, (sh - target_h) // 2)
-            root.geometry(f"{target_w}x{target_h}+{x}+{y}")
-            root.minsize(min(900, sw - margin), min(600, sh - margin))
+            root.minsize(900, 600)
             root.resizable(True, True)
         except Exception:
-            root.geometry("1024x700")
-            try:
-                root.minsize(900, 600)
-                root.resizable(True, True)
-            except Exception:
-                pass
+            pass
         owns_root = False
         # Closing the selector should close the whole app
         try:
@@ -599,9 +463,9 @@ def main(parent=None):
         user_menu_btn.pack(side="right", padx=(6, 0))
 
     tb.Label(top, text="Projects Root:").pack(side="left")
-    # Make the path entry expand with window width (scales nicely)
+    # Wider entry so long paths don't feel cramped
     root_entry = tb.Entry(top, textvariable=root.projects_home_state["projects_root"], width=72)
-    root_entry.pack(side="left", padx=6, fill="x", expand=True)
+    root_entry.pack(side="left", padx=6)
 
     def browse_root():
         cur = root.projects_home_state["projects_root"].get()
@@ -850,31 +714,10 @@ def main(parent=None):
     body.pack(fill="both", expand=True)
 
     left = tb.Labelframe(body, text="Projects", padding=8)
-    # Responsive left column: ~26% of window width within sane bounds
-    left_min_w, left_max_w = 240, 520
-    left_frac = 0.26
-    def _size_left_col(event=None):
-        try:
-            w = root.winfo_width() or body.winfo_width()
-        except Exception:
-            w = 1000
-        target = int(w * left_frac)
-        if target < left_min_w:
-            target = left_min_w
-        if target > left_max_w:
-            target = left_max_w
-        try:
-            left.configure(width=target)
-        except Exception:
-            pass
+    # Slimmer left panel for projects list
+    left.config(width=300)
     left.pack_propagate(False)
     left.pack(side="left", fill="y", padx=(0, 12))
-    # Initial sizing and keep in sync when window resizes
-    _size_left_col()
-    try:
-        root.bind("<Configure>", _size_left_col, add=True)
-    except Exception:
-        pass
     tb.Label(left, text="Filter:").pack(anchor="w")
     filter_entry = tb.Entry(left, textvariable=root.projects_home_state["filter_text"])
     filter_entry.pack(fill="x", pady=(0, 6))
@@ -892,14 +735,6 @@ def main(parent=None):
     create_btn.pack(fill="x")
     delete_btn = tb.Button(proj_btns, text="Delete Project", bootstyle="danger")
     delete_btn.pack(fill="x", pady=(6, 0))
-    # Slightly enlarge the create/delete buttons (padding scale-aware)
-    try:
-        _bx = max(8, int(10 * float(scale)))
-        _by = max(4, int(6 * float(scale)))
-        create_btn.configure(padding=(_bx, _by))
-        delete_btn.configure(padding=(_bx, _by))
-    except Exception:
-        pass
 
     archive_list = tk.Listbox(right)
     archive_list.pack(fill="both", expand=True)

@@ -10,37 +10,7 @@ import subprocess
 from PIL import Image, ImageTk
 from helpers import ensure_user_config, secure_load_json, secure_save_json
 
-# Global UI scale multiplier for the main GUI.
-# Increase (>1.0) to make everything larger, decrease (<1.0) to shrink.
-# Example: 1.15 = +15% larger.
-gui_scale = 1.2
-
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
-
-# --- UI profile helpers -------------------------------------------------------
-# We support two explicit profiles ("13" and "27") and an "auto" mode.
-# The profile influences Tk scaling, base fonts, and some paddings.
-def _get_ui_profile(root: tk.Misc) -> str:
-    # Always auto-detect; manual 13"/27" options removed
-    try:
-        sw = int(root.winfo_screenwidth())
-    except Exception:
-        sw = 1920
-    # Treat wider screens as 27"; otherwise 13" compact
-    return "27" if sw >= 2300 else "13"
-
-def _profile_scale(profile: str, root: tk.Misc) -> float:
-    # Chosen empirically: compact on 13", spacious on 27".
-    if profile == "27":
-        return 1.35
-    if profile == "13":
-        return 1.00
-    # Fallback to auto threshold if unknown
-    try:
-        sw = int(root.winfo_screenwidth())
-    except Exception:
-        sw = 1920
-    return 1.35 if sw >= 2300 else 1.00
 
 def _load_ui_settings():
     try:
@@ -113,7 +83,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     }
 
 
-    # --- Prepare paths and DB --------------------------------------------
+    # ─── Prepare paths and DB ────────────────────────────────────────────
     project_name = os.path.basename(project_dir)
     json_dir     = os.path.join(project_dir, "projects")
     # Ensure target directory for archived baskets exists
@@ -131,7 +101,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         ensure_indexes(conn)
     def _is_admin(conn, user_id, db_type, username="") -> bool:
         cur = conn.cursor()
-        # 1) podla user_id (ak je k dispozícii)
+        # 1) podľa user_id (ak je k dispozícii)
         if user_id:
             try:
                 if db_type == "postgres":
@@ -154,7 +124,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 try: conn.rollback()
                 except: pass
 
-        # 2) fallback podla username (ak user_id nie je)
+        # 2) fallback podľa username (ak user_id nie je)
         if username:
             try:
                 if db_type == "postgres":
@@ -183,7 +153,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
 
     def _open_admin_panel():
-        # admin_apk/main_admin.py je vedla aktuálneho súboru
+        # admin_apk/main_admin.py je vedľa aktuálneho súboru
         base_dir = os.path.dirname(__file__)
         admin_dir = os.path.join(base_dir, "admin_apk")
         main_admin_path = os.path.join(admin_dir, "main_admin.py")
@@ -194,8 +164,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         try:
             subprocess.Popen([sys.executable, main_admin_path], cwd=admin_dir)
         except Exception as e:
-            messagebox.showerror("Admin", f"Nepodarilo sa spustit Admin panel:\n{e}")
-    # --- Create main window via ttkbootstrap -----------------------------
+            messagebox.showerror("Admin", f"Nepodarilo sa spustiť Admin panel:\n{e}")
+    # ─── Create main window via ttkbootstrap ─────────────────────────────
     try:
         enable_high_dpi_awareness()
     except Exception:
@@ -204,69 +174,22 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     master = style.master  # underlying Tk root (may already host other UI)
     root  = master
 
-    # --- DPI / Scaling with 13"/27" profiles ------------------------------
-    # Calibrate once to be DPI-aware, then apply our explicit profile scale.
+    # --- DPI / Scaling fix for packaged app ---
+    # Calibrate Tk scaling to real DPI; enforce a minimum of 1.25
     try:
         calibrate_tk_scaling(root)
     except Exception:
         pass
 
-    ui_profile = _get_ui_profile(root)
-    scale = _profile_scale(ui_profile, root)
-    # Apply user-tunable global multiplier
-    try:
-        scale = float(scale) * float(gui_scale)
-    except Exception:
-        pass
-    try:
-        root.tk.call("tk", "scaling", float(scale))
-    except Exception:
-        pass
+    screen_w = root.winfo_screenwidth()
+    base_w = 1600
+    # Enforce minimum 1.25 so buttons/fonts don’t shrink in packaged app
+    scale = max(1.25, min(1.5, screen_w / base_w))
+    root.tk.call("tk", "scaling", scale)
 
-    # Base font for ttk (labels/entries/treeview). Buttons left to theme size.
     try:
+        # Slightly larger baseline font so buttons look consistent
         apply_ttk_base_font(style, family="Segoe UI", size=int(11 * scale))
-    except Exception:
-        pass
-
-    # Make buttons more compact on 13" so top bar fits better
-    if ui_profile == "13":
-        try:
-            for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton", "warning.TButton", "light.TButton"):
-                try:
-                    style.configure(_btn_style, padding=(6, 3))
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-    # Scale ttk button paddings based on computed scale (affects all profiles)
-    try:
-        pad_x = max(6, int(8 * float(scale)))
-        pad_y = max(3, int(4 * float(scale)))
-        _btn_styles = (
-            "TButton",
-            "primary.TButton",
-            "secondary.TButton",
-            "success.TButton",
-            "danger.TButton",
-            "info.TButton",
-            "warning.TButton",
-            "light.TButton",
-            # Outline variants (ttkbootstrap)
-            "primary.Outline.TButton",
-            "secondary.Outline.TButton",
-            "success.Outline.TButton",
-            "danger.Outline.TButton",
-            "info.Outline.TButton",
-            "warning.Outline.TButton",
-            "light.Outline.TButton",
-        )
-        for _s in _btn_styles:
-            try:
-                style.configure(_s, padding=(pad_x, pad_y))
-            except Exception:
-                pass
     except Exception:
         pass
     # If the Tk root already has widgets (e.g., login UI packed),
@@ -299,14 +222,9 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # No additional tk scaling adjustments here; 'scale' is already set
 
     ui_settings = _load_ui_settings()
-    # Use a fixed table font size derived from profile scale
+    # Use a fixed table font size derived from scale (no user override)
     table_font_size = int(11 * scale)
     row_h = int(2.4 * table_font_size)
-    # Smaller font for top bar (search/labels/entries) that still respects GUI scale
-    try:
-        topbar_font = ("Segoe UI", max(8, int(9 * float(scale))))
-    except Exception:
-        topbar_font = ("Segoe UI", 9)
 
     try:
         _area_default = float(ui_settings.get("area_m2", 0.0))
@@ -331,7 +249,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     root.grid_columnconfigure(0, weight=1)  # main content
     root.grid_columnconfigure(1, weight=0)  # placeholder for filter panel
 
-    # --- Track whether the basket has been modified ----------------------
+    # ─── Track whether the basket has been modified ──────────────────────
     basket_modified = [False]  # use a list so nested functions can modify
 
     def mark_modified():
@@ -349,7 +267,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             recompute_total_spolu(basket, total_spolu_var, total_praca_var, total_material_var)
             mark_modified()
 
-    # --- Top-Level Frames -------------------------------------------------
+    # ─── Top-Level Frames ─────────────────────────────────────────────────
     
     main_frame   = tb.Frame(root, padding=10)
     main_frame.grid(row=0, column=0, sticky="nsew")
@@ -377,23 +295,23 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                         tree_frame.pack_forget()
                 except Exception:
                     pass
-            toggle_btn.config(text="?? Zobrazit databázu")
+            toggle_btn.config(text="🔼 Zobraziť databázu")
         else:
             # Show current DB view
             try:
                 _show_current_db_view()
             except Exception:
                 pass
-            toggle_btn.config(text="?? Skryt databázu")
+            toggle_btn.config(text="🔽 Skryť databázu")
         db_visible[0] = not db_visible[0]
 
-    # --- Track whether the basket is visible ----------------------------
+    # ─── Track whether the basket is visible ────────────────────────────
     basket_visible = [True]
 
     def toggle_basket_view():
         if basket_visible[0]:
             basket_frame.pack_forget()
-            toggle_basket_btn.config(text="?? Zobrazit košík")
+            toggle_basket_btn.config(text="🔼 Zobraziť košík")
         else:
             basket_frame.pack(
                 fill="both",
@@ -401,13 +319,13 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 padx=10,
                 pady=10
             )
-            toggle_basket_btn.config(text="?? Skryt košík")
+            toggle_basket_btn.config(text="🔽 Skryť košík")
         basket_visible[0] = not basket_visible[0]
 
     
    
 
-    # --- Filter Panel (left) ----------------------------------------------
+    # ─── Filter Panel (left) ──────────────────────────────────────────────
     category_structure = {}
     try:
         cursor.execute("SELECT id, hlavna_kategoria, nazov_tabulky FROM class")
@@ -444,7 +362,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             root.grid_columnconfigure(0, weight=1)
             root.grid_columnconfigure(1, weight=0)
             root.grid_columnconfigure(0, minsize=0)   # <— add this line
-            filter_toggle_btn.config(text="?")
+            filter_toggle_btn.config(text="▶")
         else:
             # show filter
             filter_container.grid(row=0, column=0, sticky="nsew")
@@ -453,7 +371,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             root.grid_columnconfigure(0, weight=1)
             root.grid_columnconfigure(1, weight=5)
             root.grid_columnconfigure(0, minsize=220)
-            filter_toggle_btn.config(text="?")
+            filter_toggle_btn.config(text="◀")
         filter_visible[0] = not filter_visible[0]
 
 
@@ -463,7 +381,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     filter_toggle_btn = tk.Button(
         toggle_filter_container,
-        text="?",
+        text="▶",
         font=("Segoe UI", int(12 * scale), "bold"),
         
         
@@ -471,21 +389,16 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         relief="flat",
         command=toggle_filter
     )
-    try:
-        _ipx = max(4, int(6 * float(scale)))
-        _ipy = max(2, int(2 * float(scale)))
-    except Exception:
-        _ipx, _ipy = 6, 2
-    filter_toggle_btn.pack(ipadx=_ipx, ipady=_ipy)
+    filter_toggle_btn.pack(ipadx=6, ipady=2)
 
-    # --- Main Area (right) ------------------------------------------------
+    # ─── Main Area (right) ────────────────────────────────────────────────
     # Top bar (Home button + Search entry)
     top = tb.Frame(main_frame, padding=5)
     top.pack(side="top", fill="x")
 
     toggle_btn = tb.Button(
         top,
-        text="?? Skryt databázu",
+        text="🔽 Skryť databázu",
         bootstyle="secondary",
         command=toggle_db_view
     )
@@ -493,7 +406,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     
     toggle_basket_btn = tb.Button(
     top,
-    text="?? Skryt košík",
+    text="🔽 Skryť košík",
     bootstyle="warning",
     command=toggle_basket_view
     )
@@ -504,7 +417,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     praca_btn = tb.Button(
         top,
-        text="??? Práca",
+        text="🛠️ Práca",
         bootstyle="light",
         command=lambda: show_praca_window(cursor)
     )
@@ -512,7 +425,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     doprava_btn = tb.Button(
         top,
-        text="?? Doprava",
+        text="🚗 Doprava",
         bootstyle="light",
         command=show_doprava_window
     )
@@ -589,13 +502,13 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             command=do_reset,
         )
         menu.add_command(
-            label="? Odporúcané",
+            label="⭐ Odporúčané",
             command=do_show_recs,
         )
         menu.post(event.x_root, event.y_root)
 
 
-    tk.Label(top, text="Vyhladávanie:").pack(side="left", padx=(20, 5))
+    tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20, 5))
     name_entry = tk.Entry(top, width=30)
     name_entry.pack(side="left")
     filter_job = [None]
@@ -619,31 +532,6 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     definition_entry = tk.Entry(top, width=50)
     definition_entry.insert(0, "")
     definition_entry.pack(side="left")
-    # Make topbar entries smaller but scale-aware
-    try:
-        name_entry.configure(font=topbar_font)
-    except Exception:
-        pass
-    try:
-        project_entry.configure(font=topbar_font)
-    except Exception:
-        pass
-    try:
-        definition_entry.configure(font=topbar_font)
-    except Exception:
-        pass
-    # Apply smaller font to topbar labels as well
-    try:
-        for _w in top.winfo_children():
-            try:
-                if isinstance(_w, tk.Label):
-                    _txt = _w.cget("text")
-                    if isinstance(_txt, str) and ("Vyhlad" in _txt or "Syst" in _txt or "Objekt" in _txt):
-                        _w.configure(font=topbar_font)
-            except Exception:
-                pass
-    except Exception:
-        pass
 
     # Slightly enlarge labels for Vyhladavanie / Systémy / Objekt
     try:
@@ -662,14 +550,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         try:
             on_closing()
         except Exception:
-            return  # ak nieco zlyhá pri ukladaní, zostaneme v GUI
+            return  # ak niečo zlyhá pri ukladaní, zostaneme v GUI
 
-        # ak už root zanikol, spustíme spät Project Selector
+        # ak už root zanikol, spustíme späť Project Selector
         try:
             if root.winfo_exists():
-                return  # používatel dal Cancel -> zostan v GUI
+                return  # používateľ dal Cancel -> zostaň v GUI
         except tk.TclError:
-            # root bol znicený ? môžeme otvorit selector
+            # root bol zničený → môžeme otvoriť selector
             pass
 
         import subprocess, sys
@@ -680,7 +568,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     archive_btn = tb.Button(
         top,
-        text="?? Archív",
+        text="📂 Archív",
         bootstyle="secondary",
         command=back_to_archive
     )
@@ -689,7 +577,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # Settings button to configure basket visibility
     settings_btn = tb.Button(
         top,
-        text="??",
+        text="⚙️",
         bootstyle="secondary",
         command=lambda: open_settings()
     )
@@ -697,7 +585,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
    
     print("[DEBUG] CURRENT_USER:", CURRENT_USER, "db_type:", db_type)
 
-    # Admin button (len pre adminov) – vlavo od Nastavení
+    # Admin button (len pre adminov) – vľavo od Nastavení
     try:
         is_admin = _is_admin(conn,
                             CURRENT_USER.get("id"),
@@ -706,18 +594,18 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         if is_admin:
             admin_btn = tb.Button(
                 top,
-                text="?? Admin",
+                text="🧰 Admin",
                 bootstyle="danger",
                 command=_open_admin_panel
             )
-            # packni ho pred settings_btn, aby bol vlavo
+            # packni ho pred settings_btn, aby bol vľavo
             admin_btn.pack(side="right", padx=(5, 0))
     except Exception as e:
         print("[ADMIN BTN]", e)
 
 
 
-    # --- Database Treeview (DB results) -----------------------------------
+    # ─── Database Treeview (DB results) ───────────────────────────────────
     tree_frame = tb.Frame(main_frame)
     tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
     tree_scroll_y = ttk.Scrollbar(tree_frame, orient="vertical")
@@ -892,7 +780,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             except Exception:
                 koef_txt = str(vals[4])
             tk.Label(card, text=f"Koef. materiál: {koef_txt}").pack(anchor="w")
-            tk.Label(card, text=f"Dodávatel: {dodavatel}", anchor="w").pack(fill="x", pady=(2, 0))
+            tk.Label(card, text=f"Dodávateľ: {dodavatel}", anchor="w").pack(fill="x", pady=(2, 0))
             try:
                 mat_txt = format_currency(nakup_mat)
             except Exception:
@@ -910,7 +798,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                                    total_spolu_var, total_praca_var, total_material_var)
             def _detail(v=vals):
                 _show_detail_popup(v)
-            tb.Button(btns, text="Pridat", bootstyle="success", command=_add).pack(side="left")
+            tb.Button(btns, text="Pridať", bootstyle="success", command=_add).pack(side="left")
             tb.Button(btns, text="Detaily", bootstyle="secondary", command=_detail).pack(side="right")
 
             # Right-click on the card (or its children) to show details
@@ -985,7 +873,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         fields = [
             ("Produkt", 0),
             ("Jednotky", 1),
-            ("Dodávatel", 2),
+            ("Dodávateľ", 2),
             ("Odkaz", 3),
             ("Koef. materiál", 4),
             ("Nákup materiálu", 5),
@@ -995,7 +883,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         for i, (lbl, idx) in enumerate(fields):
             tk.Label(frm, text=f"{lbl}:").grid(row=i, column=0, sticky="w", padx=5, pady=2)
             tk.Label(frm, text=str(vals[idx])).grid(row=i, column=1, sticky="w", padx=5, pady=2)
-        tb.Button(frm, text="Pridat do košíka", bootstyle="success",
+        tb.Button(frm, text="Pridať do košíka", bootstyle="success",
                   command=lambda: add_to_basket_full(vals, basket, conn, cursor, db_type, basket_tree, mark_modified,
                                                     total_spolu_var, total_praca_var, total_material_var)
                   ).grid(row=len(fields), column=0, columnspan=2, sticky="e", padx=5, pady=(10, 0))
@@ -1087,7 +975,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     tree.bind("<Configure>", adjust_db_columns)
 
-    # --- Basket Area -------------------------------------------------------
+    # ─── Basket Area ───────────────────────────────────────────────────────
     basket_frame = tb.Frame(main_frame, padding=5)
     basket_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -1100,7 +988,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     undo_btn = tb.Button(
         basket_header,
-        text="Krok spät",
+        text="Krok späť",
         bootstyle="secondary",
         command=undo_action
     )
@@ -1173,7 +1061,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # -- Basket Treeview --
     initial_display = [c for c in basket_columns]
     basket_tree = ttk.Treeview(
-        basket_tree_container,  # ? správne ukotvenie
+        basket_tree_container,  # ✅ správne ukotvenie
         columns=basket_columns,
         show="tree headings",
         displaycolumns=initial_display,
@@ -1222,7 +1110,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
 
 
-    # --- Inline edit on double-click (Basket), but intercept "produkt" column to show recs -
+    # ─── Inline edit on double-click (Basket), but intercept "produkt" column to show recs ─
     def on_basket_double_click(event):
         row = basket_tree.identify_row(event.y)
         col = basket_tree.identify_column(event.x)
@@ -1286,18 +1174,18 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             if col_name == "pocet_prace" and basket.items[section_name][prod].sync:
                 messagebox.showinfo(
                     "Synchronizácia",
-                    "Pocet práce je synchronizovaný s poctom materiálu.\nVypnite Sync pre úpravu."
+                    "Počet práce je synchronizovaný s počtom materiálu.\nVypnite Sync pre úpravu."
                 )
                 return
             new = simpledialog.askinteger(
-                "Upravit bunku",
+                "Upraviť bunku",
                 f"Nová hodnota pre '{col_name}'",
                 initialvalue=int(old),
                 parent=root
             )
         else:
             new = askfloat_locale(
-                "Upravit bunku",
+                "Upraviť bunku",
                 f"Nová hodnota pre '{col_name}'",
                 initialvalue=old,
                 parent=root
@@ -1469,7 +1357,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             if col_name == "pocet_prace" and basket.items[section_name][prod].sync:
                 messagebox.showinfo(
                     "Synchronizácia",
-                    "Pocet práce je synchronizovaný s poctom materiálu.\nVypnite Sync pre úpravu.",
+                    "Počet práce je synchronizovaný s počtom materiálu.\nVypnite Sync pre úpravu.",
                 )
                 return
             dtype = "int"
@@ -1550,7 +1438,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         lambda e: _drag.update({"item": None})
     )
 
-    # --- Grand Total Label (“Spolu: …”) -----------------------------------
+    # ─── Grand Total Label (“Spolu: …”) ───────────────────────────────────
     total_frame = tk.Frame(basket_frame)
     total_frame.pack(fill="x", pady=(2, 0))
     total_spolu_var = tk.StringVar(value=f"Spolu: {format_currency(0)}")
@@ -1566,9 +1454,9 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         side="right", padx=10
     )
 
-    # --- Notes button -----------------------------------------------------
+    # ─── Notes button ─────────────────────────────────────────────────────
 
-    # --- Buttons Row: Remove, Add, Export (left) and Coeff Buttons (right) -
+    # ─── Buttons Row: Remove, Add, Export (left) and Coeff Buttons (right) ─
     btn_container = tk.Frame(basket_frame)
     btn_container.pack(fill="x", pady=5)
 
@@ -1580,7 +1468,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     remove_btn = tb.Button(
         left_btn_frame,
-        text="Odstránit",
+        text="Odstrániť",
         bootstyle="danger-outline",
         command=lambda: (
             remove_from_basket(basket_tree, basket),
@@ -1656,7 +1544,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     add_custom_btn = tb.Button(
         left_btn_frame,
-        text="Pridat",
+        text="Pridať",
         bootstyle="primary-outline",
         command=lambda: add_custom_item(
             basket_tree,
@@ -1703,14 +1591,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     exportCPINT_btn = tb.Button(
         left_btn_frame,
-        text="Exportovat CP INT",
+        text="Exportovať CP INT",
         bootstyle="success",
         command=export_with_progress
     )
     exportCPINT_btn.pack(side="left", padx=(0, 10))
     def export_simple_excel_from_basket(basket, project_name, definicia_text=""):
         if not basket.items:
-            messagebox.showwarning("Košík je prázdny", "? Nie sú vybraté žiadne položky na export.")
+            messagebox.showwarning("Košík je prázdny", "⚠ Nie sú vybraté žiadne položky na export.")
             return
 
         excel_data = []
@@ -1734,7 +1622,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     exportCP_btn = tb.Button(
         left_btn_frame,
-        text="Exportovat CP",
+        text="Exportovať CP",
         bootstyle="success",
         command=lambda: export_simple_excel_from_basket(
             basket,
@@ -1746,7 +1634,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     exportVV_btn = tb.Button(
         left_btn_frame,
-        text="Exportovat Vv",
+        text="Exportovať Vv",
         bootstyle="success",
         command=lambda: export_vv(
             [
@@ -1794,16 +1682,16 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 from presets_window import _save_preset_from_basket, _load_logged_in_user_id
                 uid = _load_logged_in_user_id(conn, db_type)
                 if uid is None:
-                    messagebox.showerror("Chyba", "Neviem urcit user_id.")
+                    messagebox.showerror("Chyba", "Neviem určiť user_id.")
                     return
                 pid = _save_preset_from_basket(conn, db_type, name.strip(), uid, basket)
                 messagebox.showinfo("OK", f"Preset '{name}' uložený (ID {pid}).")
             except Exception as e:
-                messagebox.showerror("Chyba", f"Nepodarilo sa uložit preset:\n{e}")
+                messagebox.showerror("Chyba", f"Nepodarilo sa uložiť preset:\n{e}")
 
         save_preset_btn = tb.Button(
             left_btn_frame,
-            text="Uložit ako preset",
+            text="Uložiť ako preset",
             bootstyle="success",
             command=save_as_preset_action,
         )
@@ -1906,9 +1794,9 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         ),
     )
     coeff_rev_work_btn.pack(side="left")
-    # --------------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────────
 
-    # --- Initialize basket state ------------------------------------------
+    # ─── Initialize basket state ──────────────────────────────────────────
     basket = Basket()
     basket_items_loaded, saved, _ = load_basket(json_dir, project_name, file_path=commit_file)
     for sec, prods in basket_items_loaded.items():
@@ -1949,10 +1837,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     except Exception:
         pass
 
-    # --- Initial filtering of DB results ---------------------------------
+    # ─── Initial filtering of DB results ─────────────────────────────────
     refresh_db_results()
 
-    # --- Ensure basket columns display matches checkboxes ---
+    # ─── Ensure basket columns display matches checkboxes ───
     def update_displayed_columns():
         visible = [col for col, var in column_vars.items() if var.get()]
         if not visible:
@@ -1965,7 +1853,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     update_displayed_columns()
 
-    # --- Settings window for basket visibility ----------------------------
+    # ─── Settings window for basket visibility ────────────────────────────
     settings_window = [None]
 
     def open_settings_old():
@@ -2001,8 +1889,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
         label_font = ("Segoe UI", 10, "bold")
 
-        # --- Stlpce databázy ------------------------------------------------
-        tk.Label(inner, text="Stlpce databázy", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(5, 0))
+        # --- Stĺpce databázy ------------------------------------------------
+        tk.Label(inner, text="Stĺpce databázy", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(5, 0))
         db_chk_frame = tk.Frame(inner, bg="white")
         db_chk_frame.pack(anchor="w", padx=20, pady=(0, 10))
 
@@ -2019,16 +1907,16 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             c = idx % db_cols_per_row
             chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
-        # --- Zobrazenie databázy (Tabulka/Karty) ---------------------------
+        # --- Zobrazenie databázy (Tabuľka/Karty) ---------------------------
         tk.Label(inner, text="Zobrazenie databázy:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         view_frame = tk.Frame(inner, bg="white")
         view_frame.pack(anchor="w", padx=20, pady=(0, 10))
         db_view_mode_var = tk.StringVar(value=db_view_mode[0])
-        tk.Radiobutton(view_frame, text="Tabulka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
+        tk.Radiobutton(view_frame, text="Tabuľka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
         tk.Radiobutton(view_frame, text="Karty", value="cards", variable=db_view_mode_var, bg="white").pack(side="left")
 
-        # --- Zobrazit stlpce (Košík) ---------------------------------------
-        tk.Label(inner, text="Zobrazit stlpce:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        # --- Zobraziť stĺpce (Košík) ---------------------------------------
+        tk.Label(inner, text="Zobraziť stĺpce:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         basket_chk_frame = tk.Frame(inner, bg="white")
         basket_chk_frame.pack(anchor="w", padx=20, pady=(0, 10))
 
@@ -2045,8 +1933,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             c = idx % basket_cols_per_row
             chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
 
-        # --- Velkost textu tabuliek ----------------------------------------
-        tk.Label(inner, text="Velkost textu tabuliek:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        # --- Veľkosť textu tabuliek ----------------------------------------
+        tk.Label(inner, text="Veľkosť textu tabuliek:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         font_frame = tk.Frame(inner, bg="white")
         font_frame.pack(anchor="w", padx=20, pady=(0, 10))
 
@@ -2059,7 +1947,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         area_frame = tk.Frame(inner, bg="white")
         area_frame.pack(anchor="w", padx=20, pady=(0, 10))
 
-        # Validácia císla (podporí aj ciarku)
+        # Validácia čísla (podporí aj čiarku)
         def _validate_area(P):
             if P.strip() == "":
                 return True
@@ -2077,7 +1965,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             from_=0.0,
             to=1_000_000.0,
             increment=1.0,
-            textvariable=area_var,   # <-- zdielaná premená
+            textvariable=area_var,   # <-- zdieľaná premená
             width=10,
             validate="key",
             validatecommand=vcmd
@@ -2085,7 +1973,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         area_spin.pack(side="left", padx=5)
         tk.Label(area_frame, text="m²", bg="white").pack(side="left", padx=(6, 0))
 
-        # --- Tlacidlo Uložit ------------------------------------------------
+        # --- Tlačidlo Uložiť ------------------------------------------------
         btn_frame = tk.Frame(inner, bg="white")
         btn_frame.pack(pady=15)
 
@@ -2138,7 +2026,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
         save_btn = tk.Button(
             btn_frame,
-            text="?? Uložit",
+            text="💾 Uložiť",
             command=close_settings,
             bg="#007BFF",
             fg="white",
@@ -2226,8 +2114,6 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         tk.Radiobutton(view_frame, text="Tabulka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
         tk.Radiobutton(view_frame, text="Karty", value="cards", variable=db_view_mode_var, bg="white").pack(side="left")
 
-        # Manual UI profile selection removed; always auto-detected
-
         # Basket columns
         tk.Label(inner, text="Zobrazit stlpce:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         basket_chk_frame = tk.Frame(inner, bg="white")
@@ -2291,7 +2177,6 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 _st["area_m2"] = float(str(area_var.get()).replace(",", "."))
             except Exception:
                 pass
-            # Do not persist manual UI profile; option removed
             _save_ui_settings(_st)
             settings_window[0] = None
             try:
@@ -2327,7 +2212,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         except Exception:
             pass
 
-    # -- REPLACE the old DB-double-click binding with this new one -------------
+    # ── REPLACE the old DB-double-click binding with this new one ─────────────
     def on_db_double_click(event):
         """
         Called when the user double-clicks a row in the main DB Treeview (`tree`):
@@ -2355,9 +2240,9 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     tree.bind("<Double-1>", on_db_double_click)
     """tree.bind("<Button-3>", on_db_right_click)"""
-    # ---------------------------------------------------------------------------
+    # ───────────────────────────────────────────────────────────────────────────
 
-    # --- Handle window close (“X”) ----------------------------------------
+    # ─── Handle window close (“X”) ────────────────────────────────────────
     def _return_to_selector_or_exit():
         """Close all windows and exit without returning to Project Selector."""
         # Close our windows to let Tk mainloop exit even if a hidden master exists
@@ -2376,8 +2261,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     def on_closing():
         resp = tk.messagebox.askyesnocancel(
-            "Uložit zmeny?",
-            "Chceš uložit zmeny pred zatvorením košíka?"
+            "Uložiť zmeny?",
+            "Chceš uložiť zmeny pred zatvorením košíka?"
         )
         if resp is None:
             return  # Cancel
@@ -2385,7 +2270,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             _return_to_selector_or_exit()
             return
 
-        # Ak sa nic nemenilo, neukladaj nový súbor
+        # Ak sa nič nemenilo, neukladaj nový súbor
         if not basket_modified[0]:
             _return_to_selector_or_exit()
             return
@@ -2393,7 +2278,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         reorder_basket_data(basket_tree, basket)
         default_base = "basket"
         fname = tk.simpledialog.askstring(
-            "Košík — Uložit ako",
+            "Košík — Uložiť ako",
             "Zadaj názov súboru (bez prípony):",
             initialvalue=default_base,
             parent=root
@@ -2408,7 +2293,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         if os.path.exists(fullpath):
             if not tk.messagebox.askyesno(
                 "Prepis existujúceho súboru?",
-                f"“{filename}” už existuje. Chceš ho prepísat?"
+                f"“{filename}” už existuje. Chceš ho prepísať?"
             ):
                 return
 
@@ -2429,7 +2314,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             notes_history = []
         notes_history.append(history_entry)
 
-        # autor len ak sa nieco editovalo
+        # autor len ak sa niečo editovalo
         user = globals().get("CURRENT_USER", {}) or {}
         meno_u = user.get("meno", "")
         priezvisko_u = user.get("priezvisko", "")
@@ -2473,7 +2358,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             out["items"].append(sec_obj)
 
         try:
-            # uložit iba nový archívny súbor s autorom
+            # uložiť iba nový archívny súbor s autorom
             secure_save_json(fullpath, out)
 
             # commit_file prepíš BEZ autora a user údajov
@@ -2499,7 +2384,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         except Exception as e:
             messagebox.showerror(
                 "Chyba pri ukladaní",
-                f"Nepodarilo sa uložit súbor:\n{e}"
+                f"Nepodarilo sa uložiť súbor:\n{e}"
             )
             return
 
@@ -2517,7 +2402,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 subprocess.Popen([sys.executable, selector_path],
                                  cwd=os.path.dirname(selector_path) or None)
         except Exception as e:
-            messagebox.showerror("Chyba", f"Nepodarilo sa spustit Project Selector:\n{e}")
+            messagebox.showerror("Chyba", f"Nepodarilo sa spustiť Project Selector:\n{e}")
 
 
 
@@ -2531,7 +2416,6 @@ if __name__ == "__main__":
     project_dir = sys.argv[1]
     json_path   = sys.argv[2]
     start(project_dir, json_path)
-
 
 
 
