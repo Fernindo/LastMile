@@ -177,13 +177,19 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # --- DPI / Scaling fix for packaged app ---
     # Calibrate Tk scaling to real DPI; enforce a minimum of 1.25
     try:
-        scale = float(calibrate_tk_scaling(root))
+        calibrate_tk_scaling(root)
     except Exception:
-        scale = 1.25
+        pass
+
+    screen_w = root.winfo_screenwidth()
+    base_w = 1600
+    # Enforce minimum 1.25 so buttons/fonts don’t shrink in packaged app
+    scale = max(1.25, min(1.5, screen_w / base_w))
+    root.tk.call("tk", "scaling", scale)
 
     try:
-        # Smaller baseline font for the overall UI
-        apply_ttk_base_font(style, family="Segoe UI", size=int(9 * scale))
+        # Slightly larger baseline font so buttons look consistent
+        apply_ttk_base_font(style, family="Segoe UI", size=int(11 * scale))
     except Exception:
         pass
     # If the Tk root already has widgets (e.g., login UI packed),
@@ -216,21 +222,21 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # No additional tk scaling adjustments here; 'scale' is already set
 
     ui_settings = _load_ui_settings()
-    # Default to a smaller table font; users can still adjust in Settings
-    font_size_var = [int(ui_settings.get("table_font_size", int(9 * scale)))]
-    row_h = int(2.1 * font_size_var[0])
+    # Use a fixed table font size derived from scale (no user override)
+    table_font_size = int(11 * scale)
+    row_h = int(2.4 * table_font_size)
+
     try:
         _area_default = float(ui_settings.get("area_m2", 0.0))
     except Exception:
         _area_default = 0.0
     area_var = tk.DoubleVar(value=_area_default)
+    # Legacy: keep a fixed font size var to satisfy any older references
+    font_size_var = [12]
 
-    style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
-    style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
-    try:
-        apply_ttk_base_font(style, family="Segoe UI", size=font_size_var[0])
-    except Exception:
-        pass
+    style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", table_font_size))
+    style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", table_font_size))
+    # Keep base font fixed; no user-configurable font size
     root.title(f"Project: {project_name}")
     try:
         root.state("zoomed")
@@ -1850,7 +1856,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # ─── Settings window for basket visibility ────────────────────────────
     settings_window = [None]
 
-    def open_settings():
+    def open_settings_old():
         if settings_window[0] and settings_window[0].winfo_exists():
             settings_window[0].focus()
             return
@@ -2048,7 +2054,163 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
 
 
-        
+
+
+    # Override settings window to remove font-size controls entirely
+    def open_settings():
+        if settings_window[0] and settings_window[0].winfo_exists():
+            settings_window[0].focus()
+            return
+
+        settings_win = tk.Toplevel(root)
+        settings_window[0] = settings_win
+        settings_win.title("Nastavenia")
+        settings_win.geometry("1200x600")
+        settings_win.resizable(True, True)
+        try:
+            settings_win.transient(root)
+            settings_win.grab_set()
+            settings_win.focus_set()
+        except Exception:
+            pass
+
+        container = tk.Frame(settings_win, bg="white")
+        container.pack(fill="both", expand=True, padx=10, pady=10)
+
+        canvas = tk.Canvas(container, bg="white", highlightthickness=0)
+        h_scroll = tk.Scrollbar(container, orient="horizontal", command=canvas.xview)
+        canvas.configure(xscrollcommand=h_scroll.set)
+
+        inner = tk.Frame(canvas, bg="white")
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.pack(fill="both", expand=True)
+        h_scroll.pack(side="bottom", fill="x")
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+
+        label_font = ("Segoe UI", 10, "bold")
+
+        # DB columns
+        tk.Label(inner, text="Stlpce databazy", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(5, 0))
+        db_chk_frame = tk.Frame(inner, bg="white")
+        db_chk_frame.pack(anchor="w", padx=20, pady=(0, 10))
+        db_cols_per_row = 8
+        for idx, col in enumerate(db_columns):
+            chk = tk.Checkbutton(
+                db_chk_frame,
+                text=col.capitalize(),
+                variable=db_column_vars[col],
+                command=update_displayed_db_columns,
+                bg="white",
+            )
+            r = idx // db_cols_per_row
+            c = idx % db_cols_per_row
+            chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
+
+        # DB view mode
+        tk.Label(inner, text="Zobrazenie databazy:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        view_frame = tk.Frame(inner, bg="white")
+        view_frame.pack(anchor="w", padx=20, pady=(0, 10))
+        db_view_mode_var = tk.StringVar(value=db_view_mode[0])
+        tk.Radiobutton(view_frame, text="Tabulka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
+        tk.Radiobutton(view_frame, text="Karty", value="cards", variable=db_view_mode_var, bg="white").pack(side="left")
+
+        # Basket columns
+        tk.Label(inner, text="Zobrazit stlpce:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        basket_chk_frame = tk.Frame(inner, bg="white")
+        basket_chk_frame.pack(anchor="w", padx=20, pady=(0, 10))
+        basket_cols_per_row = 8
+        for idx, col in enumerate(basket_columns):
+            chk = tk.Checkbutton(
+                basket_chk_frame,
+                text=col.capitalize(),
+                variable=column_vars[col],
+                command=update_displayed_columns,
+                bg="white",
+            )
+            r = idx // basket_cols_per_row
+            c = idx % basket_cols_per_row
+            chk.grid(row=r, column=c, sticky="w", padx=5, pady=2)
+
+        # Area (m2)
+        tk.Label(inner, text="Plocha (m2):", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        area_frame = tk.Frame(inner, bg="white")
+        area_frame.pack(anchor="w", padx=20, pady=(0, 10))
+        def _validate_area(P):
+            if P.strip() == "":
+                return True
+            try:
+                float(P.replace(",", "."))
+                return True
+            except ValueError:
+                return False
+        vcmd = (settings_win.register(_validate_area), "%P")
+        area_spin = tk.Spinbox(
+            area_frame,
+            from_=0.0,
+            to=1_000_000.0,
+            increment=1.0,
+            textvariable=area_var,
+            width=10,
+            validate="key",
+            validatecommand=vcmd
+        )
+        area_spin.pack(side="left", padx=5)
+        tk.Label(area_frame, text="m2", bg="white").pack(side="left", padx=(6, 0))
+
+        # Save
+        btn_frame = tk.Frame(inner, bg="white")
+        btn_frame.pack(pady=15)
+        def close_settings():
+            update_displayed_columns()
+            try:
+                db_view_mode[0] = db_view_mode_var.get()
+                if db_visible[0]:
+                    _show_current_db_view()
+            except Exception:
+                pass
+            try:
+                _st = _load_ui_settings() or {}
+            except Exception:
+                _st = {}
+            _st["db_view_mode"] = db_view_mode[0]
+            try:
+                _st["area_m2"] = float(str(area_var.get()).replace(",", "."))
+            except Exception:
+                pass
+            _save_ui_settings(_st)
+            settings_window[0] = None
+            try:
+                settings_win.grab_release()
+            except Exception:
+                pass
+            try:
+                settings_win.destroy()
+            except Exception:
+                pass
+        save_btn = tk.Button(
+            btn_frame,
+            text="Ulozit",
+            command=close_settings,
+            bg="#007BFF",
+            fg="white",
+            font=("Segoe UI", 10, "bold"),
+            padx=15,
+            pady=5
+        )
+        save_btn.pack()
+        settings_win.protocol("WM_DELETE_WINDOW", close_settings)
+        def _prevent_iconify(_e=None):
+            try:
+                if settings_win.state() == "iconic":
+                    settings_win.deiconify()
+                    settings_win.lift()
+                    settings_win.focus_force()
+            except Exception:
+                pass
+        try:
+            settings_win.bind("<Unmap>", _prevent_iconify)
+        except Exception:
+            pass
 
     # ── REPLACE the old DB-double-click binding with this new one ─────────────
     def on_db_double_click(event):
@@ -2082,35 +2244,20 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     # ─── Handle window close (“X”) ────────────────────────────────────────
     def _return_to_selector_or_exit():
-        """Always relaunch Project Selector in a fresh process and close this process cleanly."""
+        """Close all windows and exit without returning to Project Selector."""
+        # Close our windows to let Tk mainloop exit even if a hidden master exists
         try:
-            # Start selector as a separate process so its fonts/styles are independent
-            try:
-                selector_path = os.path.join(os.path.dirname(__file__), "project_selector.py")
-                if os.path.isfile(selector_path):
-                    subprocess.Popen([sys.executable, selector_path],
-                                     cwd=os.path.dirname(selector_path) or None)
-                else:
-                    # Fallback: try in-process launch (should rarely be needed)
-                    try:
-                        import project_selector
-                        master.after(0, lambda: project_selector.main(parent=None))
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-        finally:
-            # Close our windows to let Tk mainloop exit even if a hidden master exists
-            try:
-                root.destroy()
-            except Exception:
-                pass
-            try:
-                # If there is a separate master (e.g., hidden login root), destroy it too
-                if master is not root:
-                    master.destroy()
-            except Exception:
-                pass
+            root.destroy()
+        except Exception:
+            pass
+        try:
+            # If there is a separate master (e.g., hidden login root), destroy it too
+            if master is not root:
+                master.destroy()
+        except Exception:
+            pass
+        # Do not relaunch Project Selector here and do not exit the process.
+        # Let callers decide next steps (e.g., 'Back to archive' may spawn it).
 
     def on_closing():
         resp = tk.messagebox.askyesnocancel(
