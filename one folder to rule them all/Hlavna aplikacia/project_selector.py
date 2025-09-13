@@ -355,13 +355,27 @@ def main(parent=None):
         except Exception:
             pass
         root.title("Projects Home")
-        # Slightly smaller default geometry
-        root.geometry("1000x700")
+        # Dynamic geometry based on screen size (centers window)
         try:
-            root.minsize(900, 600)
+            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+            margin = 80
+            # Scale window relative to screen with sane bounds
+            target_w = int(min(max(int(sw * 0.75), 900), sw - margin))
+            target_h = int(min(max(int(sh * 0.75), 600), sh - margin))
+            x = max(0, (sw - target_w) // 2)
+            y = max(0, (sh - target_h) // 2)
+            root.geometry(f"{target_w}x{target_h}+{x}+{y}")
+            # Allow resizing, but ensure minimum fits smaller displays
+            root.minsize(min(900, sw - margin), min(600, sh - margin))
             root.resizable(True, True)
         except Exception:
-            pass
+            # Fallback geometry if anything goes wrong
+            root.geometry("1000x700")
+            try:
+                root.minsize(900, 600)
+                root.resizable(True, True)
+            except Exception:
+                pass
         owns_root = True
     else:
         # Create a child window on the existing Tk root
@@ -385,13 +399,24 @@ def main(parent=None):
         except Exception:
             pass
         root.title("Projects Home")
-        # Child window a bit taller as well
-        root.geometry("1024x700")
+        # Dynamic geometry for child window as well
         try:
-            root.minsize(900, 600)
+            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+            margin = 80
+            target_w = int(min(max(int(sw * 0.75), 900), sw - margin))
+            target_h = int(min(max(int(sh * 0.75), 600), sh - margin))
+            x = max(0, (sw - target_w) // 2)
+            y = max(0, (sh - target_h) // 2)
+            root.geometry(f"{target_w}x{target_h}+{x}+{y}")
+            root.minsize(min(900, sw - margin), min(600, sh - margin))
             root.resizable(True, True)
         except Exception:
-            pass
+            root.geometry("1024x700")
+            try:
+                root.minsize(900, 600)
+                root.resizable(True, True)
+            except Exception:
+                pass
         owns_root = False
         # Closing the selector should close the whole app
         try:

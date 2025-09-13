@@ -192,8 +192,25 @@ class LoginApp:
         self.no_launch = no_launch
 
         root.title(APP_TITLE)
-        root.geometry("420x200")
-        root.resizable(False, False)
+        # Dynamic geometry based on screen size (centers window)
+        try:
+            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+            margin = 80
+            # Target size scales with screen, within sensible bounds
+            target_w = int(min(max(int(sw * 0.28), 420), sw - margin))
+            target_h = int(min(max(int(sh * 0.24), 220), sh - margin))
+            x = max(0, (sw - target_w) // 2)
+            y = max(0, (sh - target_h) // 2)
+            root.geometry(f"{target_w}x{target_h}+{x}+{y}")
+            # Keep non-resizable login as before, but ensure it always fits
+            root.resizable(False, False)
+        except Exception:
+            # Fallback to previous fixed size
+            root.geometry("420x200")
+            try:
+                root.resizable(False, False)
+            except Exception:
+                pass
 
         self.var_username = tk.StringVar()
         self.var_password = tk.StringVar()
