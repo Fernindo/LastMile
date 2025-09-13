@@ -1,0 +1,1 @@
+python -m nuitka login.py ^ --standalone --onefile ^ --enable-plugin=tk-inter ^ --include-package-data=ttkbootstrap ^  ^ --windows-console-mode=disable ^ --output-dir=build
