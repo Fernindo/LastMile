@@ -181,17 +181,30 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     except Exception:
         pass
 
+    # Resolution-based scaling
     screen_w = root.winfo_screenwidth()
     base_w = 1600
-    # Enforce minimum 1.25 so buttons/fonts don’t shrink in packaged app
-    scale = max(1.25, min(1.5, screen_w / base_w))
+    res_scale = screen_w / base_w
+
+    # Get current DPI scaling (set by calibrate_tk_scaling / system settings)
+    try:
+        dpi_scale = float(root.tk.call("tk", "scaling"))
+    except Exception:
+        dpi_scale = 1.0
+
+    # Combine both
+    scale = min(1.5, res_scale * dpi_scale)
+
+    # Apply final scaling
     root.tk.call("tk", "scaling", scale)
 
+
+    """
     try:
         # Slightly larger baseline font so buttons look consistent
         apply_ttk_base_font(style, family="Segoe UI", size=int(11 * scale))
     except Exception:
-        pass
+        pass"""
     # If the Tk root already has widgets (e.g., login UI packed),
     # create a separate Toplevel as our container to avoid mixing
     # geometry managers on the same master.
@@ -223,8 +236,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     ui_settings = _load_ui_settings()
     # Use a fixed table font size derived from scale (no user override)
-    table_font_size = int(11 * scale)
-    row_h = int(2.4 * table_font_size)
+    table_font_size = 11
+    row_h = 26
 
     try:
         _area_default = float(ui_settings.get("area_m2", 0.0))
@@ -382,7 +395,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     filter_toggle_btn = tk.Button(
         toggle_filter_container,
         text="▶",
-        font=("Segoe UI", int(12 * scale), "bold"),
+        font=("Segoe UI", 10 , "bold"),
         
         
         bg="#e0e0e0",
@@ -509,8 +522,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
 
     tk.Label(top, text="Vyhľadávanie:").pack(side="left", padx=(20, 5))
-    name_entry = tk.Entry(top, width=30)
-    name_entry.pack(side="left")
+    name_entry = tk.Entry(top)
+    name_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
     filter_job = [None]
 
     def on_name_change(event=None):
@@ -524,14 +537,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     name_entry.bind("<KeyRelease>", on_name_change)
 
     tk.Label(top, text="Objekt:").pack(side="left", padx=(30, 5))
-    project_entry = tk.Entry(top, width=40)
+    project_entry = tk.Entry(top)
     project_entry.insert(0, project_name)
-    project_entry.pack(side="left")
+    project_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
     tk.Label(top, text="Systémy:").pack(side="left", padx=(20, 5))
-    definition_entry = tk.Entry(top, width=50)
+    definition_entry = tk.Entry(top)
     definition_entry.insert(0, "")
-    definition_entry.pack(side="left")
+    definition_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
     # Slightly enlarge labels for Vyhladavanie / Systémy / Objekt
     try:
@@ -1988,10 +2001,11 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", font_size_var[0]))
             # Do not change global Tk font; keep top search bar static
+            """
             try:
                 apply_ttk_base_font(style, family="Segoe UI", size=font_size_var[0])
             except Exception:
-                pass
+                pass"""
 
             # režim DB zobrazenia
             try:
