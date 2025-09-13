@@ -30,22 +30,18 @@ def show_presets_window():
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
-# --- UI profile helpers (13" / 27" / auto) ---------------------------------
+# Global scale multiplier for Project Selector UI.
+# Increase (>1.0) to make items larger; e.g. 1.15 = +15%.
+project_scale = 1.4
+
+# --- UI profile helpers (auto-detected only) --------------------------------
 def _get_ui_profile(root: tk.Misc) -> str:
+    # Always auto-detect based on screen width; manual options removed
     try:
-        st = load_settings() or {}
-        prof = str(st.get("ui_profile", "auto")).strip().lower()
+        sw = int(root.winfo_screenwidth())
     except Exception:
-        prof = "auto"
-    if prof not in ("auto", "13", "27"):
-        prof = "auto"
-    if prof == "auto":
-        try:
-            sw = int(root.winfo_screenwidth())
-        except Exception:
-            sw = 1920
-        return "27" if sw >= 2300 else "13"
-    return prof
+        sw = 1920
+    return "27" if sw >= 2300 else "13"
 
 def _profile_scale(profile: str, root: tk.Misc) -> float:
     if profile == "27":
@@ -367,6 +363,10 @@ def main(parent=None):
         ui_profile = _get_ui_profile(root)
         scale = _profile_scale(ui_profile, root)
         try:
+            scale = float(scale) * float(project_scale)
+        except Exception:
+            pass
+        try:
             root.tk.call("tk", "scaling", float(scale))
         except Exception:
             pass
@@ -375,13 +375,44 @@ def main(parent=None):
             apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
         except Exception:
             pass
-        # Make ttk buttons a bit more compact (reduce padding)
+        # Make ttk buttons scale with the global scale; keep 13" compact baseline
         try:
-            for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
-                try:
-                    # Compact buttons only for 13" profile
-                    if ui_profile == "13":
+            if ui_profile == "13":
+                for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
+                    try:
                         style.configure(_btn_style, padding=(6, 3))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        try:
+            pad_x = max(10, int(12 * float(scale)))
+            pad_y = max(6, int(6 * float(scale)))
+            btn_font_size = max(11, int(2 * float(scale)))
+            _btn_styles = (
+                "TButton",
+                "primary.TButton",
+                "secondary.TButton",
+                "success.TButton",
+                "danger.TButton",
+                "info.TButton",
+                "warning.TButton",
+                "light.TButton",
+                "primary.Outline.TButton",
+                "secondary.Outline.TButton",
+                "success.Outline.TButton",
+                "danger.Outline.TButton",
+                "info.Outline.TButton",
+                "warning.Outline.TButton",
+                "light.Outline.TButton",
+                # Menubutton styles for user menu
+                "TMenubutton",
+                "primary.TMenubutton",
+                "secondary.TMenubutton",
+            )
+            for _s in _btn_styles:
+                try:
+                    style.configure(_s, padding=(pad_x, pad_y), font=("Segoe UI", btn_font_size))
                 except Exception:
                     pass
         except Exception:
@@ -428,6 +459,10 @@ def main(parent=None):
             ui_profile = _get_ui_profile(root)
             scale = _profile_scale(ui_profile, root)
             try:
+                scale = float(scale) * float(project_scale)
+            except Exception:
+                pass
+            try:
                 root.tk.call("tk", "scaling", float(scale))
             except Exception:
                 pass
@@ -441,6 +476,37 @@ def main(parent=None):
                         style.configure(_btn_style, padding=(6, 3))
                 except Exception:
                     pass
+            try:
+                pad_x = max(10, int(12 * float(scale)))
+                pad_y = max(6, int(6 * float(scale)))
+                btn_font_size = max(11, int(12 * float(scale)))
+                _btn_styles = (
+                    "TButton",
+                    "primary.TButton",
+                    "secondary.TButton",
+                    "success.TButton",
+                    "danger.TButton",
+                    "info.TButton",
+                    "warning.TButton",
+                    "light.TButton",
+                    "primary.Outline.TButton",
+                    "secondary.Outline.TButton",
+                    "success.Outline.TButton",
+                    "danger.Outline.TButton",
+                    "info.Outline.TButton",
+                    "warning.Outline.TButton",
+                    "light.Outline.TButton",
+                    "TMenubutton",
+                    "primary.TMenubutton",
+                    "secondary.TMenubutton",
+                )
+                for _s in _btn_styles:
+                    try:
+                        style.configure(_s, padding=(pad_x, pad_y), font=("Segoe UI", btn_font_size))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         except Exception:
             pass
         root.title("Projects Home")
@@ -784,8 +850,12 @@ def main(parent=None):
     body.pack(fill="both", expand=True)
 
     left = tb.Labelframe(body, text="Projects", padding=8)
-    # Slimmer left panel for projects list
-    left.config(width=300)
+    # Make the left projects column slightly thinner
+    try:
+        _left_w = max(260, int(300 * float(scale)))
+    except Exception:
+        _left_w = 300
+    left.config(width=_left_w)
     left.pack_propagate(False)
     left.pack(side="left", fill="y", padx=(0, 12))
     tb.Label(left, text="Filter:").pack(anchor="w")
@@ -805,6 +875,14 @@ def main(parent=None):
     create_btn.pack(fill="x")
     delete_btn = tb.Button(proj_btns, text="Delete Project", bootstyle="danger")
     delete_btn.pack(fill="x", pady=(6, 0))
+    # Slightly enlarge the create/delete buttons (padding scale-aware)
+    try:
+        _bx = max(8, int(10 * float(scale)))
+        _by = max(4, int(6 * float(scale)))
+        create_btn.configure(padding=(_bx, _by))
+        delete_btn.configure(padding=(_bx, _by))
+    except Exception:
+        pass
 
     archive_list = tk.Listbox(right)
     archive_list.pack(fill="both", expand=True)
