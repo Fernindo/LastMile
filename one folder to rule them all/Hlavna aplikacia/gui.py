@@ -34,10 +34,7 @@ from helpers import (
     create_filter_panel,
     askfloat_locale,
     format_currency,
-    enable_high_dpi_awareness,
-    calibrate_tk_scaling,
     apply_ttk_base_font,
-    
 )
 from exportVv import export_vv
 from exportCp import export_cp
@@ -166,30 +163,12 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         except Exception as e:
             messagebox.showerror("Admin", f"Nepodarilo sa spustiť Admin panel:\n{e}")
     # ─── Create main window via ttkbootstrap ─────────────────────────────
-    try:
-        enable_high_dpi_awareness()
-    except Exception:
-        pass
     style = Style(theme="litera")
     master = style.master  # underlying Tk root (may already host other UI)
-    root  = master
-
-    # --- DPI / Scaling fix for packaged app ---
-    # Calibrate Tk scaling to real DPI; enforce a minimum of 1.25
-    try:
-        calibrate_tk_scaling(root)
-    except Exception:
-        pass
-
-    screen_w = root.winfo_screenwidth()
-    base_w = 1600
-    # Enforce minimum 1.25 so buttons/fonts don’t shrink in packaged app
-    scale = max(1.25, min(1.5, screen_w / base_w))
-    root.tk.call("tk", "scaling", scale)
+    root = master
 
     try:
-        # Slightly larger baseline font so buttons look consistent
-        apply_ttk_base_font(style, family="Segoe UI", size=int(11 * scale))
+        apply_ttk_base_font(style, family="Segoe UI", size=11)
     except Exception:
         pass
     # If the Tk root already has widgets (e.g., login UI packed),
@@ -217,13 +196,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         relief="flat"
     )
 
-    # scaling already calibrated; avoid additional screen-width based scaling
-
-    # No additional tk scaling adjustments here; 'scale' is already set
-
     ui_settings = _load_ui_settings()
-    # Use a fixed table font size derived from scale (no user override)
-    table_font_size = int(11 * scale)
+    table_font_size = 11
     row_h = int(2.4 * table_font_size)
 
     try:
@@ -238,11 +212,11 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", table_font_size))
     # Keep base font fixed; no user-configurable font size
     root.title(f"Project: {project_name}")
+    root.geometry("1200x800")
     try:
-        root.state("zoomed")
+        root.resizable(False, False)
     except Exception:
         pass
-    # Keep global Tk font unchanged to avoid scaling search bar
 
     root.grid_rowconfigure(0, weight=1)
     # Start with the filter hidden so the main area spans the full width
@@ -382,7 +356,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     filter_toggle_btn = tk.Button(
         toggle_filter_container,
         text="▶",
-        font=("Segoe UI", int(12 * scale), "bold"),
+        font=("Segoe UI", 12, "bold"),
         
         
         bg="#e0e0e0",
@@ -643,10 +617,19 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     )
     for c in db_columns:
         tree.heading(c, text=c.capitalize())
-        tree.column(c, anchor="center", stretch=True)
+        anchor = "w" if c == "produkt" else "center"
+        default_w = 220 if c == "produkt" else (200 if c == "odkaz" else 110)
+        tree.column(c, anchor=anchor, width=default_w, minwidth=80, stretch=False)
     tree.pack(fill="both", expand=True)
     tree_scroll_y.config(command=tree.yview)
     tree_scroll_x.config(command=tree.xview)
+
+    def update_displayed_db_columns():
+        visible = [col for col, var in db_column_vars.items() if var.get()]
+        if not visible:
+            visible = ["produkt"]
+            db_column_vars["produkt"].set(True)
+        tree.config(displaycolumns=visible)
 
     # ===== Alternate DB Views: Card grid + Split detail panel =====
     def _build_cards_view_container(parent):
@@ -935,45 +918,6 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     # No split view selection binding
 
-    def adjust_db_columns(event):
-        """Resize visible DB columns proportionally to the widget width."""
-        total = event.width
-        proportions = {
-            "produkt":             0.22,
-            "jednotky":            0.15,
-            "dodavatel":           0.12,
-            "odkaz":               0.20,
-            "koeficient_material": 0.10,
-            "nakup_materialu":     0.13,
-            "cena_prace":          0.08,
-            "koeficient_prace":    0.08,
-        }
-
-        visible = tree.cget("displaycolumns")
-        if isinstance(visible, str):
-            visible = (visible,)
-        total_pct = sum(proportions.get(col, 0) for col in visible)
-        if total_pct == 0:
-            total_pct = len(visible)
-
-        shrink = 0.75  # show DB columns a bit narrower
-
-        for col in visible:
-            pct = proportions.get(col, 1 / len(visible))
-            width = int(total * pct / total_pct * shrink)
-            tree.column(col, width=width, stretch=True)
-
-    def update_displayed_db_columns():
-        visible = [col for col, var in db_column_vars.items() if var.get()]
-        if not visible:
-            visible = ["produkt"]
-            db_column_vars["produkt"].set(True)
-        tree.config(displaycolumns=visible)
-        event = tk.Event()
-        event.width = tree.winfo_width()
-        adjust_db_columns(event)
-
-    tree.bind("<Configure>", adjust_db_columns)
 
     # ─── Basket Area ───────────────────────────────────────────────────────
     basket_frame = tb.Frame(main_frame, padding=5)
@@ -1080,7 +1024,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         # Estimate a width that fits the entire column name. Longer names get a
         # bit more room so the heading text isn't truncated.
         heading_width = max(150, len(c) * 8 + 30)
-        basket_tree.column(c, width=heading_width, anchor="center", stretch=True)
+        basket_tree.column(c, width=heading_width, anchor="center", stretch=False)
 
     basket_tree.grid(row=0, column=0, sticky="nsew")
     basket_scroll_y.grid(row=0, column=1, sticky="ns")
@@ -1088,24 +1032,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     basket_scroll_y.config(command=basket_tree.yview)
     basket_scroll_x.config(command=basket_tree.xview)
 
-    def adjust_basket_columns(event):
-        """Resize visible basket columns to fit within the widget width."""
-        total = event.width
-        section_width = 180  # width reserved for the "#0" section column
-        remaining = max(total - section_width, 0)
-
-        visible = basket_tree.cget("displaycolumns")
-        if isinstance(visible, str):
-            visible = (visible,)
-        if not visible:
-            return
-
-        per_col = int(remaining / len(visible)) if visible else remaining
-
-        for col in visible:
-            basket_tree.column(col, width=per_col, stretch=True)
-
-    basket_tree.bind("<Configure>", adjust_basket_columns)
+    # Fixed basket column widths; no dynamic adjustments
 
 
 
@@ -1865,7 +1792,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         settings_window[0] = settings_win
         settings_win.title("Nastavenia")
         settings_win.geometry("1200x600")
-        settings_win.resizable(True, True)
+        settings_win.resizable(False, False)
         # Make settings modal so it won't minimize on focus changes
         try:
             settings_win.transient(root)
@@ -2066,7 +1993,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         settings_window[0] = settings_win
         settings_win.title("Nastavenia")
         settings_win.geometry("1200x600")
-        settings_win.resizable(True, True)
+        settings_win.resizable(False, False)
         try:
             settings_win.transient(root)
             settings_win.grab_set()

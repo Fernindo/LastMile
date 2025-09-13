@@ -16,8 +16,6 @@ from helpers import (
     decrypt_string_if_encrypted,
     secure_load_config,
     secure_save_config,
-    enable_high_dpi_awareness,
-    calibrate_tk_scaling,
     apply_ttk_base_font,
 )
 
@@ -29,13 +27,6 @@ import gui
 
 
 
-
-
-# Ensure DPI awareness early (before any Tk roots are created)
-try:
-    enable_high_dpi_awareness()
-except Exception:
-    pass
 
 
 APP_TITLE = "Prihlásenie"
@@ -312,18 +303,9 @@ def main():
     style = tb.Style(theme="litera")
     root = style.master
 
-    # Ensure high-DPI awareness and calibrate Tk scaling consistently
-    try:
-        enable_high_dpi_awareness()
-    except Exception:
-        pass
-    try:
-        scale = float(calibrate_tk_scaling(root))
-    except Exception:
-        scale = 1.25
     try:
         # Smaller base font specifically for the login window
-        apply_ttk_base_font(style, family="Segoe UI", size=int(7 * scale))
+        apply_ttk_base_font(style, family="Segoe UI", size=7)
     except Exception:
         pass
 
