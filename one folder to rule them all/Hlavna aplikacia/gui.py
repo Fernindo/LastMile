@@ -12,6 +12,39 @@ from helpers import ensure_user_config, secure_load_json, secure_save_json
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
+# --- UI profile helpers -------------------------------------------------------
+# We support two explicit profiles ("13" and "27") and an "auto" mode.
+# The profile influences Tk scaling, base fonts, and some paddings.
+def _get_ui_profile(root: tk.Misc) -> str:
+    try:
+        st = _load_ui_settings() or {}
+        prof = str(st.get("ui_profile", "auto")).strip().lower()
+    except Exception:
+        prof = "auto"
+    if prof not in ("auto", "13", "27"):
+        prof = "auto"
+    if prof == "auto":
+        try:
+            sw = int(root.winfo_screenwidth())
+        except Exception:
+            sw = 1920
+        # Treat wider screens as 27"; otherwise 13" compact
+        return "27" if sw >= 2300 else "13"
+    return prof
+
+def _profile_scale(profile: str, root: tk.Misc) -> float:
+    # Chosen empirically: compact on 13", spacious on 27".
+    if profile == "27":
+        return 1.35
+    if profile == "13":
+        return 1.00
+    # Fallback to auto threshold if unknown
+    try:
+        sw = int(root.winfo_screenwidth())
+    except Exception:
+        sw = 1920
+    return 1.35 if sw >= 2300 else 1.00
+
 def _load_ui_settings():
     try:
         return secure_load_json(UI_SETTINGS_FILE, default={})
@@ -174,24 +207,36 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     master = style.master  # underlying Tk root (may already host other UI)
     root  = master
 
-    # --- DPI / Scaling fix for packaged app ---
-    # Calibrate Tk scaling to real DPI; enforce a minimum of 1.25
+    # --- DPI / Scaling with 13"/27" profiles ------------------------------
+    # Calibrate once to be DPI-aware, then apply our explicit profile scale.
     try:
         calibrate_tk_scaling(root)
     except Exception:
         pass
 
-    screen_w = root.winfo_screenwidth()
-    base_w = 1600
-    # Enforce minimum 1.25 so buttons/fonts don’t shrink in packaged app
-    scale = max(1.25, min(1.5, screen_w / base_w))
-    root.tk.call("tk", "scaling", scale)
-
+    ui_profile = _get_ui_profile(root)
+    scale = _profile_scale(ui_profile, root)
     try:
-        # Slightly larger baseline font so buttons look consistent
+        root.tk.call("tk", "scaling", float(scale))
+    except Exception:
+        pass
+
+    # Base font for ttk (labels/entries/treeview). Buttons left to theme size.
+    try:
         apply_ttk_base_font(style, family="Segoe UI", size=int(11 * scale))
     except Exception:
         pass
+
+    # Make buttons more compact on 13" so top bar fits better
+    if ui_profile == "13":
+        try:
+            for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton", "warning.TButton", "light.TButton"):
+                try:
+                    style.configure(_btn_style, padding=(6, 3))
+                except Exception:
+                    pass
+        except Exception:
+            pass
     # If the Tk root already has widgets (e.g., login UI packed),
     # create a separate Toplevel as our container to avoid mixing
     # geometry managers on the same master.
@@ -222,7 +267,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # No additional tk scaling adjustments here; 'scale' is already set
 
     ui_settings = _load_ui_settings()
-    # Use a fixed table font size derived from scale (no user override)
+    # Use a fixed table font size derived from profile scale
     table_font_size = int(11 * scale)
     row_h = int(2.4 * table_font_size)
 
@@ -2114,6 +2159,22 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         tk.Radiobutton(view_frame, text="Tabulka", value="table", variable=db_view_mode_var, bg="white").pack(side="left", padx=(0, 10))
         tk.Radiobutton(view_frame, text="Karty", value="cards", variable=db_view_mode_var, bg="white").pack(side="left")
 
+        # UI profile (13" / 27" / Auto)
+        try:
+            _st_now = _load_ui_settings() or {}
+        except Exception:
+            _st_now = {}
+        _cur_prof = str(_st_now.get("ui_profile", "auto")).strip().lower()
+        if _cur_prof not in ("auto", "13", "27"):
+            _cur_prof = "auto"
+        tk.Label(inner, text="UI profil:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
+        prof_frame = tk.Frame(inner, bg="white")
+        prof_frame.pack(anchor="w", padx=20, pady=(0, 10))
+        ui_profile_var = tk.StringVar(value=_cur_prof)
+        tk.Radiobutton(prof_frame, text='Auto', value='auto', variable=ui_profile_var, bg="white").pack(side="left", padx=(0, 10))
+        tk.Radiobutton(prof_frame, text='13" kompaktny', value='13', variable=ui_profile_var, bg="white").pack(side="left", padx=(0, 10))
+        tk.Radiobutton(prof_frame, text='27" priestranny', value='27', variable=ui_profile_var, bg="white").pack(side="left")
+
         # Basket columns
         tk.Label(inner, text="Zobrazit stlpce:", font=label_font, bg="white").pack(anchor="w", padx=5, pady=(10, 0))
         basket_chk_frame = tk.Frame(inner, bg="white")
@@ -2175,6 +2236,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             _st["db_view_mode"] = db_view_mode[0]
             try:
                 _st["area_m2"] = float(str(area_var.get()).replace(",", "."))
+            except Exception:
+                pass
+            try:
+                _st["ui_profile"] = str(ui_profile_var.get()).strip().lower()
             except Exception:
                 pass
             _save_ui_settings(_st)

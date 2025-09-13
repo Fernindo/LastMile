@@ -30,6 +30,34 @@ def show_presets_window():
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
+# --- UI profile helpers (13" / 27" / auto) ---------------------------------
+def _get_ui_profile(root: tk.Misc) -> str:
+    try:
+        st = load_settings() or {}
+        prof = str(st.get("ui_profile", "auto")).strip().lower()
+    except Exception:
+        prof = "auto"
+    if prof not in ("auto", "13", "27"):
+        prof = "auto"
+    if prof == "auto":
+        try:
+            sw = int(root.winfo_screenwidth())
+        except Exception:
+            sw = 1920
+        return "27" if sw >= 2300 else "13"
+    return prof
+
+def _profile_scale(profile: str, root: tk.Misc) -> float:
+    if profile == "27":
+        return 1.35
+    if profile == "13":
+        return 1.00
+    try:
+        sw = int(root.winfo_screenwidth())
+    except Exception:
+        sw = 1920
+    return 1.35 if sw >= 2300 else 1.00
+
 # ───────────────────────── Helpers: settings ─────────────────────────
 
 def load_settings():
@@ -331,10 +359,17 @@ def main(parent=None):
             pass
         style = Style(theme="litera")
         root = style.master
+        # Calibrate for DPI, then apply 13"/27" profile scaling
         try:
-            scale = float(calibrate_tk_scaling(root))
+            calibrate_tk_scaling(root)
         except Exception:
-            scale = 1.25
+            pass
+        ui_profile = _get_ui_profile(root)
+        scale = _profile_scale(ui_profile, root)
+        try:
+            root.tk.call("tk", "scaling", float(scale))
+        except Exception:
+            pass
         try:
             # Base font for ttk widgets in Project Selector (smaller baseline)
             apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
@@ -344,7 +379,9 @@ def main(parent=None):
         try:
             for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
                 try:
-                    style.configure(_btn_style, padding=(6, 3))
+                    # Compact buttons only for 13" profile
+                    if ui_profile == "13":
+                        style.configure(_btn_style, padding=(6, 3))
                 except Exception:
                     pass
         except Exception:
@@ -383,17 +420,25 @@ def main(parent=None):
         # Ensure we get a Style object to tweak paddings for this window too
         try:
             style = Style()
+            # Calibrate for DPI, then apply 13"/27" profile scaling
             try:
-                scale = float(calibrate_tk_scaling(root))
+                calibrate_tk_scaling(root)
             except Exception:
-                scale = 1.25
+                pass
+            ui_profile = _get_ui_profile(root)
+            scale = _profile_scale(ui_profile, root)
+            try:
+                root.tk.call("tk", "scaling", float(scale))
+            except Exception:
+                pass
             try:
                 apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
             except Exception:
                 pass
             for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
                 try:
-                    style.configure(_btn_style, padding=(6, 3))
+                    if ui_profile == "13":
+                        style.configure(_btn_style, padding=(6, 3))
                 except Exception:
                     pass
         except Exception:
