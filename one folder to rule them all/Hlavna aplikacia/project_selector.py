@@ -599,9 +599,9 @@ def main(parent=None):
         user_menu_btn.pack(side="right", padx=(6, 0))
 
     tb.Label(top, text="Projects Root:").pack(side="left")
-    # Wider entry so long paths don't feel cramped
+    # Make the path entry expand with window width (scales nicely)
     root_entry = tb.Entry(top, textvariable=root.projects_home_state["projects_root"], width=72)
-    root_entry.pack(side="left", padx=6)
+    root_entry.pack(side="left", padx=6, fill="x", expand=True)
 
     def browse_root():
         cur = root.projects_home_state["projects_root"].get()
@@ -850,14 +850,31 @@ def main(parent=None):
     body.pack(fill="both", expand=True)
 
     left = tb.Labelframe(body, text="Projects", padding=8)
-    # Make the left projects column slightly thinner
-    try:
-        _left_w = max(260, int(300 * float(scale)))
-    except Exception:
-        _left_w = 300
-    left.config(width=_left_w)
+    # Responsive left column: ~26% of window width within sane bounds
+    left_min_w, left_max_w = 240, 520
+    left_frac = 0.26
+    def _size_left_col(event=None):
+        try:
+            w = root.winfo_width() or body.winfo_width()
+        except Exception:
+            w = 1000
+        target = int(w * left_frac)
+        if target < left_min_w:
+            target = left_min_w
+        if target > left_max_w:
+            target = left_max_w
+        try:
+            left.configure(width=target)
+        except Exception:
+            pass
     left.pack_propagate(False)
     left.pack(side="left", fill="y", padx=(0, 12))
+    # Initial sizing and keep in sync when window resizes
+    _size_left_col()
+    try:
+        root.bind("<Configure>", _size_left_col, add=True)
+    except Exception:
+        pass
     tb.Label(left, text="Filter:").pack(anchor="w")
     filter_entry = tb.Entry(left, textvariable=root.projects_home_state["filter_text"])
     filter_entry.pack(fill="x", pady=(0, 6))
