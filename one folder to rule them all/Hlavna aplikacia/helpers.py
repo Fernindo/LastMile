@@ -231,46 +231,30 @@ def enable_high_dpi_awareness() -> None:
 def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.0) -> float:
     """Universal DPI scaling calibrated from real screen DPI.
 
-    - Ensures per-monitor DPI awareness on Windows.
     - Measures DPI via winfo_fpixels("1i") and derives a scale factor.
-    - Clamps to a reasonable range [min_scale, max_scale].
-    - Applies Tk scaling on the provided ``root`` and returns the scale.
-
-    Compatible drop-in replacement for previous implementation.
+    - Clamps between min_scale and max_scale.
+    - Applies Tk scaling and returns the scale.
     """
-    # Ensure Windows DPI awareness (no-op on non-Windows)
     try:
         enable_high_dpi_awareness()
     except Exception:
         pass
 
-    # Measure DPI on the provided root
     try:
         pixels_per_inch = float(root.winfo_fpixels("1i"))
         scale = pixels_per_inch / 72.0
     except Exception:
-        # Safe fallback
-        scale = 1.25
+        scale = 1.0   # safe fallback
 
-    # Clamp scale to a sensible range
-    try:
-        if min_scale is not None:
-            scale = max(min_scale, float(scale))
-        if max_scale is not None:
-            scale = min(max_scale, float(scale))
-    except Exception:
-        pass
+    scale = max(min_scale, min(scale, max_scale))
 
-    # Apply scaling to the current Tk interpreter
     try:
         root.tk.call("tk", "scaling", float(scale))
     except Exception:
         pass
 
-    try:
-        return float(scale)
-    except Exception:
-        return 1.25
+    return float(scale)
+
 
 def apply_ttk_base_font(style: ttk.Style, *, family: str = "Segoe UI", size: int = 10) -> None:
     """Apply a base font to common ttk widgets, but do NOT change buttons.
