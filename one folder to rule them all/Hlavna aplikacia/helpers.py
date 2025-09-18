@@ -1,4 +1,4 @@
-# Consolidated helper functions and widgets
+﻿# Consolidated helper functions and widgets
 import os
 import sys
 import json
@@ -17,6 +17,7 @@ from ttkbootstrap import Button
 # ---------------------------------------------------------------------------
 # App/resource paths and config bootstrap (PyInstaller-friendly)
 # ---------------------------------------------------------------------------
+
 def is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
@@ -32,7 +33,6 @@ def resources_dir() -> str:
     """Bundled resources dir (resources/ inside _MEIPASS when frozen)."""
     base = sys._MEIPASS if is_frozen() else os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, "resources")
-
 
 def resource_path(rel_path: str) -> str:
     """Full path to a resource in the bundled resources directory."""
@@ -227,32 +227,50 @@ def enable_high_dpi_awareness() -> None:
         pass
 
 
-def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.25, max_scale: float = 2.0) -> float:
-    """Calibrate Tk text/pixel scaling based on real screen DPI.
 
-    Returns the scale applied. Keeps scale within [min_scale, max_scale].
+def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.0) -> float:
+    """Universal DPI scaling calibrated from real screen DPI.
+
+    - Ensures per-monitor DPI awareness on Windows.
+    - Measures DPI via winfo_fpixels("1i") and derives a scale factor.
+    - Clamps to a reasonable range [min_scale, max_scale].
+    - Applies Tk scaling on the provided ``root`` and returns the scale.
+
+    Compatible drop-in replacement for previous implementation.
     """
+    # Ensure Windows DPI awareness (no-op on non-Windows)
     try:
-        # 1 inch in Tk terms is 72 points; fpixels('1i') gives device pixels
+        enable_high_dpi_awareness()
+    except Exception:
+        pass
+
+    # Measure DPI on the provided root
+    try:
         pixels_per_inch = float(root.winfo_fpixels("1i"))
         scale = pixels_per_inch / 72.0
+    except Exception:
+        # Safe fallback
+        scale = 1.25
+
+    # Clamp scale to a sensible range
+    try:
         if min_scale is not None:
-            scale = max(min_scale, scale)
+            scale = max(min_scale, float(scale))
         if max_scale is not None:
-            scale = min(max_scale, scale)
-        try:
-            root.tk.call("tk", "scaling", scale)
-        except Exception:
-            pass
+            scale = min(max_scale, float(scale))
+    except Exception:
+        pass
+
+    # Apply scaling to the current Tk interpreter
+    try:
+        root.tk.call("tk", "scaling", float(scale))
+    except Exception:
+        pass
+
+    try:
         return float(scale)
     except Exception:
-        # Fallback to a reasonable default
-        try:
-            root.tk.call("tk", "scaling", 1.25)
-        except Exception:
-            pass
         return 1.25
-
 
 def apply_ttk_base_font(style: ttk.Style, *, family: str = "Segoe UI", size: int = 10) -> None:
     """Apply a base font to common ttk widgets, but do NOT change buttons.
@@ -751,3 +769,7 @@ def show_praca_window(cursor):
 
     tk.Label(summary_frame, text="Práca predaj:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
     tk.Label(summary_frame, textvariable=praca_predaj_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
+
+
+
+
