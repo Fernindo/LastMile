@@ -325,6 +325,7 @@ def main(parent=None):
     # If launched from login.py, we pass parent
     # If run directly, create its own root window
     if parent is None:
+        # Unified DPI and sizing (standalone mode)
         try:
             enable_high_dpi_awareness()
         except Exception:
@@ -335,104 +336,83 @@ def main(parent=None):
             scale = float(calibrate_tk_scaling(root))
         except Exception:
             scale = 1.25
+        # Set window size per spec
+        base_w, base_h = 1000, 600
         try:
-            # Base font for ttk widgets in Project Selector (smaller baseline)
-            apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
+            root.geometry(f"{int(base_w * scale)}x{int(base_h * scale)}")
         except Exception:
             pass
-        # Make ttk buttons a bit more compact (reduce padding)
+        # Apply fonts and paddings
         try:
-            for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
+            apply_ttk_base_font(style, family="Segoe UI", size=int(10 * scale))
+        except Exception:
+            pass
+        try:
+            root.option_add("*Font", ("Segoe UI", int(10 * scale)))
+        except Exception:
+            pass
+        try:
+            pad = (int(8 * scale), int(4 * scale))
+            for _btn_style in (
+                "TButton",
+                "secondary.TButton",
+                "success.TButton",
+                "danger.TButton",
+                "info.TButton",
+            ):
                 try:
-                    style.configure(_btn_style, padding=(6, 3))
+                    style.configure(_btn_style, padding=pad)
                 except Exception:
                     pass
         except Exception:
             pass
-        # Ensure classic Tk widgets (e.g., Listbox) also use scaled base size (smaller)
-        try:
-            root.option_add("*Font", ("Segoe UI", int(8 * scale)))
-        except Exception:
-            pass
         root.title("Projects Home")
-
-        # Adaptive scaling (like in gui.py)
-        try:
-            scale = calibrate_tk_scaling(root)
-        except Exception:
-            scale = 1.25
-
-        try:
-            dpi_scale = float(root.tk.call("tk", "scaling"))
-        except Exception:
-            dpi_scale = 1.0
-
-        # Base window size
-        base_w, base_h = 1000, 600
-        win_w = int(base_w * scale)
-        win_h = int(base_h * scale)
-        root.geometry(f"{win_w}x{win_h}")
-
-        # Set minimum size relative to scaling too
-        try:
-            root.minsize(int(900 * scale), int(600 * scale))
-            root.resizable(True, True)
-        except Exception:
-            pass
-
 
         owns_root = True 
     else:
-        # Create a child window on the existing Tk root
+        # Unified DPI and sizing (child mode)
         root = tb.Toplevel(parent)
-        # Ensure we get a Style object to tweak paddings for this window too
         try:
             style = Style()
-            try:
-                scale = float(calibrate_tk_scaling(root))
-            except Exception:
-                scale = 1.25
-            try:
-                apply_ttk_base_font(style, family="Segoe UI", size=int(8 * scale))
-            except Exception:
-                pass
-            for _btn_style in ("TButton", "secondary.TButton", "success.TButton", "danger.TButton", "info.TButton"):
-                try:
-                    style.configure(_btn_style, padding=(6, 3))
-                except Exception:
-                    pass
+        except Exception:
+            style = None
+        try:
+            scale = float(calibrate_tk_scaling(root))
+        except Exception:
+            scale = 1.25
+        # Set window size per spec
+        base_w, base_h = 1024, 650
+        try:
+            root.geometry(f"{int(base_w * scale)}x{int(base_h * scale)}")
+        except Exception:
+            pass
+        # Apply fonts and paddings
+        try:
+            if style is not None:
+                apply_ttk_base_font(style, family="Segoe UI", size=int(10 * scale))
+        except Exception:
+            pass
+        try:
+            root.option_add("*Font", ("Segoe UI", int(10 * scale)))
+        except Exception:
+            pass
+        try:
+            if style is not None:
+                pad = (int(8 * scale), int(4 * scale))
+                for _btn_style in (
+                    "TButton",
+                    "secondary.TButton",
+                    "success.TButton",
+                    "danger.TButton",
+                    "info.TButton",
+                ):
+                    try:
+                        style.configure(_btn_style, padding=pad)
+                    except Exception:
+                        pass
         except Exception:
             pass
         root.title("Projects Home")
-        # Child window a bit taller as well
-       
-
-        # Adaptive scaling (like in gui.py)
-        try:
-            scale = calibrate_tk_scaling(root)
-        except Exception:
-            scale = 1.25
-
-        try:
-            dpi_scale = float(root.tk.call("tk", "scaling"))
-        except Exception:
-            dpi_scale = 1.0
-
-        # Base window size
-        base_w, base_h = 1024, 600
-        win_w = int(base_w * scale)
-        win_h = int(base_h * scale)
-        root.geometry(f"{win_w}x{win_h}")
-
-        # Set minimum size relative to scaling too
-        try:
-            root.minsize(int(900 * scale), int(600 * scale))
-            root.resizable(True, True)
-        except Exception:
-            pass
-
-
-
 
         owns_root = False
         # Closing the selector should close the whole app

@@ -192,29 +192,8 @@ class LoginApp:
         self.no_launch = no_launch
 
         root.title(APP_TITLE)
-        # Adaptive scaling
-        try:
-            scale = calibrate_tk_scaling(root)
-        except Exception:
-            scale = 1.25
-
-        try:
-            dpi_scale = float(root.tk.call("tk", "scaling"))
-        except Exception:
-            dpi_scale = 1.0
-
-        # Base dimensions
-        base_w, base_h = 520, 200
-        win_w = int(base_w * scale)
-        win_h = int(base_h * scale)
-        root.geometry(f"{win_w}x{win_h}")
+        # Sizing and scaling handled centrally in main(); keep just resizable here
         root.resizable(False, False)
-
-        # Optional: scale fonts
-        try:
-            apply_ttk_base_font(tb.Style(), family="Segoe UI", size=int(10 * scale))
-        except Exception:
-            pass
 
         self.var_username = tk.StringVar()
         self.var_password = tk.StringVar()
@@ -333,7 +312,7 @@ def main():
     style = tb.Style(theme="litera")
     root = style.master
 
-    # Ensure high-DPI awareness and calibrate Tk scaling consistently
+    # Unified DPI scaling and sizing
     try:
         enable_high_dpi_awareness()
     except Exception:
@@ -342,9 +321,34 @@ def main():
         scale = float(calibrate_tk_scaling(root))
     except Exception:
         scale = 1.25
+    # Window size for login window (keep existing base dimensions)
+    base_w, base_h = 520, 200
     try:
-        # Smaller base font specifically for the login window
-        apply_ttk_base_font(style, family="Segoe UI", size=int(7 * scale))
+        root.geometry(f"{int(base_w * scale)}x{int(base_h * scale)}")
+    except Exception:
+        pass
+    # Base fonts and button paddings
+    try:
+        apply_ttk_base_font(style, family="Segoe UI", size=int(10 * scale))
+    except Exception:
+        pass
+    try:
+        root.option_add("*Font", ("Segoe UI", int(10 * scale)))
+    except Exception:
+        pass
+    try:
+        pad = (int(8 * scale), int(4 * scale))
+        for _btn_style in (
+            "TButton",
+            "secondary.TButton",
+            "success.TButton",
+            "danger.TButton",
+            "info.TButton",
+        ):
+            try:
+                style.configure(_btn_style, padding=pad)
+            except Exception:
+                pass
     except Exception:
         pass
 

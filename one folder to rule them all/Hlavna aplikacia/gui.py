@@ -174,37 +174,37 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     master = style.master  # underlying Tk root (may already host other UI)
     root  = master
 
-    # --- DPI / Scaling fix for packaged app ---
-    # Calibrate Tk scaling to real DPI; enforce a minimum of 1.25
+    # Unified adaptive DPI scaling
     try:
-        calibrate_tk_scaling(root)
+        scale = float(calibrate_tk_scaling(root))
+    except Exception:
+        scale = 1.25
+
+    # Apply base font and global Tk font
+    try:
+        apply_ttk_base_font(style, family="Segoe UI", size=int(10 * scale))
     except Exception:
         pass
-
-    # Resolution-based scaling
-    screen_w = root.winfo_screenwidth()
-    base_w = 1600
-    res_scale = screen_w / base_w
-
-    # Get current DPI scaling (set by calibrate_tk_scaling / system settings)
     try:
-        dpi_scale = float(root.tk.call("tk", "scaling"))
+        root.option_add("*Font", ("Segoe UI", int(10 * scale)))
     except Exception:
-        dpi_scale = 1.0
-
-    # Combine both
-    scale = min(1.5, res_scale * dpi_scale)
-
-    # Apply final scaling
-    root.tk.call("tk", "scaling", scale)
-
-
-    """
+        pass
+    # Update button paddings uniformly
     try:
-        # Slightly larger baseline font so buttons look consistent
-        apply_ttk_base_font(style, family="Segoe UI", size=int(11 * scale))
+        pad = (int(8 * scale), int(4 * scale))
+        for _btn_style in (
+            "TButton",
+            "secondary.TButton",
+            "success.TButton",
+            "danger.TButton",
+            "info.TButton",
+        ):
+            try:
+                style.configure(_btn_style, padding=pad)
+            except Exception:
+                pass
     except Exception:
-        pass"""
+        pass
     # If the Tk root already has widgets (e.g., login UI packed),
     # create a separate Toplevel as our container to avoid mixing
     # geometry managers on the same master.

@@ -15,28 +15,14 @@ class login_app:
     def __init__(self, root):
         self.root = root
         self.root.title("Prihlásenie")
-        # Adaptive scaling
-        try:
-            scale = calibrate_tk_scaling(self.root)
-        except Exception:
-            scale = 1.25
+        # Adaptive scaling handled in __main__
 
-        try:
-            dpi_scale = float(self.root.tk.call("tk", "scaling"))
-        except Exception:
-            dpi_scale = 1.0
+        # dpi_scale handled in __main__
 
-        # Make it smaller than the old 420x200
-        base_w, base_h = 520, 200
-        win_w = int(base_w * scale)
-        win_h = int(base_h * scale)
-        self.root.geometry(f"{win_w}x{win_h}")
+        # Geometry set in __main__
         self.center_window(self.root)
 
-        try:
-            apply_ttk_base_font(Style(), family="Segoe UI", size=int(10 * scale))
-        except Exception:
-            pass
+        # Base font applied in __main__
 
         self.credentials_file = "saved_credentials.json"
         self.password_visible = False
@@ -157,6 +143,7 @@ class login_app:
             os.remove(self.credentials_file)
 
 if __name__ == "__main__":
+    # Unified DPI scaling and sizing for this standalone login window
     try:
         enable_high_dpi_awareness()
     except Exception:
@@ -167,8 +154,33 @@ if __name__ == "__main__":
         scale = float(calibrate_tk_scaling(root))
     except Exception:
         scale = 1.25
+    # Set geometry and apply unified fonts/paddings
+    base_w, base_h = 520, 200
     try:
-        apply_ttk_base_font(style, family="Segoe UI", size=int(9 * scale))
+        root.geometry(f"{int(base_w * scale)}x{int(base_h * scale)}")
+    except Exception:
+        pass
+    try:
+        apply_ttk_base_font(style, family="Segoe UI", size=int(10 * scale))
+    except Exception:
+        pass
+    try:
+        root.option_add("*Font", ("Segoe UI", int(10 * scale)))
+    except Exception:
+        pass
+    try:
+        pad = (int(8 * scale), int(4 * scale))
+        for _btn_style in (
+            "TButton",
+            "secondary.TButton",
+            "success.TButton",
+            "danger.TButton",
+            "info.TButton",
+        ):
+            try:
+                style.configure(_btn_style, padding=pad)
+            except Exception:
+                pass
     except Exception:
         pass
     login_app(root)
