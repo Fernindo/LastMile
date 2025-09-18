@@ -228,8 +228,8 @@ def enable_high_dpi_awareness() -> None:
 
 
 
-def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.0) -> float:
-    """Calibrate Tk scaling to nearest logical step (1.0, 1.25, 1.5, 1.75, 2.0)."""
+def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.5, oversize: float = 0.1) -> float:
+    """Calibrate Tk scaling with optional oversize factor applied globally."""
     try:
         enable_high_dpi_awareness()
     except Exception:
@@ -241,11 +241,14 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
     except Exception:
         raw_scale = 1.0
 
-    # Snap to common values instead of weird floats
+    # Snap to common values
     steps = [1.0, 1.25, 1.5, 1.75, 2.0]
-    scale = min(steps, key=lambda s: abs(s - raw_scale))
+    base_scale = min(steps, key=lambda s: abs(s - raw_scale))
 
-    # Clamp to range
+    # Apply oversize factor everywhere
+    scale = base_scale + oversize
+
+    # Clamp to safe range
     scale = max(min_scale, min(scale, max_scale))
 
     try:
@@ -254,6 +257,8 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
         pass
 
     return float(scale)
+
+
 
 
 def apply_ttk_base_font(style: ttk.Style, *, family: str = "Segoe UI", size: int = 10) -> None:
