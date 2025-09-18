@@ -247,7 +247,7 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
 
     # Special case: 200% (2.0) → reduce to avoid oversized UI
     if abs(base_scale - 2.0) < 0.1:
-        scale = 1.8   # 👈 tweak this number until Project Selector fits
+        scale = 1.9   # 👈 tweak this number until Project Selector fits
     elif abs(base_scale - 1.0) < 0.1:
         scale = 1.3   # 👈 bump up 100% DPI just a little
     else:
@@ -263,6 +263,29 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
 
     return float(scale)
 
+def apply_global_scaling(root, style, scale: float):
+    base_font_size = int(11 * scale)
+
+    # Apply to all ttk widgets
+    apply_ttk_base_font(style, family="Segoe UI", size=base_font_size)
+    root.option_add("*Font", ("Segoe UI", base_font_size))
+
+    # Update button paddings
+    pad = (int(10 * scale), int(6 * scale))
+    for btn_style in (
+        "TButton", "secondary.TButton", "success.TButton",
+        "danger.TButton", "info.TButton"
+    ):
+        try:
+            style.configure(btn_style, padding=pad)
+        except Exception:
+            pass
+
+    # Scale Treeview row heights and fonts
+    table_font_size = int(11 * scale)
+    row_h = int(2.4 * table_font_size)
+    style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", table_font_size))
+    style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", table_font_size))
 
 
 

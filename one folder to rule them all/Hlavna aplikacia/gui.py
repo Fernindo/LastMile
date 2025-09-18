@@ -37,6 +37,7 @@ from helpers import (
     enable_high_dpi_awareness,
     calibrate_tk_scaling,
     apply_ttk_base_font,
+    apply_global_scaling,
     
 )
 from exportVv import export_vv
@@ -177,7 +178,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # Unified adaptive DPI scaling
     try:
         scale = float(calibrate_tk_scaling(root))
-        scale *= 1.1
+        scale *= 1
+        apply_global_scaling(root, style, scale)
     except Exception:
         scale = 1.25
 

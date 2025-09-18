@@ -381,7 +381,7 @@ def main(parent=None):
         except Exception:
             scale = 1.25
         # Set window size per spec
-        base_w, base_h = 1024, 650
+        base_w, base_h = 1100, 750
         try:
             root.geometry(f"{int(base_w * scale)}x{int(base_h * scale)}")
         except Exception:
