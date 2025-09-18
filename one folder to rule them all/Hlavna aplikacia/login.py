@@ -192,8 +192,29 @@ class LoginApp:
         self.no_launch = no_launch
 
         root.title(APP_TITLE)
-        root.geometry("420x200")
+        # Adaptive scaling
+        try:
+            scale = calibrate_tk_scaling(root)
+        except Exception:
+            scale = 1.25
+
+        try:
+            dpi_scale = float(root.tk.call("tk", "scaling"))
+        except Exception:
+            dpi_scale = 1.0
+
+        # Base dimensions
+        base_w, base_h = 360, 160
+        win_w = int(base_w * scale)
+        win_h = int(base_h * scale)
+        root.geometry(f"{win_w}x{win_h}")
         root.resizable(False, False)
+
+        # Optional: scale fonts
+        try:
+            apply_ttk_base_font(tb.Style(), family="Segoe UI", size=int(10 * scale))
+        except Exception:
+            pass
 
         self.var_username = tk.StringVar()
         self.var_password = tk.StringVar()
