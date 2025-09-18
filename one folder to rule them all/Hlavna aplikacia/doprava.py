@@ -1,9 +1,8 @@
 import tkinter as tk
 from tkinter import StringVar
-import json
-import os
 from helpers import ensure_user_config, secure_load_json, secure_save_json
 
+# cesta k JSON súboru kde ukladáme nastavenia dopravy
 SETTINGS_FILE = ensure_user_config("doprava_settings.json", default_content={
     "cena_vyjazd": "30.00",
     "pocet_vyjazdov": "0",
@@ -13,21 +12,34 @@ SETTINGS_FILE = ensure_user_config("doprava_settings.json", default_content={
 })
 
 
-def _load_settings():
+def load_doprava_data():
+    """Načíta uložené nastavenia dopravy ako tuple pre export."""
+    data = secure_load_json(SETTINGS_FILE, default={})
     try:
-        return secure_load_json(SETTINGS_FILE, default={})
+        cena_vyjazd = float(data.get("cena_vyjazd", 0))
+        pocet_vyjazdov = int(data.get("pocet_vyjazdov", 0))
+        cena_km = float(data.get("cena_km", 0))
+        vzdialenost = float(data.get("vzdialenost", 0))
+        pocet_ciest = int(data.get("pocet_ciest", 0))
+
+        cena_ba = cena_vyjazd * pocet_vyjazdov
+        cena_mimo = cena_km * vzdialenost * pocet_ciest
+        return (cena_vyjazd, pocet_vyjazdov, cena_ba, cena_km, cena_mimo)
     except Exception:
-        return {}
+        return None
 
 
-def _save_settings(data):
+def save_doprava_data(data):
+    """Uloží nastavenia dopravy do JSON."""
     try:
         secure_save_json(SETTINGS_FILE, data)
+        print("✅ Doprava uložená.")
     except Exception as e:
-        print(f"Chyba pri ukladaní nastavení dopravy: {e}")
+        print(f"❌ Chyba pri ukladaní dopravy: {e}")
 
 
 def show_doprava_window():
+    """Otvori okno na výpočet a uloženie dopravy (s pôvodným dizajnom)."""
     from ttkbootstrap import Button
 
     def compute_and_update(event=None):
@@ -80,9 +92,9 @@ def show_doprava_window():
     x = (screen_width // 2) - (width // 2)
     y = (screen_height // 2) - (height // 2)
     win.geometry(f"{width}x{height}+{x}+{y}")
-    win.minsize(300, 400)
+    win.minsize(300, 450)
 
-    settings = _load_settings()
+    settings = secure_load_json(SETTINGS_FILE, default={})
 
     cena_vyjazd_var = StringVar(value=settings.get("cena_vyjazd", "30.00"))
     pocet_vyjazdov_var = StringVar(value=settings.get("pocet_vyjazdov", "0"))
@@ -104,6 +116,7 @@ def show_doprava_window():
     ):
         var.trace_add("write", lambda *a: compute_and_update())
 
+    # sekcia BA
     frame_ba = tk.LabelFrame(win, text="🚗 V Bratislave", padx=10, pady=10)
     frame_ba.pack(fill="x", padx=10, pady=(10, 5))
 
@@ -117,6 +130,7 @@ def show_doprava_window():
     tk.Label(frame_ba, text="Celková cena (BA):").pack(anchor="w", pady=(5, 0))
     tk.Label(frame_ba, textvariable=vysledok_ba_var, font=("Segoe UI", 10, "bold")).pack(anchor="w")
 
+    # sekcia mimo BA
     frame_mimo = tk.LabelFrame(win, text="🚐 Mimo Bratislavu", padx=10, pady=10)
     frame_mimo.pack(fill="x", padx=10, pady=(5, 5))
 
@@ -131,23 +145,34 @@ def show_doprava_window():
     tk.Label(frame_mimo, text="Celková cena (mimo BA):").pack(anchor="w", pady=(5, 0))
     tk.Label(frame_mimo, textvariable=vysledok_mimo_var, font=("Segoe UI", 10, "bold")).pack(anchor="w")
 
+    # sekcia spolu
     frame_spolu = tk.LabelFrame(win, text="💰 Spolu doprava", padx=10, pady=10)
     frame_spolu.pack(fill="x", padx=10, pady=(5, 10))
 
     tk.Label(frame_spolu, text="Celková suma:").pack(anchor="w")
     tk.Label(frame_spolu, textvariable=vysledok_spolu_var, font=("Segoe UI", 12, "bold")).pack(anchor="w")
 
+    # tlačidlo uložiť
+    from ttkbootstrap import Button
+    Button(win, text="💾 Uložiť dopravu", bootstyle="success",
+           command=lambda: save_doprava_data({
+               "cena_vyjazd": cena_vyjazd_var.get(),
+               "pocet_vyjazdov": pocet_vyjazdov_var.get(),
+               "cena_km": cena_km_var.get(),
+               "vzdialenost": vzdialenost_var.get(),
+               "pocet_ciest": pocet_ciest_var.get(),
+           })).pack(pady=10, ipadx=10, ipady=5)
+
     compute_and_update()
 
     def on_close():
-        data = {
+        save_doprava_data({
             "cena_vyjazd": cena_vyjazd_var.get(),
             "pocet_vyjazdov": pocet_vyjazdov_var.get(),
             "cena_km": cena_km_var.get(),
             "vzdialenost": vzdialenost_var.get(),
             "pocet_ciest": pocet_ciest_var.get(),
-        }
-        _save_settings(data)
+        })
         win.destroy()
 
     win.protocol("WM_DELETE_WINDOW", on_close)

@@ -7,9 +7,11 @@ from tkinter import filedialog
 import xlwings as xw
 from xlwings.constants import BordersIndex as BI, BorderWeight as BW, LineStyle, HAlign
 
+from doprava import load_doprava_data
+
 
 def update_excel(selected_items, project_name, notes_text="", definicia_text="", praca_data=None):
-    """Generate an Excel report from selected basket items."""
+    """Generate an Excel report from selected basket items + doprava."""
     if not selected_items:
         print("⚠ No items selected for Excel.")
         return
@@ -52,31 +54,26 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         prev_section = None
         section_start_row = None
         header_row = None
-        # capture the workbook's normal row height from the template row below the header
         try:
             default_row_height = sheet.range(f"{TEMPLATE_ROW+1}:{TEMPLATE_ROW+1}").row_height
         except Exception:
             default_row_height = None
 
+        # ----- generovanie položiek -----
         for idx, item in enumerate(selected_items):
             section = item[0]
             if section != prev_section:
-                # add a single spacer row between sections with height 9.75
                 if prev_section is not None:
                     sheet.range(f"{insert_position}:{insert_position}").insert('down')
                     sheet.range(f"{insert_position}:{insert_position}").row_height = 9.75
                     insert_position += 1
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                # ensure header row keeps normal height (spacer above is custom)
                 if default_row_height:
                     sheet.range(f"{insert_position}:{insert_position}").row_height = default_row_height
                 sheet.cells(insert_position, 2).value = section
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
-
                 row_range.api.Font.Size = 12
-
-
                 row_range.api.HorizontalAlignment = HAlign.xlHAlignLeft
                 header_row = insert_position
 
@@ -138,7 +135,6 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                     Address=odkaz,
                     TextToDisplay="Link",
                 )
-            
 
             counter += 1
             insert_position += 1
@@ -146,15 +142,12 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             next_section = selected_items[idx + 1][0] if idx + 1 < len(selected_items) else None
             if next_section != section:
                 sheet.range(f"{insert_position}:{insert_position}").insert('down')
-                # summary row should be normal height
                 if default_row_height:
                     sheet.range(f"{insert_position}:{insert_position}").row_height = default_row_height
                 sheet.cells(insert_position, 2).value = section + "spolu"
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
-
                 row_range.api.Font.Size = 12
-
                 row_range.api.HorizontalAlignment = HAlign.xlHAlignLeft
 
                 sheet.cells(insert_position, 6).value = "Materiál"
@@ -181,7 +174,6 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                     br.LineStyle = LineStyle.xlContinuous
                     br.Weight = BW.xlThin
 
-                # also add borders for the info table from columns M to S
                 rng_info = sheet.range(f"M{header_row}:S{section_end_row}")
                 for edge in (BI.xlEdgeLeft, BI.xlEdgeTop, BI.xlEdgeBottom, BI.xlEdgeRight):
                     br = rng_info.api.Borders(edge)
@@ -192,6 +184,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                     br.LineStyle = LineStyle.xlContinuous
                     br.Weight = BW.xlThin
 
+        # ----- poznámky -----
         if notes_text:
             try:
                 notes_sheet = wb.sheets.add(after=sheet)
@@ -201,6 +194,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             except Exception as e:
                 print("⚠ Failed to add notes sheet:", e)
 
+        # ----- práca -----
         if praca_data:
             start_row = 44
             start_col = 10  # Column J
@@ -210,6 +204,19 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             for r_idx, row in enumerate(praca_data, start=start_row + 1):
                 for c_idx, val in enumerate(row):
                     sheet.cells(r_idx, start_col + c_idx).value = val
+
+        # ----- doprava -----
+        doprava_data = load_doprava_data()
+        if doprava_data:
+            last_row = sheet.range("B" + str(sheet.cells.last_cell.row)).end("up").row
+            row = last_row + 2
+
+            cena_vyjazd, pocet_vyjazdov, cena_ba, cena_km, cena_mimo = doprava_data
+            sheet.cells(row, 13).value = cena_vyjazd     # M = 1 výjazd v BA
+            sheet.cells(row, 14).value = pocet_vyjazdov  # N = počet výjazdov
+            sheet.cells(row, 15).value = cena_ba         # O = celková cena BA
+            sheet.cells(row, 16).value = cena_km         # P = €/km mimo BA
+            sheet.cells(row, 17).value = cena_mimo       # Q = celková cena mimo BA
 
         wb.save()
         wb.close()
