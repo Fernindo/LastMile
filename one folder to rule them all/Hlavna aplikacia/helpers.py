@@ -229,12 +229,7 @@ def enable_high_dpi_awareness() -> None:
 
 
 def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.0) -> float:
-    """Universal DPI scaling calibrated from real screen DPI.
-
-    - Measures DPI via winfo_fpixels("1i") and derives a scale factor.
-    - Clamps between min_scale and max_scale.
-    - Applies Tk scaling and returns the scale.
-    """
+    """Calibrate Tk scaling to nearest logical step (1.0, 1.25, 1.5, 1.75, 2.0)."""
     try:
         enable_high_dpi_awareness()
     except Exception:
@@ -242,10 +237,15 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
 
     try:
         pixels_per_inch = float(root.winfo_fpixels("1i"))
-        scale = pixels_per_inch / 72.0
+        raw_scale = pixels_per_inch / 96.0   # Windows baseline = 96 dpi
     except Exception:
-        scale = 1.0   # safe fallback
+        raw_scale = 1.0
 
+    # Snap to common values instead of weird floats
+    steps = [1.0, 1.25, 1.5, 1.75, 2.0]
+    scale = min(steps, key=lambda s: abs(s - raw_scale))
+
+    # Clamp to range
     scale = max(min_scale, min(scale, max_scale))
 
     try:
