@@ -15,8 +15,28 @@ class login_app:
     def __init__(self, root):
         self.root = root
         self.root.title("Prihlásenie")
-        self.root.geometry("420x200")
+        # Adaptive scaling
+        try:
+            scale = calibrate_tk_scaling(self.root)
+        except Exception:
+            scale = 1.25
+
+        try:
+            dpi_scale = float(self.root.tk.call("tk", "scaling"))
+        except Exception:
+            dpi_scale = 1.0
+
+        # Make it smaller than the old 420x200
+        base_w, base_h = 520, 200
+        win_w = int(base_w * scale)
+        win_h = int(base_h * scale)
+        self.root.geometry(f"{win_w}x{win_h}")
         self.center_window(self.root)
+
+        try:
+            apply_ttk_base_font(Style(), family="Segoe UI", size=int(10 * scale))
+        except Exception:
+            pass
 
         self.credentials_file = "saved_credentials.json"
         self.password_visible = False

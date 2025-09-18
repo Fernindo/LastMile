@@ -355,14 +355,33 @@ def main(parent=None):
         except Exception:
             pass
         root.title("Projects Home")
-        # Slightly smaller default geometry
-        root.geometry("1000x700")
+
+        # Adaptive scaling (like in gui.py)
         try:
-            root.minsize(900, 600)
+            scale = calibrate_tk_scaling(root)
+        except Exception:
+            scale = 1.25
+
+        try:
+            dpi_scale = float(root.tk.call("tk", "scaling"))
+        except Exception:
+            dpi_scale = 1.0
+
+        # Base window size
+        base_w, base_h = 1000, 600
+        win_w = int(base_w * scale)
+        win_h = int(base_h * scale)
+        root.geometry(f"{win_w}x{win_h}")
+
+        # Set minimum size relative to scaling too
+        try:
+            root.minsize(int(900 * scale), int(600 * scale))
             root.resizable(True, True)
         except Exception:
             pass
-        owns_root = True
+
+
+        owns_root = True 
     else:
         # Create a child window on the existing Tk root
         root = tb.Toplevel(parent)
@@ -386,12 +405,35 @@ def main(parent=None):
             pass
         root.title("Projects Home")
         # Child window a bit taller as well
-        root.geometry("1024x700")
+       
+
+        # Adaptive scaling (like in gui.py)
         try:
-            root.minsize(900, 600)
+            scale = calibrate_tk_scaling(root)
+        except Exception:
+            scale = 1.25
+
+        try:
+            dpi_scale = float(root.tk.call("tk", "scaling"))
+        except Exception:
+            dpi_scale = 1.0
+
+        # Base window size
+        base_w, base_h = 1024, 600
+        win_w = int(base_w * scale)
+        win_h = int(base_h * scale)
+        root.geometry(f"{win_w}x{win_h}")
+
+        # Set minimum size relative to scaling too
+        try:
+            root.minsize(int(900 * scale), int(600 * scale))
             root.resizable(True, True)
         except Exception:
             pass
+
+
+
+
         owns_root = False
         # Closing the selector should close the whole app
         try:
