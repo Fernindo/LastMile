@@ -228,8 +228,8 @@ def enable_high_dpi_awareness() -> None:
 
 
 
-def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.5, oversize: float = 0.1) -> float:
-    """Calibrate Tk scaling with optional oversize factor applied globally."""
+def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.5) -> float:
+    """Calibrate Tk scaling with special handling for 200% DPI laptops."""
     try:
         enable_high_dpi_awareness()
     except Exception:
@@ -237,7 +237,7 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
 
     try:
         pixels_per_inch = float(root.winfo_fpixels("1i"))
-        raw_scale = pixels_per_inch / 96.0   # Windows baseline = 96 dpi
+        raw_scale = pixels_per_inch / 96.0   # Windows baseline
     except Exception:
         raw_scale = 1.0
 
@@ -245,10 +245,13 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
     steps = [1.0, 1.25, 1.5, 1.75, 2.0]
     base_scale = min(steps, key=lambda s: abs(s - raw_scale))
 
-    # Apply oversize factor everywhere
-    scale = base_scale + oversize
+    # Special case: 200% (2.0) → reduce to avoid oversized UI
+    if abs(base_scale - 2.0) < 0.1:
+        scale = 1.8   # 👈 tweak this number until Project Selector fits
+    else:
+        scale = base_scale
 
-    # Clamp to safe range
+    # Clamp safe range
     scale = max(min_scale, min(scale, max_scale))
 
     try:
@@ -257,6 +260,7 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
         pass
 
     return float(scale)
+
 
 
 
