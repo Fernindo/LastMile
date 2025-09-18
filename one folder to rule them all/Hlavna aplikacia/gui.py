@@ -177,6 +177,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # Unified adaptive DPI scaling
     try:
         scale = float(calibrate_tk_scaling(root))
+        scale *= 1.1
     except Exception:
         scale = 1.25
 

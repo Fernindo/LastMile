@@ -248,6 +248,8 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
     # Special case: 200% (2.0) → reduce to avoid oversized UI
     if abs(base_scale - 2.0) < 0.1:
         scale = 1.8   # 👈 tweak this number until Project Selector fits
+    elif abs(base_scale - 1.0) < 0.1:
+        scale = 1.3   # 👈 bump up 100% DPI just a little
     else:
         scale = base_scale
 
