@@ -204,7 +204,7 @@ class LoginApp:
             dpi_scale = 1.0
 
         # Base dimensions
-        base_w, base_h = 360, 160
+        base_w, base_h = 520, 200
         win_w = int(base_w * scale)
         win_h = int(base_h * scale)
         root.geometry(f"{win_w}x{win_h}")
