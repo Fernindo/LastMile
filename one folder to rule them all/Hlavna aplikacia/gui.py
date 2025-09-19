@@ -248,10 +248,15 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     ui_settings = _load_ui_settings()
     # Use a fixed table font size derived from scale (no user override)
+
+    print("[DEBUG] tk scaling:", root.tk.call("tk", "scaling"))
+    print("[DEBUG] effective scale:", scale)
     if abs(scale - 2.0) < 0.25:   # 200% DPI
+        print("[DEBUG] effective scale: aaaaaaaaaaaaaaaaaaaaaaaaaaaaa font size 14")
         table_font_size = 14
         row_h = 28
     else:
+        print("[DEBUG] effective scale: aaaaaaaaaaaaaaaaaaaaaaaaaaaaa font size scale")
         table_font_size = int(9 * scale)
         row_h = int(20 * scale)
 
