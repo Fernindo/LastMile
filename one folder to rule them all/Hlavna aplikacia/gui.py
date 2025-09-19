@@ -178,7 +178,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # Unified adaptive DPI scaling
     try:
         scale = float(calibrate_tk_scaling(root))
-        scale *= 1.1
+        if scale >=2.0:
+            scale *= 1.1
         apply_global_scaling(root, style, scale)
     except Exception:
         scale = 1.25
@@ -789,14 +790,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 continue
             card = tb.Frame(inner, bootstyle="light", padding=10)
             card.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
-            tk.Label(card, text=str(produkt), font=("Segoe UI", int (11 * scale), "bold"), anchor="w").pack(fill="x")
+            tk.Label(card, text=str(produkt), font=("Segoe UI", int (13 * scale), "bold"), anchor="w").pack(fill="x")
             # Koeficient materiál
             try:
                 koef_txt = f"{float(vals[4]):.2f}" if vals[4] is not None else ""
             except Exception:
                 koef_txt = str(vals[4])
-            tk.Label(card, text=f"Koef. materiál: {koef_txt}",font=("Segoe UI", int (11 * scale))).pack(anchor="w")
-            tk.Label(card, text=f"Dodávateľ: {dodavatel}", anchor="w",font=("Segoe UI", int (11 * scale))).pack(fill="x", pady=(2, 0))
+            tk.Label(card, text=f"Koef. materiál: {koef_txt}",font=("Segoe UI", int (13 * scale))).pack(anchor="w")
+            tk.Label(card, text=f"Dodávateľ: {dodavatel}", anchor="w",font=("Segoe UI", int (13 * scale))).pack(fill="x", pady=(2, 0))
             try:
                 mat_txt = format_currency(nakup_mat)
             except Exception:
@@ -805,8 +806,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 work_txt = format_currency(cena_prace)
             except Exception:
                 work_txt = str(cena_prace)
-            tk.Label(card, text=f"Materiál: {mat_txt}",font=("Segoe UI", int (11 * scale))).pack(anchor="w")
-            tk.Label(card, text=f"Práca: {work_txt}",font=("Segoe UI", int (11 * scale))).pack(anchor="w")
+            tk.Label(card, text=f"Materiál: {mat_txt}",font=("Segoe UI", int (13 * scale))).pack(anchor="w")
+            tk.Label(card, text=f"Práca: {work_txt}",font=("Segoe UI", int (13 * scale))).pack(anchor="w")
             btns = tk.Frame(card)
             btns.pack(fill="x", pady=(6, 0))
             def _add(v=vals):
