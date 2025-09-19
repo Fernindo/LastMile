@@ -187,8 +187,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         scale = float(calibrate_tk_scaling(root))
         print("[DEBUG] tk scaling:", root.tk.call("tk", "scaling"))
         print("[DEBUG] effective scale:", scale)
-        if scale >=2.0:
-            scale *= 1.6
+        
         apply_global_scaling(root, style, scale)
     except Exception:
         scale = 1.25
@@ -249,8 +248,12 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     ui_settings = _load_ui_settings()
     # Use a fixed table font size derived from scale (no user override)
-    table_font_size = int(9 * scale)
-    row_h = int(20 * scale)
+    if abs(scale - 2.0) < 0.25:   # 200% DPI
+        table_font_size = 14
+        row_h = 28
+    else:
+        table_font_size = int(9 * scale)
+        row_h = int(20 * scale)
 
     try:
         _area_default = float(ui_settings.get("area_m2", 0.0))
