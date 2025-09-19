@@ -9,6 +9,7 @@ import json
 import subprocess
 from PIL import Image, ImageTk
 from helpers import ensure_user_config, secure_load_json, secure_save_json, enable_high_dpi_awareness, open_debug_menu
+from helpers import get_praca_data_func
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
@@ -1611,19 +1612,38 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         pb.pack(padx=20, pady=20)
         pb.start()
 
-        def worker():
-            try:
-                update_excel_from_basket(
-                    basket,
-                    project_entry.get(),
-                    commit_file,
-                    definicia_text=definition_entry.get()
-                )
-            finally:
-                pb.stop()
-                progress_win.destroy()
+    import threading
+    import globals_state
 
-        threading.Thread(target=worker, daemon=True).start()
+    def export_with_progress():
+            reorder_basket_data(basket_tree, basket)
+
+            progress_win = tk.Toplevel(root)
+            progress_win.title("Export")
+            pb = tb.Progressbar(progress_win, mode="indeterminate", length=200)
+            pb.pack(padx=20, pady=20)
+            pb.start()
+
+            def worker():
+                try:
+                    praca_data = getattr(globals_state, "saved_praca_data", None)
+                    print("[DEBUG] worker -> saved_praca_data:", praca_data)
+
+                    update_excel_from_basket(
+                        basket,
+                        project_entry.get(),
+                        commit_file,
+                        definicia_text=definition_entry.get(),
+                        praca_data=praca_data  # ⬅️ odovzdáš uložené dáta
+                    )
+                finally:
+                    pb.stop()
+                    progress_win.destroy()
+
+            # ⬅️ tu je podstatné – worker sa spustí vo vlákne
+            threading.Thread(target=worker, daemon=True).start()
+
+
 
     exportCPINT_btn = tb.Button(
         left_btn_frame,

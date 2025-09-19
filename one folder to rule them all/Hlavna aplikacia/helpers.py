@@ -17,7 +17,7 @@ from ttkbootstrap import Button
 # ---------------------------------------------------------------------------
 # App/resource paths and config bootstrap (PyInstaller-friendly)
 # ---------------------------------------------------------------------------
-
+get_praca_data_func = None
 def is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
@@ -624,6 +624,7 @@ def create_notes_panel(parent, project_name, json_path):
 def show_praca_window(cursor):
     from tkinter import messagebox
     from ttkbootstrap import Button
+    import globals_state   # ⬅️ nový import
 
     cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly")
     roles = cursor.fetchall()
@@ -645,14 +646,36 @@ def show_praca_window(cursor):
     praca_window.minsize(800, 400)
 
     entries = []
+    def get_praca_data():
+        data = []
+        for row in entries:
+            rola = row["rola_var"].get()
+            osoby = row["osoby_var"].get()
+            hodiny = row["hodiny_var"].get()
+            if "plat_entry" in row:
+                plat = row["plat_var"].get()
+            else:
+                plat = row["plat_label"].cget("text")
+            spolu = row["spolu_label"].cget("text")
+            koef = row["koef_var"].get()
+            predaj = row["predaj_var"].get()
+            data.append([rola, osoby, hodiny, plat, spolu, koef, predaj])
+        return data
+
+    # 💾 uloženie dát do globálnej premennej
+    def save_praca_data():
+        globals_state.saved_praca_data = get_praca_data()
+        print("[DEBUG] saved_praca_data uložené:", globals_state.saved_praca_data)
+        messagebox.showinfo("Info", "Pracovné dáta boli uložené.")
+
     praca_nakup_var = tk.StringVar(value="0.00")
     praca_predaj_var = tk.StringVar(value="0.00")
     praca_marza_var = tk.StringVar(value="0.00")
+    print("[DEBUG] get_praca_data() ->", get_praca_data())
 
     def recalculate():
         nakup_sum = 0.0
         predaj_sum = 0.0
-
         for row in entries:
             try:
                 osoby = int(row["osoby_var"].get())
@@ -670,7 +693,6 @@ def show_praca_window(cursor):
                 predaj_sum += predaj
             except Exception:
                 continue
-
         praca_nakup_var.set(f"{nakup_sum:.2f}")
         praca_predaj_var.set(f"{predaj_sum:.2f}")
         praca_marza_var.set(f"{predaj_sum - nakup_sum:.2f}")
@@ -774,8 +796,14 @@ def show_praca_window(cursor):
 
     top_frame = tk.Frame(praca_window, bg="#e9f0fb")
     top_frame.pack(fill="x", padx=15, pady=10)
-    Button(top_frame, text="➕ Pridať", bootstyle="success", width=12, command=lambda: add_row(rola="Nová rola", plat=0)).pack(side="left", padx=10)
-    Button(top_frame, text="❌ Odstrániť", bootstyle="danger", width=12, command=remove_row).pack(side="left", padx=10)
+
+    Button(top_frame, text="➕ Pridať", bootstyle="success", width=12,
+           command=lambda: add_row(rola="Nová rola", plat=0)).pack(side="left", padx=10)
+    Button(top_frame, text="❌ Odstrániť", bootstyle="danger", width=12,
+           command=remove_row).pack(side="left", padx=10)
+    # 💾 nové tlačidlo
+    Button(top_frame, text="💾 Uložiť", bootstyle="info", width=12,
+           command=save_praca_data).pack(side="left", padx=10)
 
     global table_frame
     table_frame = tk.Frame(praca_window, bg="#f2f2f2", bd=2, relief="ridge")
@@ -829,7 +857,3 @@ def show_praca_window(cursor):
 
     tk.Label(summary_frame, text="Práca predaj:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
     tk.Label(summary_frame, textvariable=praca_predaj_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
-
-
-
-

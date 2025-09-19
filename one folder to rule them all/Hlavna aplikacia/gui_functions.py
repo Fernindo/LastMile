@@ -469,7 +469,9 @@ def reorder_basket_data(basket_tree, basket: Basket):
     """Pull edits from the Treeview back into the Basket object."""
     basket.reorder_from_tree(basket_tree)
 
-def update_excel_from_basket(basket: Basket, project_name, json_path, definicia_text=""):
+def update_excel_from_basket(basket: Basket, project_name, json_path, definicia_text="", praca_data=None):
+    print("[DEBUG] update_excel_from_basket -> praca_data:", praca_data)
+
     """
     Otvorí dialógové okno na výber miesta uloženia a vytvorí Excel súbor.
     """
@@ -507,6 +509,7 @@ def update_excel_from_basket(basket: Basket, project_name, json_path, definicia_
         project_name,
         notes_text=notes_text,
         definicia_text=definicia_text,
+        praca_data=praca_data,
     )
 
 
