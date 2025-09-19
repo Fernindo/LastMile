@@ -10,7 +10,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import tkinter.font as tkfont
 from datetime import datetime
-
+import ctypes
 from ttkbootstrap import Button
 
 
@@ -229,31 +229,34 @@ def enable_high_dpi_awareness() -> None:
 
 
 def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float = 2.5) -> float:
-    """Calibrate Tk scaling with special handling for 200% DPI laptops."""
+    """Return the scaling factor using Windows API if available.
+    Special-case 200% DPI to reduce oversizing.
+    """
     try:
         enable_high_dpi_awareness()
     except Exception:
         pass
 
+    scale = 1.0
     try:
-        pixels_per_inch = float(root.winfo_fpixels("1i"))
-        raw_scale = pixels_per_inch / 96.0   # Windows baseline
+        if os.name == "nt":
+            dpi = ctypes.windll.user32.GetDpiForSystem()
+            scale = dpi / 96.0
+        else:
+            scale = float(root.winfo_fpixels("1i")) / 72.0
     except Exception:
-        raw_scale = 1.0
+        try:
+            scale = float(root.winfo_fpixels("1i")) / 96.0
+        except Exception:
+            scale = 1.0
 
-    # Snap to common values
-    steps = [1.0, 1.25, 1.5, 1.75, 2.0]
-    base_scale = min(steps, key=lambda s: abs(s - raw_scale))
+    # ✅ Option A: tweak the extremes
+    if abs(scale - 2.0) < 0.05:       # 200% DPI → shrink a bit
+        scale = 1.65
+    elif abs(scale - 1.0) < 0.05:     # 100% DPI → give a small boost
+        scale = 1.1
 
-    # Special case: 200% (2.0) → reduce to avoid oversized UI
-    if abs(base_scale - 2.0) < 0.1:
-        scale = 1.9   # 👈 tweak this number until Project Selector fits
-    elif abs(base_scale - 1.0) < 0.1:
-        scale = 1.3   # 👈 bump up 100% DPI just a little
-    else:
-        scale = base_scale
-
-    # Clamp safe range
+    # Clamp to safe range
     scale = max(min_scale, min(scale, max_scale))
 
     try:
@@ -262,6 +265,8 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
         pass
 
     return float(scale)
+
+
 
 def apply_global_scaling(root, style, scale: float):
     base_font_size = int(11 * scale)

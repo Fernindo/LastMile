@@ -8,7 +8,7 @@ import ttkbootstrap as tb
 import json
 import subprocess
 from PIL import Image, ImageTk
-from helpers import ensure_user_config, secure_load_json, secure_save_json
+from helpers import ensure_user_config, secure_load_json, secure_save_json, enable_high_dpi_awareness
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
@@ -23,7 +23,11 @@ def _save_ui_settings(data):
         secure_save_json(UI_SETTINGS_FILE, data)
     except Exception:
         pass
-
+try:
+    
+    enable_high_dpi_awareness()
+except Exception:
+    pass
     
 from datetime import datetime
 import tkinter.simpledialog
@@ -178,8 +182,10 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     # Unified adaptive DPI scaling
     try:
         scale = float(calibrate_tk_scaling(root))
+        print("[DEBUG] tk scaling:", root.tk.call("tk", "scaling"))
+        print("[DEBUG] effective scale:", scale)
         if scale >=2.0:
-            scale *= 1.1
+            scale *= 1.6
         apply_global_scaling(root, style, scale)
     except Exception:
         scale = 1.25
@@ -790,14 +796,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 continue
             card = tb.Frame(inner, bootstyle="light", padding=10)
             card.grid(row=r, column=c, padx=6, pady=6, sticky="nsew")
-            tk.Label(card, text=str(produkt), font=("Segoe UI", int (13 * scale), "bold"), anchor="w").pack(fill="x")
+            tk.Label(card, text=str(produkt), font=("Segoe UI", int (10 * scale), "bold"), anchor="w").pack(fill="x")
             # Koeficient materiál
             try:
                 koef_txt = f"{float(vals[4]):.2f}" if vals[4] is not None else ""
             except Exception:
                 koef_txt = str(vals[4])
-            tk.Label(card, text=f"Koef. materiál: {koef_txt}",font=("Segoe UI", int (13 * scale))).pack(anchor="w")
-            tk.Label(card, text=f"Dodávateľ: {dodavatel}", anchor="w",font=("Segoe UI", int (13 * scale))).pack(fill="x", pady=(2, 0))
+            tk.Label(card, text=f"Koef. materiál: {koef_txt}",font=("Segoe UI", int (10 * scale))).pack(anchor="w")
+            tk.Label(card, text=f"Dodávateľ: {dodavatel}", anchor="w",font=("Segoe UI", int (10 * scale))).pack(fill="x", pady=(2, 0))
             try:
                 mat_txt = format_currency(nakup_mat)
             except Exception:
@@ -806,8 +812,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 work_txt = format_currency(cena_prace)
             except Exception:
                 work_txt = str(cena_prace)
-            tk.Label(card, text=f"Materiál: {mat_txt}",font=("Segoe UI", int (13 * scale))).pack(anchor="w")
-            tk.Label(card, text=f"Práca: {work_txt}",font=("Segoe UI", int (13 * scale))).pack(anchor="w")
+            tk.Label(card, text=f"Materiál: {mat_txt}",font=("Segoe UI", int (10 * scale))).pack(anchor="w")
+            tk.Label(card, text=f"Práca: {work_txt}",font=("Segoe UI", int (10 * scale))).pack(anchor="w")
             btns = tk.Frame(card)
             btns.pack(fill="x", pady=(6, 0))
             def _add(v=vals):
