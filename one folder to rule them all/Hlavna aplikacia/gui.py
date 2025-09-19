@@ -257,7 +257,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         row_h = 28
     else:
         print("[DEBUG] effective scale: aaaaaaaaaaaaaaaaaaaaaaaaaaaaa font size scale")
-        table_font_size = int(9 * scale)
+        table_font_size = int(11 * scale)
         row_h = int(20 * scale)
 
     try:
