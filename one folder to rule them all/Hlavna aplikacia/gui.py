@@ -251,7 +251,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     print("[DEBUG] tk scaling:", root.tk.call("tk", "scaling"))
     print("[DEBUG] effective scale:", scale)
-    if abs(scale - 2.0) < 0.25:   # 200% DPI
+    if abs(scale - 1.65) < 0.25:   # 200% DPI
         print("[DEBUG] effective scale: aaaaaaaaaaaaaaaaaaaaaaaaaaaaa font size 14")
         table_font_size = 14
         row_h = 28
