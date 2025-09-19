@@ -179,6 +179,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     master = style.master  # underlying Tk root (may already host other UI)
     root  = master
 
+    
+
     # Unified adaptive DPI scaling
     try:
         scale = float(calibrate_tk_scaling(root))

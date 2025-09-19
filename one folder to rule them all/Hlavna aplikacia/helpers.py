@@ -255,6 +255,10 @@ def calibrate_tk_scaling(root: tk.Misc, min_scale: float = 1.0, max_scale: float
         scale = 1.65
     elif abs(scale - 1.0) < 0.05:     # 100% DPI → give a small boost
         scale = 1.1
+    elif abs(scale - 1.75) < 0.05:     # 100% DPI → give a small boost
+        scale = 1.5
+    elif abs(scale - 1.25) < 0.05:     # 100% DPI → give a small boost
+        scale = 1.3
 
     # Clamp to safe range
     scale = max(min_scale, min(scale, max_scale))
@@ -290,7 +294,40 @@ def apply_global_scaling(root, style, scale: float):
     table_font_size = int(11 * scale)
     row_h = int(2.4 * table_font_size)
     style.configure("Main.Treeview", rowheight=row_h, font=("Segoe UI", table_font_size))
-    style.configure("Basket.Treeview", rowheight=row_h, font=("Segoe UI", table_font_size))
+    basket_font_size = table_font_size
+    basket_row_h = row_h
+    if scale >= 1.6:  # only enlarge on 200% DPI laptops
+        basket_font_size += 10
+        basket_row_h += int(0.2 * table_font_size)
+    style.configure("Basket.Treeview", rowheight=basket_row_h, font=("Segoe UI", basket_font_size))
+
+
+
+class DebugMenu(tk.Toplevel):
+    def __init__(self, master, settings):
+        super().__init__(master)
+        self.title("Debug Menu")
+        self.settings = settings
+        self.vars = {}
+
+        row = 0
+        for key, value in settings.items():
+            tk.Label(self, text=key).grid(row=row, column=0, sticky="w")
+            var = tk.DoubleVar(value=value)
+            self.vars[key] = var
+            tk.Scale(self, from_=0, to=5, resolution=0.1,
+                     orient="horizontal", variable=var).grid(row=row, column=1, sticky="ew")
+            row += 1
+
+        self.columnconfigure(1, weight=1)
+
+    def get_settings(self):
+        return {k: v.get() for k, v in self.vars.items()}
+
+
+def open_debug_menu(root, settings):
+    """Open the debug menu (F12)."""
+    DebugMenu(root, settings)
 
 
 
