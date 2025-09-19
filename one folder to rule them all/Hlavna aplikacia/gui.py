@@ -8,7 +8,7 @@ import ttkbootstrap as tb
 import json
 import subprocess
 from PIL import Image, ImageTk
-from helpers import ensure_user_config, secure_load_json, secure_save_json, enable_high_dpi_awareness
+from helpers import ensure_user_config, secure_load_json, secure_save_json, enable_high_dpi_awareness, open_debug_menu
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
@@ -179,7 +179,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
     master = style.master  # underlying Tk root (may already host other UI)
     root  = master
 
-    
+
+
 
     # Unified adaptive DPI scaling
     try:
@@ -248,8 +249,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
     ui_settings = _load_ui_settings()
     # Use a fixed table font size derived from scale (no user override)
-    table_font_size = 11
-    row_h = 26
+    table_font_size = int(9 * scale)
+    row_h = int(20 * scale)
 
     try:
         _area_default = float(ui_settings.get("area_m2", 0.0))
