@@ -107,6 +107,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             sheet.cells(insert_position, 9).value = nakup_materialu
             sheet.cells(insert_position, 10).value = f"=I{insert_position}*H{insert_position}"
             sheet.cells(insert_position, 11).value = f"=G{insert_position}+J{insert_position}"
+            sheet.Cells(insert_position, 11).Interior.Color = 222, 231, 238
             sheet.cells(insert_position, 13).value = koef_material
             sheet.cells(insert_position, 14).value = nakup_materialu
             sheet.cells(insert_position, 15).value = f"=N{insert_position}*E{insert_position}"
@@ -136,9 +137,15 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
 
                 last_item_row = insert_position - 1
                 sheet.cells(insert_position, 6).value = "Materiál"
+                sheet.Cells(insert_position, 6).Interior.Color = 56, 84, 108
                 sheet.cells(insert_position, 7).value = f"=SUM(G{section_start_row}:G{last_item_row})"
+                sheet.Cells(insert_position, 7).Interior.Color = 56, 84, 108
+                sheet.cells(insert_position, 7).api.Font.Size = 10
                 sheet.cells(insert_position, 9).value = "Práca"
+                sheet.Cells(insert_position, 9).Interior.Color = 56, 84, 108
                 sheet.cells(insert_position, 10).value = f"=SUM(J{section_start_row}:J{last_item_row})"
+                sheet.Cells(insert_position, 10).Interior.Color = 56, 84, 108
+                sheet.cells(insert_position, 10).api.Font.Size = 10
                 sheet.cells(insert_position, 11).value = f"=ROUNDUP(SUM(K{section_start_row}:K{last_item_row}),0)"
                 insert_position += 1
 
