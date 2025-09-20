@@ -67,10 +67,16 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 if prev_section is not None:
                     sheet.range(f"{insert_position}:{insert_position}").insert("down")
                     sheet.range(f"{insert_position}:{insert_position}").row_height = 9.75
+                    sheet.range(f"A{insert_position}:K{insert_position}").color = (255, 255, 255)
+                    sheet.range(f"A{insert_position}:K{insert_position}").font.color = (0, 0, 0)
+
                     insert_position += 1
                 sheet.range(f"{insert_position}:{insert_position}").insert("down")
+                
                 if default_row_height:
                     sheet.range(f"{insert_position}:{insert_position}").row_height = default_row_height
+                sheet.range(f"A{insert_position}:K{insert_position}").color = (255, 255, 255)
+                sheet.range(f"A{insert_position}:K{insert_position}").font.color = (0, 0, 0)
                 sheet.cells(insert_position, 2).value = section
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
@@ -89,27 +95,73 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
             koef_material = float(item[5])
             nakup_materialu = float(item[7])
             pocet_materialu = int(item[9]) if len(item) > 9 else 1
+            cena_prace = float(item[8]) if len(item) > 8 else 0
+            pocet_prace = int(item[10]) if len(item) > 10 else 1
 
             sheet.range(f"{insert_position}:{insert_position}").insert("down")
-            src = sheet.range(f"{TEMPLATE_ROW+1}:{TEMPLATE_ROW+1}")
-            dst = sheet.range(f"{insert_position}:{insert_position}")
-            src.api.Copy()
-            dst.api.PasteSpecial(Paste=-4163)
+            #src = sheet.range(f"{TEMPLATE_ROW+1}:{TEMPLATE_ROW+1}")
+            #dst = sheet.range(f"{insert_position}:{insert_position}")
+            #src.api.Copy()
+            #dst.api.PasteSpecial(Paste=-4163)
+            sheet.range(f"B{insert_position}:K{insert_position}").color = (255, 255, 255)
+            sheet.range(f"B{insert_position}:K{insert_position}").font.color = (0, 0, 0)
             sheet.range(f"{insert_position}:{insert_position}").api.Font.Bold = False
 
+
+            #couner  B
             sheet.cells(insert_position, 2).value = counter
+            sheet.cells(insert_position, 2).api.HorizontalAlignment = HAlign.xlHAlignCenter
+
+            #meno produktu C
             sheet.cells(insert_position, 3).value = produkt
+
+            #jednotky D
             sheet.cells(insert_position, 4).value = jednotky
+            sheet.cells(insert_position, 4).api.HorizontalAlignment = HAlign.xlHAlignCenter
+
+            #pocet materialu E
             sheet.cells(insert_position, 5).value = pocet_materialu
+            sheet.cells(insert_position, 5).api.HorizontalAlignment = HAlign.xlHAlignCenter
+            
+
+            #jednotliva cena materialu  F
             sheet.cells(insert_position, 6).value = f"=N{insert_position}*M{insert_position}"
+            sheet.cells(insert_position, 6).api.HorizontalAlignment = HAlign.xlHAlignRight
+            sheet.cells(insert_position, 6).number_format = '#,##0.00 €'
+
+            #spolu material G
             sheet.cells(insert_position, 7).value = f"=F{insert_position}*E{insert_position}"
-            sheet.cells(insert_position, 8).value = pocet_materialu
-            sheet.cells(insert_position, 9).value = nakup_materialu
+            sheet.cells(insert_position, 7).api.HorizontalAlignment = HAlign.xlHAlignRight
+            sheet.cells(insert_position, 7).number_format = '#,##0.00 €'
+           
+            #pocet prace H
+            sheet.cells(insert_position, 8).value = pocet_prace
+            sheet.cells(insert_position, 8).api.HorizontalAlignment = HAlign.xlHAlignCenter
+            
+            #jednotliva cena prace
+            sheet.cells(insert_position, 9).value = cena_prace
+            sheet.cells(insert_position, 9).api.HorizontalAlignment = HAlign.xlHAlignRight
+            sheet.cells(insert_position, 9).number_format = '#,##0.00 €'
+
+
+            #spolu praca
             sheet.cells(insert_position, 10).value = f"=I{insert_position}*H{insert_position}"
+            sheet.cells(insert_position, 10).api.HorizontalAlignment = HAlign.xlHAlignRight
+            sheet.cells(insert_position, 10).number_format = '#,##0.00 €'
+
+            #vsetko spolu
             sheet.cells(insert_position, 11).value = f"=G{insert_position}+J{insert_position}"
-            sheet.Cells(insert_position, 11).Interior.Color = 222, 231, 238
+            sheet.cells(insert_position, 11).api.HorizontalAlignment = HAlign.xlHAlignRight
+            sheet.cells(insert_position, 11).color = 222, 231, 238
+            sheet.cells(insert_position, 11).number_format = '#,##0.00 €'
+
+
+            #koeficient materialu 
             sheet.cells(insert_position, 13).value = koef_material
+
+            #nakup materialu
             sheet.cells(insert_position, 14).value = nakup_materialu
+            sheet.cells(insert_position, 14).number_format = '#,##0.00 €'
             sheet.cells(insert_position, 15).value = f"=N{insert_position}*E{insert_position}"
             sheet.cells(insert_position, 16).value = f"=G{insert_position}-O{insert_position}"
             sheet.cells(insert_position, 17).value = f"=P{insert_position}/G{insert_position}"
@@ -129,6 +181,10 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 sheet.range(f"{insert_position}:{insert_position}").insert("down")
                 if default_row_height:
                     sheet.range(f"{insert_position}:{insert_position}").row_height = default_row_height
+                sheet.range(f"A{insert_position}:K{insert_position}").color = (255, 255, 255)
+                sheet.range(f"A{insert_position}:K{insert_position}").font.color = (0, 0, 0)
+
+
                 sheet.cells(insert_position, 2).value = section + " spolu"
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
@@ -137,16 +193,26 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
 
                 last_item_row = insert_position - 1
                 sheet.cells(insert_position, 6).value = "Materiál"
-                sheet.Cells(insert_position, 6).Interior.Color = 56, 84, 108
+                sheet.cells(insert_position, 6).color = 56, 84, 108
+                sheet.cells(insert_position, 6).font.color = 255, 255, 255
+                sheet.cells(insert_position, 6).api.HorizontalAlignment = HAlign.xlHAlignRight
                 sheet.cells(insert_position, 7).value = f"=SUM(G{section_start_row}:G{last_item_row})"
-                sheet.Cells(insert_position, 7).Interior.Color = 56, 84, 108
+                sheet.cells(insert_position, 7).color = 56, 84, 108
+                sheet.cells(insert_position, 7).font.color = 255, 255, 255
                 sheet.cells(insert_position, 7).api.Font.Size = 10
+                sheet.cells(insert_position, 7).api.HorizontalAlignment = HAlign.xlHAlignRight
                 sheet.cells(insert_position, 9).value = "Práca"
-                sheet.Cells(insert_position, 9).Interior.Color = 56, 84, 108
+                sheet.cells(insert_position, 9).color = 56, 84, 108
+                sheet.cells(insert_position, 9).font.color = 255, 255, 255
+                sheet.cells(insert_position, 9).api.HorizontalAlignment = HAlign.xlHAlignRight
                 sheet.cells(insert_position, 10).value = f"=SUM(J{section_start_row}:J{last_item_row})"
-                sheet.Cells(insert_position, 10).Interior.Color = 56, 84, 108
+                sheet.cells(insert_position, 10).color = 56, 84, 108
+                sheet.cells(insert_position, 10).font.color = 255, 255, 255
                 sheet.cells(insert_position, 10).api.Font.Size = 10
+                sheet.cells(insert_position, 10).api.HorizontalAlignment = HAlign.xlHAlignRight
                 sheet.cells(insert_position, 11).value = f"=ROUNDUP(SUM(K{section_start_row}:K{last_item_row}),0)"
+                sheet.cells(insert_position, 11).color = 255,255,255
+                sheet.cells(insert_position, 11).api.HorizontalAlignment = HAlign.xlHAlignRight
                 insert_position += 1
 
                 section_end_row = insert_position - 1
@@ -187,7 +253,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         # ----- doprava -----
         doprava_data = load_doprava_data()
         if doprava_data:
-            row = 25
+            row = 40
             cena_vyjazd, pocet_vyjazdov, cena_ba, cena_km, cena_mimo = doprava_data
             sheet.cells(row, 13).value = cena_vyjazd     # M = 1 výjazd v BA
             sheet.cells(row, 14).value = pocet_vyjazdov  # N = počet výjazdov
