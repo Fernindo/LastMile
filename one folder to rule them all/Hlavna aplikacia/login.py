@@ -26,6 +26,10 @@ import gui_functions
 import excel_processing
 import doprava
 import gui
+from updater import check_for_updates
+
+# Run on startup or add a button
+check_for_updates()
 
 
 

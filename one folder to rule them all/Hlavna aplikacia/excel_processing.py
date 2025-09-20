@@ -74,7 +74,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 sheet.cells(insert_position, 2).value = section
                 row_range = sheet.range(f"{insert_position}:{insert_position}")
                 row_range.api.Font.Bold = True
-                row_range.api.Font.Size = 12
+                row_range.api.Font.Size = 9
                 row_range.api.HorizontalAlignment = HAlign.xlHAlignLeft
                 header_row = insert_position
 
