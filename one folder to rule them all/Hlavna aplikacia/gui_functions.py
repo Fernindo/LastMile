@@ -496,21 +496,18 @@ def update_excel_from_basket(basket: Basket, project_name, json_path, definicia_
                 v.pocet_prace,
             ))
 
-    # Load checked notes if available
-    notes_lines = []
-    for n in get_current_notes(project_name, json_path):
-        if int(n.get("state", 0)) == 1:
-            notes_lines.append(n.get("text", ""))
-
-    notes_text = "\n".join(notes_lines) if notes_lines else ""
+    # Load checked notes only once
+    notes_lines = get_selected_notes(project_name)
 
     update_excel(
         excel_data,
         project_name,
-        notes_text=notes_text,
+        notes_text=notes_lines,   # pass the list of checked notes
         definicia_text=definicia_text,
         praca_data=praca_data,
     )
+
+
 
 
 def recompute_total_spolu(basket: Basket, total_spolu_var,
@@ -889,21 +886,7 @@ def show_notes_popup(project_name, json_path):
     vars_items = []
     NOTES_UI_STATE[project_name] = vars_items
 
-    def move_up(frame):
-        idx = next((i for i, (_, _, f) in enumerate(vars_items) if f is frame), None)
-        if idx is None or idx == 0:
-            return
-        vars_items[idx], vars_items[idx-1] = vars_items[idx-1], vars_items[idx]
-        frame.pack_forget()
-        frame.pack(before=vars_items[idx][2])
-
-    def move_down(frame):
-        idx = next((i for i, (_, _, f) in enumerate(vars_items) if f is frame), None)
-        if idx is None or idx == len(vars_items) - 1:
-            return
-        vars_items[idx], vars_items[idx+1] = vars_items[idx+1], vars_items[idx]
-        frame.pack_forget()
-        frame.pack(after=vars_items[idx][2])
+    
 
     def create_note(text, checked=True, editable=False):
         var = tk.IntVar(value=1 if checked else 0)
@@ -925,10 +908,15 @@ def show_notes_popup(project_name, json_path):
             chk.pack(side="left", fill="x", expand=True)
             text_widget = text
 
-        tk.Button(row, text="↑", width=2, command=lambda f=row: move_up(f)).pack(side="left")
-        tk.Button(row, text="↓", width=2, command=lambda f=row: move_down(f)).pack(side="left")
-
         vars_items.append((var, text_widget, row))
+
+        # 🔍 DEBUG: print current state + text
+        
+
+
+     
+
+       
 
     for state, text in items:
         create_note(text, checked=bool(state))
@@ -957,7 +945,7 @@ def show_notes_popup(project_name, json_path):
         except Exception as e:
             messagebox.showerror("Chyba", f"Nepodarilo sa uložiť poznámky: {e}")
         notes_window.destroy()
-        NOTES_UI_STATE.pop(project_name, None)
+        #NOTES_UI_STATE.pop(project_name, None)
 
     def on_close():
         """Close notes window without saving."""
@@ -970,6 +958,21 @@ def show_notes_popup(project_name, json_path):
     notes_window.transient()
     notes_window.grab_set()
     notes_window.wait_window()
+def get_selected_notes(project_name):
+    selected = []
+    vars_items = NOTES_UI_STATE.get(project_name, [])
+    for var, text, _ in vars_items:
+        print(f"[DEBUG] get_selected_notes → state={var.get()} text='{text}'")
+        if var.get() == 1:  # only checked notes
+            if isinstance(text, tk.Entry):
+                t = text.get().strip()
+            else:
+                t = text.strip() if isinstance(text, str) else str(text).strip()
+            if t:
+                selected.append(t)
+    print(f"[DEBUG] Final selected notes: {selected}")
+    return selected
+
 
 
 def get_current_notes(project_name, json_path):

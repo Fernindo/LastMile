@@ -55,10 +55,23 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         prev_section = None
         section_start_row = None
         header_row = None
+        poznamkyRow = 25
+        poznamkyCounter = 1
         try:
             default_row_height = sheet.range(f"{TEMPLATE_ROW+1}:{TEMPLATE_ROW+1}").row_height
         except Exception:
             default_row_height = None
+        if notes_text:
+            for note in notes_text:
+                text_value = note.strip() if isinstance(note, str) else str(note).strip()
+                if text_value:
+                    sheet.cells(poznamkyRow, 2).value = poznamkyCounter
+                    sheet.cells(poznamkyRow, 3).value = text_value
+                    sheet.cells(poznamkyRow, 3).api.WrapText = True
+                    poznamkyRow += 1
+                    poznamkyCounter += 1
+
+
 
         # ----- položky -----
         for idx, item in enumerate(selected_items):
@@ -227,14 +240,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                     br.Weight = BW.xlThin
 
         # ----- poznámky -----
-        if notes_text:
-            try:
-                notes_sheet = wb.sheets.add(after=sheet)
-                notes_sheet.name = "Poznámky"
-                for i, line in enumerate(notes_text.splitlines(), start=1):
-                    notes_sheet.cells(i, 1).value = line
-            except Exception as e:
-                print("⚠ Failed to add notes sheet:", e)
+        
 
         # ----- práca -----
         if praca_data:
