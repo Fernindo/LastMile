@@ -62,14 +62,58 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         except Exception:
             default_row_height = None
         if notes_text:
-            for note in notes_text:
-                text_value = note.strip() if isinstance(note, str) else str(note).strip()
-                if text_value:
-                    sheet.cells(poznamkyRow, 2).value = poznamkyCounter
-                    sheet.cells(poznamkyRow, 3).value = text_value
-                    sheet.cells(poznamkyRow, 3).api.WrapText = True
-                    poznamkyRow += 1
-                    poznamkyCounter += 1
+            for n in notes_text:
+                # accept either {"state": 1/0, "text": "..."} or plain strings
+                try:
+                    state = int(n.get("state", 0))
+                    text_value = n.get("text", "").strip()
+                except AttributeError:
+                    state = 1
+                    text_value = str(n).strip()
+
+                # only write checked, non-empty notes
+                if state != 1 or not text_value:
+                    continue
+
+                # insert an empty row for this note
+                sheet.range(f"{poznamkyRow}:{poznamkyRow}").insert("down")
+                # row height ~20 px
+                sheet.range(f"{poznamkyRow}:{poznamkyRow}").row_height = 15
+
+                # normalize the whole band B:K for this row
+                row_rng = sheet.range(f"B{poznamkyRow}:K{poznamkyRow}")
+                row_rng.clear_contents()
+                row_rng.color = (255, 255, 255)
+                row_rng.api.WrapText = False
+                row_rng.api.Font.Bold = False
+
+                # counter in column B (boxed, size 9, centered)
+                b_cell = sheet.cells(poznamkyRow, 2)
+                b_cell.value = poznamkyCounter
+                b_cell.api.HorizontalAlignment = HAlign.xlHAlignCenter
+                b_cell.api.Font.Size = 9
+                b_cell.api.Font.Bold = False
+                for edge in (BI.xlEdgeTop, BI.xlEdgeBottom, BI.xlEdgeRight):
+                    br = b_cell.api.Borders(edge)
+                    br.LineStyle = LineStyle.xlContinuous
+                    br.Weight = BW.xlThin
+
+                # note text in column C (size 11, left, single-line)
+                c_cell = sheet.cells(poznamkyRow, 3)
+                c_cell.value = text_value
+                c_cell.api.WrapText = False
+                c_cell.api.HorizontalAlignment = HAlign.xlHAlignLeft
+                c_cell.api.Font.Size = 11
+                c_cell.api.Font.Bold = False
+
+                # thin top & bottom borders across the B:K band
+                for edge in (BI.xlEdgeTop, BI.xlEdgeBottom):
+                    br = row_rng.api.Borders(edge)
+                    br.LineStyle = LineStyle.xlContinuous
+                    br.Weight = BW.xlThin
+
+                poznamkyRow += 1
+                poznamkyCounter += 1
 
 
 
