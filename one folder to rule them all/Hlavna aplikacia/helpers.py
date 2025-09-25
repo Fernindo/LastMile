@@ -626,7 +626,7 @@ def show_praca_window(cursor):
     from ttkbootstrap import Button
     import globals_state   # ⬅️ nový import
 
-    cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly")
+    cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly LIMIT 4")
     roles = cursor.fetchall()
     if not roles:
         messagebox.showwarning("Upozornenie", "Žiadne roly v databáze.")
