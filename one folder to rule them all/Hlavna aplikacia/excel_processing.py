@@ -287,8 +287,9 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         
 
         # ----- práca -----
+        last_item_row = insert_position
         if praca_data:
-            start_row = 28
+            start_row = row = last_item_row + 12
             start_col = 13  # Column J
 
             print("[DEBUG] praca_data:", praca_data)
@@ -299,11 +300,11 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                 filtered = [row[0], row[1], row[2], row[3], row[4], row[6]]  
                 for c_idx, val in enumerate(filtered):
                     sheet.cells(r_idx, start_col + c_idx).value = val
-           
+        
         # ----- doprava -----
         doprava_data = load_doprava_data()
         if doprava_data:
-            row = 40
+            row = last_item_row + 8
             cena_vyjazd, pocet_vyjazdov, cena_ba, cena_km, cena_mimo = doprava_data
             sheet.cells(row, 13).value = cena_vyjazd     # M = 1 výjazd v BA
             sheet.cells(row, 14).value = pocet_vyjazdov  # N = počet výjazdov
@@ -328,3 +329,4 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
     except Exception as e:
         print("❌ Failed during Excel export.")
         print(f"🔍 Error: {e}")
+
