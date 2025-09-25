@@ -4,10 +4,8 @@ import os
 import sys
 import shutil
 import tempfile
-import subprocess
 import tkinter as tk
-import ttkbootstrap as tb
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 import threading
 
 GITHUB_API = "https://api.github.com/repos/Fernindo/LastMile/releases/latest"
@@ -38,7 +36,7 @@ def check_for_updates(root=None):
         print("No updates available.")
         return
 
-    # Ask the user
+    # Ask the user in a simple popup
     if not messagebox.askyesno(
         "Update available",
         f"New version {latest_version} is available.\n"
@@ -50,20 +48,21 @@ def check_for_updates(root=None):
     # Find .exe asset
     asset = next((a for a in release["assets"] if a["name"].endswith(".exe")), None)
     if not asset:
-        messagebox.showerror("Update", "No installer found in release.", parent=root)
+        messagebox.showerror("Update", "No .exe file found in release.", parent=root)
         return
 
     url = asset["browser_download_url"]
 
-    # Create progress window
-    win = tb.Toplevel(root)
+    # Only create the update progress window now
+    win = tk.Toplevel(root) if root else tk.Tk()
     win.title("Updating...")
     win.geometry("400x120")
+    win.resizable(False, False)
 
-    label = tb.Label(win, text="Downloading update...")
+    label = tk.Label(win, text="Downloading update...")
     label.pack(pady=10)
 
-    progress = tb.Progressbar(win, mode="determinate", length=350)
+    progress = ttk.Progressbar(win, mode="determinate", length=350)
     progress.pack(pady=10)
 
     def do_download():
@@ -83,12 +82,34 @@ def check_for_updates(root=None):
                         if total:
                             progress["value"] = downloaded / total * 100
                             win.update_idletasks()
+
             label.config(text="Download complete. Restarting...")
+
             if sys.platform == "win32":
-                subprocess.Popen([new_exe_path])
-                sys.exit(0)
+                try:
+                    current_exe = sys.executable
+
+                    # Backup old exe just in case
+                    backup_exe = current_exe + ".bak"
+                    try:
+                        if os.path.exists(backup_exe):
+                            os.remove(backup_exe)
+                        os.rename(current_exe, backup_exe)
+                    except Exception:
+                        pass
+
+                    # Replace with new exe
+                    shutil.copy2(new_exe_path, current_exe)
+
+                    # Relaunch instantly
+                    os.execl(current_exe, current_exe, *sys.argv)
+
+                except Exception as e:
+                    messagebox.showerror("Update failed", f"Could not replace exe:\n{e}", parent=win)
+                    win.destroy()
             else:
                 messagebox.showinfo("Update", "Download finished. Please restart manually.", parent=win)
+
         except Exception as e:
             messagebox.showerror("Update failed", str(e), parent=win)
             win.destroy()
