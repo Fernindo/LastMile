@@ -1,13 +1,1 @@
-python -m nuitka login.py ^
-    --standalone --onefile ^
-    --enable-plugin=tk-inter ^
-    --include-package-data=ttkbootstrap ^
-    --windows-console-mode=disable ^
-    --output-dir=build ^
-    --windows-icon-from-ico=Merlin.ico ^
-    --product-name=Merlin ^
-    --file-description=Merlin ^
-    --product-version=1.0.0 ^
-    --file-version=1.0.0 ^
-    --include-data-files="*.xlsx=./" ^
-    --output-filename=merlin.exe
+python -m nuitka login.py ^ --standalone --onefile ^ --enable-plugin=tk-inter ^ --include-package-data=ttkbootstrap ^ --windows-console-mode=disable ^ --output-dir=build ^ --windows-icon-from-ico=Merlin.ico ^ --product-name=Merlin ^ --file-description=Merlin ^ --product-version=1.0.0 ^ --file-version=1.0.0 ^ --include-data-files="*.xlsx=./" ^ --output-filename=merlin.exe
