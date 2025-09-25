@@ -19,14 +19,12 @@ from helpers import (
     apply_ttk_base_font,
 )
 
-# Legacy compatibility: some builds still call show_presets_window from the top bar.
-# We keep a no-op stub so the UI can hide the old button without NameError.
+
 def show_presets_window():
     pass
 
 
-# Single-app Projects Home embedded in project_selector.py
-# No new code files. Only creates project JSONs when you make a new project.
+
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 

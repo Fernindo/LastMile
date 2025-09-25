@@ -304,7 +304,7 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
         # ----- doprava -----
         doprava_data = load_doprava_data()
         if doprava_data:
-            row = last_item_row + 8
+            row = last_item_row + 9
             cena_vyjazd, pocet_vyjazdov, cena_ba, cena_km, cena_mimo = doprava_data
             sheet.cells(row, 13).value = cena_vyjazd     # M = 1 výjazd v BA
             sheet.cells(row, 14).value = pocet_vyjazdov  # N = počet výjazdov
