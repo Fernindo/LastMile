@@ -4,17 +4,20 @@ import os
 import sys
 import shutil
 import tempfile
-import tkinter as tk
-from tkinter import messagebox, ttk
 import threading
+import tkinter as tk
+from tkinter import ttk
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
 
-GITHUB_API = "https://api.github.com/repos/Fernindo/LastMile/releases/latest"
+LATEST_JSON = "https://fernindo.github.io/LastMile/latest.json"
 CURRENT_VERSION = "1.0.0"   # match your Nuitka --product-version
 
 
 def get_latest_release():
+    """Fetch release info from the hosted latest.json file."""
     try:
-        response = requests.get(GITHUB_API, timeout=10)
+        response = requests.get(LATEST_JSON, timeout=10)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -22,50 +25,52 @@ def get_latest_release():
         return None
 
 
-def check_for_updates(root=None):
+def check_for_updates(root):
     """
-    Check for updates and show GUI prompt if new version is available.
-    `root` should be a Tk() or ttkbootstrap.Window instance.
+    Show update popup inside the Project Selector window (root).
     """
     release = get_latest_release()
     if not release:
         return
 
-    latest_version = release["tag_name"].lstrip("v")
-    if latest_version <= CURRENT_VERSION:
+    latest_version = release.get("tag_name", "").lstrip("v")
+    if not latest_version or latest_version <= CURRENT_VERSION:
         print("No updates available.")
         return
 
-    # Ask the user in a simple popup
-    if not messagebox.askyesno(
-        "Update available",
-        f"New version {latest_version} is available.\n"
-        "Do you want to update now?",
-        parent=root,
-    ):
-        return
-
     # Find .exe asset
-    asset = next((a for a in release["assets"] if a["name"].endswith(".exe")), None)
+    asset = next((a for a in release.get("assets", []) if a["name"].endswith(".exe")), None)
     if not asset:
-        messagebox.showerror("Update", "No .exe file found in release.", parent=root)
+        print("No .exe file found in release.")
         return
 
     url = asset["browser_download_url"]
 
-    # Only create the update progress window now
-    win = tk.Toplevel(root) if root else tk.Tk()
-    win.title("Updating...")
-    win.geometry("400x120")
+    # Create popup window as child of Project Selector
+    win = tb.Toplevel(root)
+    win.title("Update Available")
+    win.geometry("420x200")
     win.resizable(False, False)
+    win.transient(root)       # keep above parent
+    win.grab_set()            # make modal
 
-    label = tk.Label(win, text="Downloading update...")
-    label.pack(pady=10)
+    # Info label
+    label = ttk.Label(
+        win,
+        text=f"New version {latest_version} is available.\nDo you want to update now?",
+        justify="center",
+        font=("Segoe UI", 11)
+    )
+    label.pack(pady=20)
 
+    # Progress bar (hidden at first)
     progress = ttk.Progressbar(win, mode="determinate", length=350)
     progress.pack(pady=10)
+    progress.pack_forget()
 
     def do_download():
+        progress.pack(pady=10)
+        label.config(text="Downloading update...")
         temp_dir = tempfile.mkdtemp()
         new_exe_path = os.path.join(temp_dir, asset["name"])
         try:
@@ -105,13 +110,28 @@ def check_for_updates(root=None):
                     os.execl(current_exe, current_exe, *sys.argv)
 
                 except Exception as e:
-                    messagebox.showerror("Update failed", f"Could not replace exe:\n{e}", parent=win)
-                    win.destroy()
+                    label.config(text=f"Update failed:\n{e}")
             else:
-                messagebox.showinfo("Update", "Download finished. Please restart manually.", parent=win)
+                label.config(text="Download finished. Please restart manually.")
 
         except Exception as e:
-            messagebox.showerror("Update failed", str(e), parent=win)
-            win.destroy()
+            label.config(text=f"Update failed:\n{e}")
 
-    threading.Thread(target=do_download, daemon=True).start()
+    # Button actions
+    def start_update():
+        update_btn.config(state="disabled")
+        skip_btn.config(state="disabled")
+        threading.Thread(target=do_download, daemon=True).start()
+
+    def skip_update():
+        win.destroy()
+
+    # Buttons
+    btn_frame = ttk.Frame(win)
+    btn_frame.pack(pady=5)
+
+    update_btn = ttk.Button(btn_frame, text="Update", bootstyle=SUCCESS, command=start_update)
+    update_btn.grid(row=0, column=0, padx=10)
+
+    skip_btn = ttk.Button(btn_frame, text="Skip", bootstyle=SECONDARY, command=skip_update)
+    skip_btn.grid(row=0, column=1, padx=10)
