@@ -29,7 +29,8 @@ import gui
 from updater import check_for_updates
 
 # Run on startup or add a button
-check_for_updates()
+root = tb.Window(themename="litera")
+check_for_updates(root)
 
 
 
