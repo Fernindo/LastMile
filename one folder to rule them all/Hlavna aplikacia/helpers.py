@@ -6,6 +6,7 @@ import shutil
 import base64
 import ctypes
 from ctypes import wintypes
+from typing import Any
 import tkinter as tk
 from tkinter import ttk, messagebox
 import tkinter.font as tkfont
@@ -621,16 +622,13 @@ def create_notes_panel(parent, project_name, json_path):
 # ---------------------------------------------------------------------------
 # Work estimation window (from praca.py)
 # ---------------------------------------------------------------------------
-def show_praca_window(cursor):
+def show_praca_window(cursor, commit_file):
     from tkinter import messagebox
     from ttkbootstrap import Button
-    import globals_state   # ⬅️ nový import
+    import praca
 
     cursor.execute("SELECT id, rola, plat_za_hodinu FROM pracovnik_roly LIMIT 4")
     roles = cursor.fetchall()
-    if not roles:
-        messagebox.showwarning("Upozornenie", "Žiadne roly v databáze.")
-        return
 
     praca_window = tk.Toplevel()
     praca_window.title("🛠️ Odhad pracovnej činnosti")
@@ -645,33 +643,42 @@ def show_praca_window(cursor):
     praca_window.configure(bg="#f9f9f9")
     praca_window.minsize(800, 400)
 
-    entries = []
-    def get_praca_data():
-        data = []
-        for row in entries:
-            rola = row["rola_var"].get()
-            osoby = row["osoby_var"].get()
-            hodiny = row["hodiny_var"].get()
-            if "plat_entry" in row:
-                plat = row["plat_var"].get()
-            else:
-                plat = row["plat_label"].cget("text")
-            spolu = row["spolu_label"].cget("text")
-            koef = row["koef_var"].get()
-            predaj = row["predaj_var"].get()
-            data.append([rola, osoby, hodiny, plat, spolu, koef, predaj])
-        return data
+    base_rows = praca.current_praca or praca.load_praca_from_project(commit_file)
+    base_rows = praca.normalize_praca_data(base_rows)
 
-    # 💾 uloženie dát do globálnej premennej
-    def save_praca_data():
-        globals_state.saved_praca_data = get_praca_data()
-        print("[DEBUG] saved_praca_data uložené:", globals_state.saved_praca_data)
-        messagebox.showinfo("Info", "Pracovné dáta boli uložené.")
+    entries: list[dict[str, Any]] = []
+
+    def get_praca_data():
+        data: list[dict[str, Any]] = []
+        for row in entries:
+            pay_editable = row.get("pay_editable", True)
+            plat = (
+                row["plat_var"].get()
+                if pay_editable
+                else row["plat_label"].cget("text")
+            )
+            data.append(
+                {
+                    "rola": row["rola_var"].get(),
+                    "osoby": row["osoby_var"].get(),
+                    "hodiny": row["hodiny_var"].get(),
+                    "plat": plat,
+                    "spolu": row["spolu_label"].cget("text"),
+                    "koeficient": row["koef_var"].get(),
+                    "predaj": row["predaj_var"].get(),
+                    "pay_editable": pay_editable,
+                    "role_id": row.get("role_id", ""),
+                }
+            )
+        return data
 
     praca_nakup_var = tk.StringVar(value="0.00")
     praca_predaj_var = tk.StringVar(value="0.00")
     praca_marza_var = tk.StringVar(value="0.00")
-    print("[DEBUG] get_praca_data() ->", get_praca_data())
+
+    def update_session_snapshot():
+        snapshot = praca.save_praca_data(get_praca_data())
+        return snapshot
 
     def recalculate():
         nakup_sum = 0.0
@@ -680,7 +687,7 @@ def show_praca_window(cursor):
             try:
                 osoby = int(row["osoby_var"].get())
                 hodiny = int(row["hodiny_var"].get())
-                if "plat_entry" in row:
+                if row.get("pay_editable", True):
                     plat = parse_float(row["plat_var"].get())
                 else:
                     plat = parse_float(row["plat_label"].cget("text"))
@@ -696,6 +703,7 @@ def show_praca_window(cursor):
         praca_nakup_var.set(f"{nakup_sum:.2f}")
         praca_predaj_var.set(f"{predaj_sum:.2f}")
         praca_marza_var.set(f"{predaj_sum - nakup_sum:.2f}")
+        update_session_snapshot()
 
     def change_int(var, delta, minimum=0):
         try:
@@ -724,44 +732,136 @@ def show_praca_window(cursor):
                 else:
                     change_int(var, delta, minimum)
 
-    def add_row(role_id=None, rola="", plat=0.0):
-        row = {}
+    def add_row(
+        role_id=None,
+        rola="",
+        plat="0.00",
+        osoby="1",
+        hodiny="8",
+        koef="1.0",
+        predaj="0.00",
+        pay_editable=None,
+    ):
+        row: dict[str, Any] = {}
         idx = len(entries) + 1
 
-        row["rola_var"] = tk.StringVar(value=rola)
-        tk.Entry(table_frame, textvariable=row["rola_var"], justify="center").grid(row=idx, column=0, padx=6, pady=4, sticky="nsew")
+        row["role_id"] = "" if role_id is None else str(role_id)
+        row["pay_editable"] = True if pay_editable is None else bool(pay_editable)
 
-        row["osoby_var"] = tk.StringVar(value="1")
-        Button(table_frame, text="−", bootstyle="warning", command=lambda: change_int(row["osoby_var"], -1, 1)).grid(row=idx, column=1, sticky="nsew", padx=2, pady=(6, 2))
-        tk.Entry(table_frame, textvariable=row["osoby_var"], justify="center").grid(row=idx, column=2, sticky="nsew", padx=2)
-        Button(table_frame, text="+", bootstyle="warning", command=lambda: change_int(row["osoby_var"], 1)).grid(row=idx, column=3, sticky="nsew", padx=2, pady=(6, 2))
+        row["rola_var"] = tk.StringVar(value=str(rola))
+        tk.Entry(
+            table_frame,
+            textvariable=row["rola_var"],
+            justify="center",
+        ).grid(row=idx, column=0, padx=6, pady=4, sticky="nsew")
 
-        row["hodiny_var"] = tk.StringVar(value="8")
-        Button(table_frame, text="−", bootstyle="warning", command=lambda: change_int(row["hodiny_var"], -2, 0)).grid(row=idx, column=4, sticky="nsew", padx=2, pady=(6, 2))
-        tk.Entry(table_frame, textvariable=row["hodiny_var"], justify="center").grid(row=idx, column=5, sticky="nsew", padx=2)
-        Button(table_frame, text="+", bootstyle="warning", command=lambda: change_int(row["hodiny_var"], 2)).grid(row=idx, column=6, sticky="nsew", padx=2, pady=(6, 2))
+        row["osoby_var"] = tk.StringVar(value=str(osoby))
+        Button(
+            table_frame,
+            text="−",
+            bootstyle="warning",
+            command=lambda: change_int(row["osoby_var"], -1, 1),
+        ).grid(row=idx, column=1, sticky="nsew", padx=2, pady=(6, 2))
+        tk.Entry(
+            table_frame,
+            textvariable=row["osoby_var"],
+            justify="center",
+        ).grid(row=idx, column=2, sticky="nsew", padx=2)
+        Button(
+            table_frame,
+            text="+",
+            bootstyle="warning",
+            command=lambda: change_int(row["osoby_var"], 1),
+        ).grid(row=idx, column=3, sticky="nsew", padx=2, pady=(6, 2))
 
-        if role_id is None:
-            row["plat_var"] = tk.StringVar(value=f"{plat:.2f}")
-            entry = tk.Entry(table_frame, textvariable=row["plat_var"], justify="center", width=10)
-            entry.grid(row=idx, column=7, sticky="nsew", padx=2)
-            row["plat_entry"] = entry
-        else:
-            row["plat_label"] = tk.Label(table_frame, text=f"{plat:.2f}", relief="groove", anchor="center", bg="#ffffff")
+        row["hodiny_var"] = tk.StringVar(value=str(hodiny))
+        Button(
+            table_frame,
+            text="−",
+            bootstyle="warning",
+            command=lambda: change_int(row["hodiny_var"], -2, 0),
+        ).grid(row=idx, column=4, sticky="nsew", padx=2, pady=(6, 2))
+        tk.Entry(
+            table_frame,
+            textvariable=row["hodiny_var"],
+            justify="center",
+        ).grid(row=idx, column=5, sticky="nsew", padx=2)
+        Button(
+            table_frame,
+            text="+",
+            bootstyle="warning",
+            command=lambda: change_int(row["hodiny_var"], 2),
+        ).grid(row=idx, column=6, sticky="nsew", padx=2, pady=(6, 2))
+
+        plat_value = str(plat)
+        if not row["pay_editable"]:
+            try:
+                plat_value = f"{parse_float(plat_value):.2f}"
+            except Exception:
+                plat_value = "0.00"
+            row["plat_label"] = tk.Label(
+                table_frame,
+                text=plat_value,
+                relief="groove",
+                anchor="center",
+                bg="#ffffff",
+            )
             row["plat_label"].grid(row=idx, column=7, sticky="nsew", padx=2)
+        else:
+            try:
+                plat_value = f"{parse_float(plat_value):.2f}"
+            except Exception:
+                plat_value = "0.00"
+            row["plat_var"] = tk.StringVar(value=plat_value)
+            entry = tk.Entry(
+                table_frame,
+                textvariable=row["plat_var"],
+                justify="center",
+                width=10,
+            )
+            entry.grid(row=idx, column=7, sticky="nsew", padx=2)
 
-        row["spolu_label"] = tk.Label(table_frame, text="0.00", relief="sunken", anchor="center", bg="#f0f0f0")
+        row["spolu_label"] = tk.Label(
+            table_frame,
+            text="0.00",
+            relief="sunken",
+            anchor="center",
+            bg="#f0f0f0",
+        )
         row["spolu_label"].grid(row=idx, column=8, sticky="nsew", padx=2)
 
-        row["koef_var"] = tk.StringVar(value="1.0")
-        Button(table_frame, text="−", bootstyle="warning", command=lambda: change_float(row["koef_var"], -0.1, 0.1)).grid(row=idx, column=9, sticky="nsew", padx=2, pady=(6, 2))
-        tk.Entry(table_frame, textvariable=row["koef_var"], justify="center").grid(row=idx, column=10, sticky="nsew", padx=2)
-        Button(table_frame, text="+", bootstyle="warning", command=lambda: change_float(row["koef_var"], 0.1)).grid(row=idx, column=11, sticky="nsew", padx=2, pady=(6, 2))
+        row["koef_var"] = tk.StringVar(value=str(koef))
+        Button(
+            table_frame,
+            text="−",
+            bootstyle="warning",
+            command=lambda: change_float(row["koef_var"], -0.1, 0.1),
+        ).grid(row=idx, column=9, sticky="nsew", padx=2, pady=(6, 2))
+        tk.Entry(
+            table_frame,
+            textvariable=row["koef_var"],
+            justify="center",
+        ).grid(row=idx, column=10, sticky="nsew", padx=2)
+        Button(
+            table_frame,
+            text="+",
+            bootstyle="warning",
+            command=lambda: change_float(row["koef_var"], 0.1),
+        ).grid(row=idx, column=11, sticky="nsew", padx=2, pady=(6, 2))
 
-        row["predaj_var"] = tk.StringVar(value="0.00")
-        tk.Entry(table_frame, textvariable=row["predaj_var"], justify="center").grid(row=idx, column=12, sticky="nsew", padx=2)
+        row["predaj_var"] = tk.StringVar(value=str(predaj))
+        tk.Entry(
+            table_frame,
+            textvariable=row["predaj_var"],
+            justify="center",
+        ).grid(row=idx, column=12, sticky="nsew", padx=2)
 
-        row["del_btn"] = Button(table_frame, text="✖", bootstyle="danger", command=lambda r=row: remove_specific_row(r))
+        row["del_btn"] = Button(
+            table_frame,
+            text="✖",
+            bootstyle="danger",
+            command=lambda r=row: remove_specific_row(r),
+        )
         row["del_btn"].grid(row=idx, column=13, sticky="nsew", padx=2, pady=(6, 2))
 
         entries.append(row)
@@ -770,7 +870,7 @@ def show_praca_window(cursor):
         row["osoby_var"].trace_add("write", lambda *args: recalculate())
         row["hodiny_var"].trace_add("write", lambda *args: recalculate())
         row["koef_var"].trace_add("write", lambda *args: recalculate())
-        if "plat_var" in row:
+        if row.get("pay_editable", True):
             row["plat_var"].trace_add("write", lambda *args: recalculate())
 
     def _remove_row_at(index: int):
@@ -797,13 +897,33 @@ def show_praca_window(cursor):
     top_frame = tk.Frame(praca_window, bg="#e9f0fb")
     top_frame.pack(fill="x", padx=15, pady=10)
 
-    Button(top_frame, text="➕ Pridať", bootstyle="success", width=12,
-           command=lambda: add_row(rola="Nová rola", plat=0)).pack(side="left", padx=10)
-    Button(top_frame, text="❌ Odstrániť", bootstyle="danger", width=12,
-           command=remove_row).pack(side="left", padx=10)
-    # 💾 nové tlačidlo
-    Button(top_frame, text="💾 Uložiť", bootstyle="info", width=12,
-           command=save_praca_data).pack(side="left", padx=10)
+    Button(
+        top_frame,
+        text="➕ Pridať",
+        bootstyle="success",
+        width=12,
+        command=lambda: add_row(rola="Nová rola", plat="0.00"),
+    ).pack(side="left", padx=10)
+    Button(
+        top_frame,
+        text="❌ Odstrániť",
+        bootstyle="danger",
+        width=12,
+        command=remove_row,
+    ).pack(side="left", padx=10)
+
+    def persist_and_close():
+        snapshot = update_session_snapshot()
+        praca.save_praca_to_project(commit_file, snapshot)
+        praca_window.destroy()
+
+    Button(
+        top_frame,
+        text="💾 Uložiť",
+        bootstyle="info",
+        width=12,
+        command=persist_and_close,
+    ).pack(side="left", padx=10)
 
     global table_frame
     table_frame = tk.Frame(praca_window, bg="#f2f2f2", bd=2, relief="ridge")
@@ -828,7 +948,7 @@ def show_praca_window(cursor):
             bg="#cfe2ff",
             relief="ridge",
             justify="center",
-            pady=5
+            pady=5,
         )
         label.grid(row=0, column=i, padx=6, pady=4, sticky="nsew")
         table_frame.grid_columnconfigure(i, weight=1)
@@ -836,24 +956,91 @@ def show_praca_window(cursor):
         if text == "−" and i in (1, 4, 9):
             field = "osoby_var" if i == 1 else "hodiny_var" if i == 4 else "koef_var"
             is_float = i == 9
-            label.bind("<Button-1>", lambda e, f=field, fl=is_float: adjust_column(f, -1 if not fl else -0.1, fl))
+            label.bind(
+                "<Button-1>",
+                lambda e, f=field, fl=is_float: adjust_column(
+                    f, -1 if not fl else -0.1, fl
+                ),
+            )
         elif text == "+" and i in (3, 6, 11):
             field = "osoby_var" if i == 3 else "hodiny_var" if i == 6 else "koef_var"
             is_float = i == 11
-            label.bind("<Button-1>", lambda e, f=field, fl=is_float: adjust_column(f, 1 if not fl else 0.1, fl))
+            label.bind(
+                "<Button-1>",
+                lambda e, f=field, fl=is_float: adjust_column(
+                    f, 1 if not fl else 0.1, fl
+                ),
+            )
 
-    for role in roles:
-        role_id, rola, plat = role
-        add_row(role_id=role_id, rola=rola, plat=plat)
+    if base_rows:
+        for row in base_rows:
+            add_row(
+                role_id=row.get("role_id") or None,
+                rola=row.get("rola", ""),
+                plat=row.get("plat", "0.00"),
+                osoby=row.get("osoby", "1"),
+                hodiny=row.get("hodiny", "8"),
+                koef=row.get("koeficient", "1.0"),
+                predaj=row.get("predaj", "0.00"),
+                pay_editable=row.get("pay_editable", True),
+            )
+    else:
+        if roles:
+            for role_id, rola, plat in roles:
+                add_row(
+                    role_id=role_id,
+                    rola=rola,
+                    plat=f"{plat:.2f}",
+                    pay_editable=False,
+                )
+        else:
+            add_row(rola="Nová rola", plat="0.00")
 
     summary_frame = tk.Frame(praca_window, bg="#e9f0fb")
     summary_frame.pack(fill="x", padx=15, pady=(0, 15))
 
-    tk.Label(summary_frame, text="Práca nákup:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
-    tk.Label(summary_frame, textvariable=praca_nakup_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
+    tk.Label(
+        summary_frame,
+        text="Práca nákup:",
+        font=("Segoe UI", 10),
+        bg="#e9f0fb",
+    ).pack(side="left", padx=(0, 5))
+    tk.Label(
+        summary_frame,
+        textvariable=praca_nakup_var,
+        font=("Segoe UI", 10, "bold"),
+        bg="#e9f0fb",
+    ).pack(side="left", padx=(0, 20))
 
-    tk.Label(summary_frame, text="Práca marža:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
-    tk.Label(summary_frame, textvariable=praca_marza_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
+    tk.Label(
+        summary_frame,
+        text="Práca marža:",
+        font=("Segoe UI", 10),
+        bg="#e9f0fb",
+    ).pack(side="left", padx=(0, 5))
+    tk.Label(
+        summary_frame,
+        textvariable=praca_marza_var,
+        font=("Segoe UI", 10, "bold"),
+        bg="#e9f0fb",
+    ).pack(side="left", padx=(0, 20))
 
-    tk.Label(summary_frame, text="Práca predaj:", font=("Segoe UI", 10), bg="#e9f0fb").pack(side="left", padx=(0, 5))
-    tk.Label(summary_frame, textvariable=praca_predaj_var, font=("Segoe UI", 10, "bold"), bg="#e9f0fb").pack(side="left", padx=(0, 20))
+    tk.Label(
+        summary_frame,
+        text="Práca predaj:",
+        font=("Segoe UI", 10),
+        bg="#e9f0fb",
+    ).pack(side="left", padx=(0, 5))
+    tk.Label(
+        summary_frame,
+        textvariable=praca_predaj_var,
+        font=("Segoe UI", 10, "bold"),
+        bg="#e9f0fb",
+    ).pack(side="left", padx=(0, 20))
+
+    def on_close():
+        snapshot = update_session_snapshot()
+        praca.save_praca_to_project(commit_file, snapshot)
+        praca_window.destroy()
+
+    praca_window.protocol("WM_DELETE_WINDOW", on_close)

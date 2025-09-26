@@ -8,8 +8,8 @@ import ttkbootstrap as tb
 import json
 import subprocess
 from PIL import Image, ImageTk
+import praca
 from helpers import ensure_user_config, secure_load_json, secure_save_json, enable_high_dpi_awareness, open_debug_menu
-from helpers import get_praca_data_func
 from doprava import show_doprava_window
 from doprava import load_doprava_from_project
 from helpers import secure_load_json, secure_save_json
@@ -468,7 +468,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         top,
         text="🛠️ Práca",
         bootstyle="light",
-        command=lambda: show_praca_window(cursor)
+        command=lambda: show_praca_window(cursor, commit_file)
     )
     praca_btn.pack(side="left", padx=(10, 0))
 
@@ -1626,36 +1626,22 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         pb.pack(padx=20, pady=20)
         pb.start()
 
-    import threading
-    import globals_state
+        def worker():
+            try:
+                praca_snapshot = praca.current_praca or praca.load_praca_from_project(commit_file)
+                praca_rows = praca.rows_for_export(praca_snapshot)
+                update_excel_from_basket(
+                    basket,
+                    project_entry.get(),
+                    commit_file,
+                    definicia_text=definition_entry.get(),
+                    praca_data=praca_rows,
+                )
+            finally:
+                pb.stop()
+                progress_win.destroy()
 
-    def export_with_progress():
-            reorder_basket_data(basket_tree, basket)
-
-            progress_win = tk.Toplevel(root)
-            progress_win.title("Export")
-            pb = tb.Progressbar(progress_win, mode="indeterminate", length=200)
-            pb.pack(padx=20, pady=20)
-            pb.start()
-
-            def worker():
-                try:
-                    praca_data = getattr(globals_state, "saved_praca_data", None)
-                    print("[DEBUG] worker -> saved_praca_data:", praca_data)
-
-                    update_excel_from_basket(
-                        basket,
-                        project_entry.get(),
-                        commit_file,
-                        definicia_text=definition_entry.get(),
-                        praca_data=praca_data  # ⬅️ odovzdáš uložené dáta
-                    )
-                finally:
-                    pb.stop()
-                    progress_win.destroy()
-
-            # ⬅️ tu je podstatné – worker sa spustí vo vlákne
-            threading.Thread(target=worker, daemon=True).start()
+        threading.Thread(target=worker, daemon=True).start()
 
 
 
@@ -2427,9 +2413,14 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                     "sync":                 info.sync,
                 })
             out["items"].append(sec_obj)
-            
-            doprava_snapshot = load_doprava_from_project(commit_file)
-            out["doprava"] = doprava_snapshot
+
+        doprava_snapshot = load_doprava_from_project(commit_file)
+        out["doprava"] = doprava_snapshot
+
+        praca_snapshot = praca.normalize_praca_data(
+            praca.current_praca or praca.load_praca_from_project(commit_file)
+        )
+        out["praca"] = praca_snapshot
         try:
             # uložiť iba nový archívny súbor s autorom
             secure_save_json(fullpath, out)
@@ -2440,6 +2431,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 "items": out["items"],
                 "notes": notes_list,
                 "notes_history": notes_history,
+                "praca": praca_snapshot,
             }
             # Keep original creator info in the main commit file (if it exists)
             if _prev_created_by:
@@ -2455,6 +2447,8 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             
             if current_doprava:
                 save_doprava_to_project(commit_file, current_doprava)
+            if praca_snapshot:
+                praca.save_praca_to_project(commit_file, praca_snapshot)
             _return_to_selector_or_exit()
             return
         
