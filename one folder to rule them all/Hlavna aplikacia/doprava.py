@@ -1,33 +1,78 @@
 import tkinter as tk
 from tkinter import StringVar
-from helpers import secure_load_json, secure_save_json
+
+from helpers import parse_float, secure_load_json, secure_save_json
 
 # In-memory doprava values for the current session
 current_doprava = {}
+
+DEFAULT_DOPRAVA = {
+    "cena_vyjazd": "30.00",
+    "pocet_vyjazdov": "0",
+    "cena_km": "0.55",
+    "vzdialenost": "0.0",
+    "pocet_ciest": "0",
+}
+
+
+def _normalize_value(key: str, value) -> str:
+    """Return doprava values stored as strings in a consistent format."""
+    if key in ("pocet_vyjazdov", "pocet_ciest"):
+        try:
+            # Allow floats like "2.0" or "2,0" but store as integers
+            num = int(parse_float(str(value)))
+            return str(max(0, num))
+        except Exception:
+            return DEFAULT_DOPRAVA[key]
+    if key in ("cena_vyjazd", "cena_km"):
+        try:
+            num = parse_float(str(value))
+            return f"{num:.2f}"
+        except Exception:
+            return DEFAULT_DOPRAVA[key]
+    if key == "vzdialenost":
+        try:
+            num = parse_float(str(value))
+            text = f"{num:.2f}".rstrip("0").rstrip(".")
+            return text or "0"
+        except Exception:
+            return DEFAULT_DOPRAVA[key]
+    return str(value or "")
+
+
+def normalize_doprava_data(data: dict | None) -> dict:
+    """Ensure all doprava fields are present and sanitized as strings."""
+    normalized = DEFAULT_DOPRAVA.copy()
+    if not isinstance(data, dict):
+        return normalized
+
+    for key in DEFAULT_DOPRAVA:
+        if key in data:
+            normalized[key] = _normalize_value(key, data.get(key))
+    return normalized
+
+
 def save_doprava_data(d: dict):
     global current_doprava
-    current_doprava = d.copy()
+    normalized = normalize_doprava_data(d)
+    current_doprava.clear()
+    current_doprava.update(normalized)
     print("DEBUG save_doprava_data loaded:", current_doprava)
 
 def load_doprava_from_project(commit_file: str):
     """Load doprava dict from the project JSON (with defaults)."""
     data = secure_load_json(commit_file, default={})
-    return data.get("doprava", {
-        "cena_vyjazd": "30.00",
-        "pocet_vyjazdov": "0",
-        "cena_km": "0.55",
-        "vzdialenost": "0.0",
-        "pocet_ciest": "0"
-    })
+    return normalize_doprava_data(data.get("doprava"))
 
 
 def save_doprava_to_project(commit_file: str, doprava_dict: dict):
     """Save doprava dict into the project JSON."""
     data = secure_load_json(commit_file, default={})
-    data["doprava"] = doprava_dict
+    normalized = normalize_doprava_data(doprava_dict)
+    data["doprava"] = normalized
     secure_save_json(commit_file, data)
     print(f"✅ Doprava uložená do {commit_file}")
-    print("DEBUG doprava content:", doprava_dict)
+    print("DEBUG doprava content:", normalized)
 
 
 def load_doprava_tuple(commit_file: str):
@@ -53,11 +98,12 @@ def show_doprava_window(commit_file: str):
     global current_doprava
 
     # Start with in-memory values if present, else load from file
-    settings = current_doprava or load_doprava_from_project(commit_file)
+    base_settings = current_doprava if current_doprava else load_doprava_from_project(commit_file)
+    settings = normalize_doprava_data(base_settings)
 
     # Ensure in-memory snapshot reflects what we display to the user
-    if not current_doprava:
-        current_doprava.update(settings)
+    current_doprava.clear()
+    current_doprava.update(settings)
 
     def compute_and_update(event=None):
         try:
@@ -90,9 +136,10 @@ def show_doprava_window(commit_file: str):
 
     def update_session_data():
         """Update the in-memory doprava values."""
+        normalized = normalize_doprava_data(collect_current_values())
         current_doprava.clear()
-        current_doprava.update(collect_current_values())
-        return current_doprava.copy()
+        current_doprava.update(normalized)
+        return normalized.copy()
 
     def bind_all(widget):
         widget.bind("<KeyRelease>", compute_and_update)
