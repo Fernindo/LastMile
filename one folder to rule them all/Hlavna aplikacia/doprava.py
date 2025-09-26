@@ -2,14 +2,17 @@ import tkinter as tk
 from tkinter import StringVar
 from helpers import secure_load_json, secure_save_json
 
-# Session-level variable (in-memory only until app closes)
+# In-memory doprava values for the current session
 current_doprava = {}
+def save_doprava_data(d: dict):
+    global current_doprava
+    current_doprava = d.copy()
+    print("DEBUG save_doprava_data loaded:", current_doprava)
 
-
-def load_doprava_from_project(json_path: str):
-    """Load doprava settings from a project JSON (with defaults)."""
-    project = secure_load_json(json_path, default={})
-    return project.get("doprava", {
+def load_doprava_from_project(commit_file: str):
+    """Load doprava dict from the project JSON (with defaults)."""
+    data = secure_load_json(commit_file, default={})
+    return data.get("doprava", {
         "cena_vyjazd": "30.00",
         "pocet_vyjazdov": "0",
         "cena_km": "0.55",
@@ -18,17 +21,18 @@ def load_doprava_from_project(json_path: str):
     })
 
 
-def save_doprava_to_project(json_path: str, data: dict):
-    """Save doprava settings into a project JSON."""
-    project = secure_load_json(json_path, default={})
-    project["doprava"] = data
-    secure_save_json(json_path, project)
-    print(f"✅ Doprava uložená do {json_path}")
+def save_doprava_to_project(commit_file: str, doprava_dict: dict):
+    """Save doprava dict into the project JSON."""
+    data = secure_load_json(commit_file, default={})
+    data["doprava"] = doprava_dict
+    secure_save_json(commit_file, data)
+    print(f"✅ Doprava uložená do {commit_file}")
+    print("DEBUG doprava content:", doprava_dict)
 
 
-def load_doprava_tuple(json_path: str):
+def load_doprava_tuple(commit_file: str):
     """Return doprava as a tuple for Excel export."""
-    data = load_doprava_from_project(json_path)
+    data = load_doprava_from_project(commit_file)
     try:
         cena_vyjazd = float(data.get("cena_vyjazd", 0))
         pocet_vyjazdov = int(data.get("pocet_vyjazdov", 0))
@@ -43,13 +47,13 @@ def load_doprava_tuple(json_path: str):
         return None
 
 
-def show_doprava_window(project_json_path: str):
-    """Open the doprava window bound to a specific project JSON."""
+def show_doprava_window(commit_file: str):
+    """Open the Doprava window bound to a specific project JSON."""
     from ttkbootstrap import Button
     global current_doprava
 
-    # Start with session data if available, else load from file
-    settings = current_doprava or load_doprava_from_project(project_json_path)
+    # Start with in-memory values if present, else load from file
+    settings = current_doprava or load_doprava_from_project(commit_file)
 
     def compute_and_update(event=None):
         try:
@@ -73,7 +77,6 @@ def show_doprava_window(project_json_path: str):
 
     def update_session_data():
         """Update the in-memory doprava values."""
-        nonlocal cena_vyjazd_var, pocet_vyjazdov_var, cena_km_var, vzdialenost_var, pocet_ciest_var
         current_doprava.update({
             "cena_vyjazd": cena_vyjazd_var.get(),
             "pocet_vyjazdov": pocet_vyjazdov_var.get(),
@@ -167,14 +170,14 @@ def show_doprava_window(project_json_path: str):
     tk.Label(frame_spolu, text="Celková suma:").pack(anchor="w")
     tk.Label(frame_spolu, textvariable=vysledok_spolu_var, font=("Segoe UI", 12, "bold")).pack(anchor="w")
 
-    # Save button → updates memory (not file)
+    # 💾 Save button → now only closes the window
     Button(win, text="💾 Uložiť dopravu", bootstyle="success",
-           command=update_session_data).pack(pady=10, ipadx=10, ipady=5)
+           command=win.destroy).pack(pady=10, ipadx=10, ipady=5)
 
     compute_and_update()
 
     def on_close():
-        update_session_data()  # sync to memory only
+        update_session_data()  # keep memory updated
         win.destroy()
 
     win.protocol("WM_DELETE_WINDOW", on_close)

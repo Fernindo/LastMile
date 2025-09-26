@@ -91,8 +91,16 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         "priezvisko": priezvisko or "",
         "username": username or ""
     }
-
-
+    commit_file  = json_path
+    try:
+        from doprava import save_doprava_data
+        _commit_data = secure_load_json(commit_file, default={})
+        _dop = _commit_data.get("doprava")
+        if isinstance(_dop, dict):
+            save_doprava_data(_dop)   # updates global current_doprava
+            print("[DEBUG] Loaded doprava from project:", _dop)
+    except Exception as e:
+        print("[DEBUG] Failed to load doprava:", e)
     # ─── Prepare paths and DB ────────────────────────────────────────────
     project_name = os.path.basename(project_dir)
     json_dir     = os.path.join(project_dir, "projects")
@@ -101,7 +109,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         os.makedirs(json_dir, exist_ok=True)
     except Exception:
         pass
-    commit_file  = json_path
+    
 
     conn, db_type = get_database_connection()
     cursor = conn.cursor()
@@ -156,15 +164,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             except Exception:
                 try: conn.rollback()
                 except: pass
-        # gui.py, early in start(), after commit_file is known
-        try:
-            _commit_data = secure_load_json(commit_file, default={})
-            _dop = _commit_data.get("doprava")
-            if isinstance(_dop, dict):
-                from doprava import save_doprava_data
-                save_doprava_data(_dop)   # overwrite global settings with project snapshot
-        except Exception:
-            pass
+       
 
 
         return False
@@ -2452,6 +2452,9 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
 
             UNSAVED_NOTES.pop(project_name, None)
             # After successful save, return to selector within this process
+            
+            if current_doprava:
+                save_doprava_to_project(commit_file, current_doprava)
             _return_to_selector_or_exit()
             return
         
@@ -2461,9 +2464,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 f"Nepodarilo sa uložiť súbor:\n{e}"
             )
             return
-    from doprava import current_doprava, save_doprava_to_project
-    if current_doprava:
-        save_doprava_to_project(commit_file, current_doprava)
+    
 
         # Safely close the window (avoid TclError if already destroyed)
         """
