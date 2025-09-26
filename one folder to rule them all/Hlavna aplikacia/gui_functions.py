@@ -502,10 +502,12 @@ def update_excel_from_basket(basket: Basket, project_name, json_path, definicia_
     update_excel(
         excel_data,
         project_name,
-        notes_text=notes_lines,   # pass the list of checked notes
+        notes_text=notes_lines,
         definicia_text=definicia_text,
         praca_data=praca_data,
+        doprava_json_path=json_path,   # 👈 pass the same file as the basket
     )
+
 
 
 

@@ -10,6 +10,10 @@ import subprocess
 from PIL import Image, ImageTk
 from helpers import ensure_user_config, secure_load_json, secure_save_json, enable_high_dpi_awareness, open_debug_menu
 from helpers import get_praca_data_func
+from doprava import show_doprava_window
+from doprava import load_doprava_from_project
+from helpers import secure_load_json, secure_save_json
+from doprava import current_doprava, save_doprava_to_project
 
 UI_SETTINGS_FILE = ensure_user_config("ui_settings.json")
 
@@ -152,6 +156,16 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             except Exception:
                 try: conn.rollback()
                 except: pass
+        # gui.py, early in start(), after commit_file is known
+        try:
+            _commit_data = secure_load_json(commit_file, default={})
+            _dop = _commit_data.get("doprava")
+            if isinstance(_dop, dict):
+                from doprava import save_doprava_data
+                save_doprava_data(_dop)   # overwrite global settings with project snapshot
+        except Exception:
+            pass
+
 
         return False
 
@@ -462,7 +476,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
         top,
         text="🚗 Doprava",
         bootstyle="light",
-        command=show_doprava_window
+        command=lambda: show_doprava_window(commit_file)   # 👈 pass current project JSON
     )
     doprava_btn.pack(side="left", padx=(10, 0))
 
@@ -2413,7 +2427,9 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                     "sync":                 info.sync,
                 })
             out["items"].append(sec_obj)
-
+            
+            doprava_snapshot = load_doprava_from_project(commit_file)
+            out["doprava"] = doprava_snapshot
         try:
             # uložiť iba nový archívny súbor s autorom
             secure_save_json(fullpath, out)
@@ -2438,14 +2454,19 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
             # After successful save, return to selector within this process
             _return_to_selector_or_exit()
             return
+        
         except Exception as e:
             messagebox.showerror(
                 "Chyba pri ukladaní",
                 f"Nepodarilo sa uložiť súbor:\n{e}"
             )
             return
+    from doprava import current_doprava, save_doprava_to_project
+    if current_doprava:
+        save_doprava_to_project(commit_file, current_doprava)
 
         # Safely close the window (avoid TclError if already destroyed)
+        """
         try:
             root.destroy()
         except tk.TclError:
@@ -2459,7 +2480,7 @@ def start(project_dir, json_path, meno="", priezvisko="", username="", user_id=N
                 subprocess.Popen([sys.executable, selector_path],
                                  cwd=os.path.dirname(selector_path) or None)
         except Exception as e:
-            messagebox.showerror("Chyba", f"Nepodarilo sa spustiť Project Selector:\n{e}")
+            messagebox.showerror("Chyba", f"Nepodarilo sa spustiť Project Selector:\n{e}")"""
 
 
 

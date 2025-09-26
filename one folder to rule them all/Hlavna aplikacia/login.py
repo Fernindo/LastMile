@@ -30,7 +30,7 @@ from updater import check_for_updates
 
 # Run on startup or add a button
 root = tb.Window(themename="litera")
-check_for_updates(root)
+#check_for_updates(root)
 
 
 

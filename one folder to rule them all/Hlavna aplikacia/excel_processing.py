@@ -7,10 +7,11 @@ from tkinter import filedialog
 import xlwings as xw
 from xlwings.constants import BordersIndex as BI, BorderWeight as BW, LineStyle, HAlign
 
-from doprava import load_doprava_data
+from doprava import load_doprava_tuple
 
 
-def update_excel(selected_items, project_name, notes_text="", definicia_text="", praca_data=None):
+def update_excel(selected_items, project_name, notes_text="", definicia_text="", praca_data=None,doprava_json_path=None):
+                 
     """Generate an Excel report from selected basket items + doprava + práca."""
     if not selected_items:
         print("⚠ No items selected for Excel.")
@@ -302,13 +303,16 @@ def update_excel(selected_items, project_name, notes_text="", definicia_text="",
                     sheet.cells(r_idx, start_col + c_idx).value = val
         
         # ----- doprava -----
-        doprava_data = load_doprava_data()
+        # ----- doprava -----
+        doprava_data = load_doprava_tuple(doprava_json_path) if doprava_json_path else None
+
+
         if doprava_data:
             row = last_item_row + 9
             cena_vyjazd, pocet_vyjazdov, cena_ba, cena_km, cena_mimo = doprava_data
             sheet.cells(row, 13).value = cena_vyjazd     # M = 1 výjazd v BA
             sheet.cells(row, 14).value = pocet_vyjazdov  # N = počet výjazdov
-            sheet.cells(row, 15).value = cena_ba         # O = celková cena BA
+            sheet.cells(row, 15).formula = f"=M{row}*N{row}"         # O = celková cena BA   
             sheet.cells(row, 16).value = cena_km         # P = €/km mimo BA
             sheet.cells(row, 17).value = cena_mimo       # Q = celková cena mimo BA
 

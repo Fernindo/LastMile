@@ -1,20 +1,34 @@
 import tkinter as tk
 from tkinter import StringVar
-from helpers import ensure_user_config, secure_load_json, secure_save_json
+from helpers import secure_load_json, secure_save_json
 
-# cesta k JSON súboru kde ukladáme nastavenia dopravy
-SETTINGS_FILE = ensure_user_config("doprava_settings.json", default_content={
-    "cena_vyjazd": "30.00",
-    "pocet_vyjazdov": "0",
-    "cena_km": "0.55",
-    "vzdialenost": "0.0",
-    "pocet_ciest": "0"
-})
+# Session-level variable (in-memory only until app closes)
+current_doprava = {}
 
 
-def load_doprava_data():
-    """Načíta uložené nastavenia dopravy ako tuple pre export."""
-    data = secure_load_json(SETTINGS_FILE, default={})
+def load_doprava_from_project(json_path: str):
+    """Load doprava settings from a project JSON (with defaults)."""
+    project = secure_load_json(json_path, default={})
+    return project.get("doprava", {
+        "cena_vyjazd": "30.00",
+        "pocet_vyjazdov": "0",
+        "cena_km": "0.55",
+        "vzdialenost": "0.0",
+        "pocet_ciest": "0"
+    })
+
+
+def save_doprava_to_project(json_path: str, data: dict):
+    """Save doprava settings into a project JSON."""
+    project = secure_load_json(json_path, default={})
+    project["doprava"] = data
+    secure_save_json(json_path, project)
+    print(f"✅ Doprava uložená do {json_path}")
+
+
+def load_doprava_tuple(json_path: str):
+    """Return doprava as a tuple for Excel export."""
+    data = load_doprava_from_project(json_path)
     try:
         cena_vyjazd = float(data.get("cena_vyjazd", 0))
         pocet_vyjazdov = int(data.get("pocet_vyjazdov", 0))
@@ -29,18 +43,13 @@ def load_doprava_data():
         return None
 
 
-def save_doprava_data(data):
-    """Uloží nastavenia dopravy do JSON."""
-    try:
-        secure_save_json(SETTINGS_FILE, data)
-        print("✅ Doprava uložená.")
-    except Exception as e:
-        print(f"❌ Chyba pri ukladaní dopravy: {e}")
-
-
-def show_doprava_window():
-    """Otvori okno na výpočet a uloženie dopravy (s pôvodným dizajnom)."""
+def show_doprava_window(project_json_path: str):
+    """Open the doprava window bound to a specific project JSON."""
     from ttkbootstrap import Button
+    global current_doprava
+
+    # Start with session data if available, else load from file
+    settings = current_doprava or load_doprava_from_project(project_json_path)
 
     def compute_and_update(event=None):
         try:
@@ -59,6 +68,19 @@ def show_doprava_window():
         vysledok_ba_var.set(f"{ba_total:.2f} €")
         vysledok_mimo_var.set(f"{mimo_total:.2f} €")
         vysledok_spolu_var.set(f"{ba_total + mimo_total:.2f} €")
+
+        update_session_data()  # keep memory in sync
+
+    def update_session_data():
+        """Update the in-memory doprava values."""
+        nonlocal cena_vyjazd_var, pocet_vyjazdov_var, cena_km_var, vzdialenost_var, pocet_ciest_var
+        current_doprava.update({
+            "cena_vyjazd": cena_vyjazd_var.get(),
+            "pocet_vyjazdov": pocet_vyjazdov_var.get(),
+            "cena_km": cena_km_var.get(),
+            "vzdialenost": vzdialenost_var.get(),
+            "pocet_ciest": pocet_ciest_var.get(),
+        })
 
     def bind_all(widget):
         widget.bind("<KeyRelease>", compute_and_update)
@@ -94,8 +116,7 @@ def show_doprava_window():
     win.geometry(f"{width}x{height}+{x}+{y}")
     win.minsize(300, 450)
 
-    settings = secure_load_json(SETTINGS_FILE, default={})
-
+    # Variables
     cena_vyjazd_var = StringVar(value=settings.get("cena_vyjazd", "30.00"))
     pocet_vyjazdov_var = StringVar(value=settings.get("pocet_vyjazdov", "0"))
     vysledok_ba_var = StringVar(value="0.00 €")
@@ -107,16 +128,10 @@ def show_doprava_window():
 
     vysledok_spolu_var = StringVar(value="0.00 €")
 
-    for var in (
-        cena_vyjazd_var,
-        pocet_vyjazdov_var,
-        cena_km_var,
-        vzdialenost_var,
-        pocet_ciest_var,
-    ):
+    for var in (cena_vyjazd_var, pocet_vyjazdov_var, cena_km_var, vzdialenost_var, pocet_ciest_var):
         var.trace_add("write", lambda *a: compute_and_update())
 
-    # sekcia BA
+    # 🚗 BA section
     frame_ba = tk.LabelFrame(win, text="🚗 V Bratislave", padx=10, pady=10)
     frame_ba.pack(fill="x", padx=10, pady=(10, 5))
 
@@ -130,7 +145,7 @@ def show_doprava_window():
     tk.Label(frame_ba, text="Celková cena (BA):").pack(anchor="w", pady=(5, 0))
     tk.Label(frame_ba, textvariable=vysledok_ba_var, font=("Segoe UI", 10, "bold")).pack(anchor="w")
 
-    # sekcia mimo BA
+    # 🚐 Mimo BA section
     frame_mimo = tk.LabelFrame(win, text="🚐 Mimo Bratislavu", padx=10, pady=10)
     frame_mimo.pack(fill="x", padx=10, pady=(5, 5))
 
@@ -145,34 +160,21 @@ def show_doprava_window():
     tk.Label(frame_mimo, text="Celková cena (mimo BA):").pack(anchor="w", pady=(5, 0))
     tk.Label(frame_mimo, textvariable=vysledok_mimo_var, font=("Segoe UI", 10, "bold")).pack(anchor="w")
 
-    # sekcia spolu
+    # 💰 Together
     frame_spolu = tk.LabelFrame(win, text="💰 Spolu doprava", padx=10, pady=10)
     frame_spolu.pack(fill="x", padx=10, pady=(5, 10))
 
     tk.Label(frame_spolu, text="Celková suma:").pack(anchor="w")
     tk.Label(frame_spolu, textvariable=vysledok_spolu_var, font=("Segoe UI", 12, "bold")).pack(anchor="w")
 
-    # tlačidlo uložiť
-    from ttkbootstrap import Button
+    # Save button → updates memory (not file)
     Button(win, text="💾 Uložiť dopravu", bootstyle="success",
-           command=lambda: save_doprava_data({
-               "cena_vyjazd": cena_vyjazd_var.get(),
-               "pocet_vyjazdov": pocet_vyjazdov_var.get(),
-               "cena_km": cena_km_var.get(),
-               "vzdialenost": vzdialenost_var.get(),
-               "pocet_ciest": pocet_ciest_var.get(),
-           })).pack(pady=10, ipadx=10, ipady=5)
+           command=update_session_data).pack(pady=10, ipadx=10, ipady=5)
 
     compute_and_update()
 
     def on_close():
-        save_doprava_data({
-            "cena_vyjazd": cena_vyjazd_var.get(),
-            "pocet_vyjazdov": pocet_vyjazdov_var.get(),
-            "cena_km": cena_km_var.get(),
-            "vzdialenost": vzdialenost_var.get(),
-            "pocet_ciest": pocet_ciest_var.get(),
-        })
+        update_session_data()  # sync to memory only
         win.destroy()
 
     win.protocol("WM_DELETE_WINDOW", on_close)
