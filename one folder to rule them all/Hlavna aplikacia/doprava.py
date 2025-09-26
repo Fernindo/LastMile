@@ -238,7 +238,8 @@ def show_doprava_window(commit_file: str):
     compute_and_update()
 
     def on_close():
-        update_session_data()  # keep memory updated
+        values = update_session_data()
+        save_doprava_to_project(commit_file, values)  # ensure persistence
         win.destroy()
 
     win.protocol("WM_DELETE_WINDOW", on_close)
