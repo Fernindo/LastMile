@@ -55,6 +55,10 @@ def show_doprava_window(commit_file: str):
     # Start with in-memory values if present, else load from file
     settings = current_doprava or load_doprava_from_project(commit_file)
 
+    # Ensure in-memory snapshot reflects what we display to the user
+    if not current_doprava:
+        current_doprava.update(settings)
+
     def compute_and_update(event=None):
         try:
             ba_total = float(cena_vyjazd_var.get()) * float(pocet_vyjazdov_var.get())
@@ -75,15 +79,20 @@ def show_doprava_window(commit_file: str):
 
         update_session_data()  # keep memory in sync
 
-    def update_session_data():
-        """Update the in-memory doprava values."""
-        current_doprava.update({
+    def collect_current_values():
+        return {
             "cena_vyjazd": cena_vyjazd_var.get(),
             "pocet_vyjazdov": pocet_vyjazdov_var.get(),
             "cena_km": cena_km_var.get(),
             "vzdialenost": vzdialenost_var.get(),
             "pocet_ciest": pocet_ciest_var.get(),
-        })
+        }
+
+    def update_session_data():
+        """Update the in-memory doprava values."""
+        current_doprava.clear()
+        current_doprava.update(collect_current_values())
+        return current_doprava.copy()
 
     def bind_all(widget):
         widget.bind("<KeyRelease>", compute_and_update)
@@ -171,8 +180,13 @@ def show_doprava_window(commit_file: str):
     tk.Label(frame_spolu, textvariable=vysledok_spolu_var, font=("Segoe UI", 12, "bold")).pack(anchor="w")
 
     # 💾 Save button → now only closes the window
+    def persist_and_close():
+        values = update_session_data()
+        save_doprava_to_project(commit_file, values)
+        win.destroy()
+
     Button(win, text="💾 Uložiť dopravu", bootstyle="success",
-           command=win.destroy).pack(pady=10, ipadx=10, ipady=5)
+           command=persist_and_close).pack(pady=10, ipadx=10, ipady=5)
 
     compute_and_update()
 
